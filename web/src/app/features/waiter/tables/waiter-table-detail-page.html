@@ -3,6 +3,17 @@
     <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
     <span class="title">{{ name() || 'Table' }}</span>
   </button>
+  @if (bill(); as b) {
+    @if (b.sessionOpen) {
+      <div class="mode-combo" title="Customer self-ordering at this table">
+        <app-combo-box
+          [options]="selfOrderModeOptions"
+          [value]="b.selfOrderMode"
+          (valueChange)="setSelfOrderMode($event)"
+        />
+      </div>
+    }
+  }
   <div class="head-actions">
     @if (canPay()) {
       <button type="button" class="pay" (click)="openPay()">Pay</button>
@@ -15,20 +26,6 @@
 </header>
 
 <section class="table-body">
-  @if (bill(); as b) {
-    @if (b.sessionOpen) {
-      <div class="mode-row">
-        <span class="mode-label">Customers</span>
-        <div class="mode-combo">
-          <app-combo-box
-            [options]="selfOrderModeOptions"
-            [value]="b.selfOrderMode"
-            (valueChange)="setSelfOrderMode($event)"
-          />
-        </div>
-      </div>
-    }
-  }
   @if (loading()) {
     <p class="state">Loading…</p>
   } @else if (error()) {

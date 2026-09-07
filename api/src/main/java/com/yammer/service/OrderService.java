@@ -122,7 +122,7 @@ public class OrderService {
      * and a self-order mode other than DISALLOW. Under CONFIRM the order enters the
      * APPROVAL status — invisible on the kanban and the bill until the waiter approves.
      */
-    public UUID placeCustomerOrder(UUID orderPointId, CustomerOrderRequest request) {
+    public OrderEntity placeCustomerOrder(UUID orderPointId, CustomerOrderRequest request) {
         OrderPointEntity op = orderPointRepository.findById(orderPointId)
                 .orElseThrow(() -> new ResponseStatusException(
                         HttpStatus.NOT_FOUND, "Order point not found: " + orderPointId));
@@ -152,7 +152,7 @@ public class OrderService {
         order.setStatus("CONFIRM".equals(op.getSelfOrderMode()) ? "APPROVAL" : "ORDERED");
         OrderEntity savedOrder = orderRepository.save(order);
         orderItemRepository.saveAll(itemsFor(savedOrder.getId(), lines, null));
-        return savedOrder.getId();
+        return savedOrder;
     }
 
     /** A validated, price-snapshotted customer order line (resolved from the point's menu). */

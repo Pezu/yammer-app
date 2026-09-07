@@ -10,6 +10,7 @@ import com.yammer.dto.netopia.NetopiaIpnRequest;
 import com.yammer.dto.netopia.NetopiaIpnResponse;
 import com.yammer.entity.CustomerSessionEntity;
 import com.yammer.entity.LocationEntity;
+import com.yammer.entity.OrderEntity;
 import com.yammer.entity.OrderPointEntity;
 import com.yammer.repository.LocationRepository;
 import com.yammer.repository.OrderPointRepository;
@@ -106,7 +107,8 @@ public class PublicController {
         if (selfPaysOnline(op)) {
             return onlinePaymentService.start(op, request);
         }
-        return CustomerOrderResponse.placed(orderService.placeCustomerOrder(opId, request));
+        OrderEntity order = orderService.placeCustomerOrder(opId, request);
+        return CustomerOrderResponse.placed(order.getId(), "APPROVAL".equals(order.getStatus()));
     }
 
     /**

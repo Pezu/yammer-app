@@ -40,6 +40,8 @@ export interface PlaceOrderResult {
   orderId: string | null;
   paymentUrl: string | null;
   reference: string | null;
+  /** The order was born in APPROVAL status (table in CONFIRM mode) — the waiter must accept it. */
+  pendingApproval: boolean;
 }
 
 /** Online-payment intent status, polled by the payment-return page. */

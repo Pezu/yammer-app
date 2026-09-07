@@ -110,24 +110,11 @@
 }
 
 /* customer self-order mode setter */
-.mode-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
-  margin-bottom: 0.6rem;
-}
-
-.mode-label {
-  font-size: 0.78rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--muted);
-}
-
+/* customer self-order mode — sits in the header between the table name and the actions */
 .mode-combo {
-  width: 190px;
+  flex: 0 1 130px;
+  min-width: 110px;
+  margin-left: auto;
 }
 
 /* paid/unpaid view switcher */

@@ -85,6 +85,7 @@ export class WaiterTablesPage {
     if (!this.locationId) {
       return;
     }
+    this.board.set([]); // fresh board each time the picker opens
     this.pickerOpen.set(true);
     this.loadBoard();
   }
@@ -94,11 +95,18 @@ export class WaiterTablesPage {
     this.loadAssigned();
   }
 
+  /**
+   * Load the picker board. The "Loading…" placeholder is shown only on the first load;
+   * refreshes after an assign/unassign update the tiles in place so the picker never
+   * flashes away and back.
+   */
   private loadBoard(): void {
     if (!this.locationId) {
       return;
     }
-    this.pickerLoading.set(true);
+    if (this.board().length === 0) {
+      this.pickerLoading.set(true);
+    }
     this.orderPointService.assignable(this.locationId).subscribe({
       next: (board) => {
         this.board.set(board);

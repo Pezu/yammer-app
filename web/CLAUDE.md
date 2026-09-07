@@ -57,7 +57,11 @@ web/src/app/
 │   │                                 #   flow yet — those come with the customer-identity port.)
 │   │                                 # Approval flow: first scan auto-joins the open session (token in
 │   │                                 #   localStorage so re-scans resume it), "waiting for waiter"
-│   │                                 #   banner polls until APPROVED; DISALLOW mode = menu only;
+│   │                                 #   banner polls until APPROVED; DISALLOW mode = menu only
+│   │                                 #   (with a "self-ordering is off" notice); the after-order
+│   │                                 #   message uses the server's pendingApproval flag, not the
+│   │                                 #   cached table mode, and the table state is re-read after
+│   │                                 #   each order;
 │   │                                 #   CONFIRM mode = orders go to the waiter's Approvals first.
 │   │                                 # ONLINE self-pay: Place order redirects to Netopia; the
 │   │                                 #   payment-return page polls /public/payments/{ref}/status.
@@ -68,10 +72,12 @@ web/src/app/
 │   │                                 #   opening the assign picker (full TABLE/BAR board with
 │   │                                 #   status: multi-user points show "N assigned" and always
 │   │                                 #   accept; single-user show Free/Yours/Taken — <name>).
+│   │                                 #   The picker refreshes its tiles in place (no flash).
 │   │                                 #   Assigning OPENS the table session (unassign is refused
 │   │                                 #   with a 409 message while the session is open — only
 │   │                                 #   Close table frees it). Tapping a tile → /waiter/tables/:id = the
-│   │                                 #   session's combined bill with an Unpaid/Paid view combo
+│   │                                 #   session's combined bill; header = name · self-order combo
+│   │                                 #   (Allowed/Confirm/Disabled) · Pay/Order; Unpaid/Paid view combo
 │   │                                 #   (default Unpaid), the pay sheet, and — once everything
 │   │                                 #   is paid — the "Close table" button, the ONLY way to end
 │   │                                 #   the session (frees the table, back to the tiles).

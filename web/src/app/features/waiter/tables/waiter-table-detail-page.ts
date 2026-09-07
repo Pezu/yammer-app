@@ -150,9 +150,9 @@ export class WaiterTableDetailPage {
 
   /** Customer self-ordering at this table — set by the assigned waiter. */
   readonly selfOrderModeOptions = [
-    { id: 'ALLOW', name: 'Self order' },
-    { id: 'CONFIRM', name: 'Self order + confirm' },
-    { id: 'DISALLOW', name: 'No self order' },
+    { id: 'ALLOW', name: 'Allowed' },
+    { id: 'CONFIRM', name: 'Confirm' },
+    { id: 'DISALLOW', name: 'Disabled' },
   ];
 
   setSelfOrderMode(mode: string): void {

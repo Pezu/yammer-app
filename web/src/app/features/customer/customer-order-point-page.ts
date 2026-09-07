@@ -58,7 +58,7 @@ import { LEGAL_LINKS, SiteFooter } from '../../shared/site-footer.component';
       } @else if (op(); as o) {
         @if (placed()) {
           <div class="placed" role="status">
-            {{ o.selfOrderMode === 'CONFIRM' ? 'Your order was sent to the waiter for approval.' : 'Your order has been sent. Thank you!' }}
+            {{ placedPendingApproval() ? 'Your order was sent to the waiter for approval.' : 'Your order has been sent. Thank you!' }}
           </div>
         }
         @if (orderError()) {
@@ -73,6 +73,8 @@ import { LEGAL_LINKS, SiteFooter } from '../../shared/site-footer.component';
           } @else if (customerStatus() === 'DENIED') {
             <div class="order-err" role="alert">The waiter declined access at this table.</div>
           }
+        } @else if (o.sessionOpen && o.selfOrderMode === 'DISALLOW') {
+          <div class="approval-note" role="status">Self-ordering is off at this table — please order with your waiter.</div>
         }
 
         @if (o.menu.length > 0) {
@@ -552,6 +554,8 @@ export class CustomerOrderPointPage implements OnDestroy {
   readonly cart = signal<Record<string, number>>({});
   readonly placing = signal(false);
   readonly placed = signal(false);
+  /** Whether the last placed order awaits the waiter's approval (from the server, not the cached mode). */
+  readonly placedPendingApproval = signal(false);
   readonly orderError = signal<string | null>(null);
 
   // approval: the browser keeps a per-table token; a re-scan resumes the approved session
@@ -682,6 +686,19 @@ export class CustomerOrderPointPage implements OnDestroy {
     }
   }
 
+  /** Re-read the table (mode / open state / approval) so the UI follows the waiter's latest settings. */
+  private refreshOrderPoint(): void {
+    this.service.getOrderPoint(this.opId, this.storedToken()).subscribe({
+      next: (op) => {
+        this.op.set(op);
+        this.customerStatus.set(op.customerStatus);
+      },
+      error: () => {
+        /* keep what we have */
+      },
+    });
+  }
+
   private startApprovalPoll(): void {
     if (this.approvalPoll) return;
     this.approvalPoll = setInterval(() => {
@@ -774,7 +791,9 @@ export class CustomerOrderPointPage implements OnDestroy {
           return;
         }
         this.placing.set(false);
+        this.placedPendingApproval.set(result.pendingApproval);
         this.placed.set(true);
+        this.refreshOrderPoint();
       },
       error: (err: HttpErrorResponse) => {
         this.placing.set(false);
