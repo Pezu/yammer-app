@@ -155,6 +155,80 @@ public class OrderService {
         return savedOrder;
     }
 
+
+    /** An order line reduced to what the bill aggregates. */
+    record Piece(UUID menuItemId, String name, BigDecimal price, long quantity, boolean paid,
+                         BigDecimal originalPrice) {
+        String productKey() {
+            return menuItemId != null ? menuItemId.toString() : name;
+        }
+    }
+
+    /**
+     * Re-join the halves of split units that are now fully paid: the PAID fragments of a
+     * product (those carrying {@code originalPrice}) are summed per original price, every
+     * whole original price becomes one regular paid unit and only a remaining fraction
+     * stays a partial line. A fragment whose counterpart was recorded before the paid half
+     * got its marker is matched by price (paid, unmarked, exactly the missing amount).
+     * Display-only — nothing is written. Unpaid fragments are left as they are.
+     */
+    static List<Piece> mergeSettledSplits(List<Piece> pieces) {
+        List<List<Piece>> slots = new ArrayList<>();
+        Map<String, List<Integer>> groups = new LinkedHashMap<>();
+        for (int i = 0; i < pieces.size(); i++) {
+            Piece p = pieces.get(i);
+            slots.add(new ArrayList<>(List.of(p)));
+            if (p.paid() && p.originalPrice() != null && p.price() != null) {
+                groups.computeIfAbsent(p.productKey() + "|" + p.originalPrice(), k -> new ArrayList<>()).add(i);
+            }
+        }
+        if (groups.isEmpty()) {
+            return pieces;
+        }
+        for (List<Integer> idx : groups.values()) {
+            Piece first = pieces.get(idx.get(0));
+            BigDecimal original = first.originalPrice();
+            BigDecimal sum = BigDecimal.ZERO;
+            for (int i : idx) {
+                Piece p = pieces.get(i);
+                sum = sum.add(p.price().multiply(BigDecimal.valueOf(p.quantity())));
+                slots.get(i).clear();
+            }
+            long full = original.signum() > 0 ? sum.divideToIntegralValue(original).longValue() : 0;
+            BigDecimal leftover = sum.subtract(original.multiply(BigDecimal.valueOf(full)));
+            if (leftover.signum() > 0) {
+                // legacy counterpart: a paid, unmarked unit priced at exactly the missing part
+                BigDecimal missing = original.subtract(leftover);
+                outer:
+                for (List<Piece> slot : slots) {
+                    for (int j = 0; j < slot.size(); j++) {
+                        Piece c = slot.get(j);
+                        if (c.paid() && c.originalPrice() == null && c.price() != null
+                                && c.productKey().equals(first.productKey())
+                                && c.price().compareTo(missing) == 0) {
+                            if (c.quantity() == 1) {
+                                slot.remove(j);
+                            } else {
+                                slot.set(j, new Piece(c.menuItemId(), c.name(), c.price(), c.quantity() - 1, true, null));
+                            }
+                            full++;
+                            leftover = BigDecimal.ZERO;
+                            break outer;
+                        }
+                    }
+                }
+            }
+            List<Piece> replacement = slots.get(idx.get(0));
+            if (full > 0) {
+                replacement.add(new Piece(first.menuItemId(), first.name(), original, full, true, null));
+            }
+            if (leftover.signum() > 0) {
+                replacement.add(new Piece(first.menuItemId(), first.name(), leftover, 1, true, original));
+            }
+        }
+        return slots.stream().flatMap(List::stream).toList();
+    }
+
     /** A validated, price-snapshotted customer order line (resolved from the point's menu). */
     public record ResolvedLine(UUID menuItemId, String name, BigDecimal price, int quantity) {
     }
@@ -305,19 +379,22 @@ public class OrderService {
                 .sorted(Comparator.comparing(i -> orderCreatedAt.get(i.getOrderId())))
                 .toList();
 
+        List<Piece> pieces = mergeSettledSplits(items.stream()
+                .map(item -> new Piece(item.getMenuItemId(), item.getName(), item.getPrice(),
+                        item.getQuantity(), item.getPaymentId() != null, item.getOriginalPrice()))
+                .toList());
+
         Map<String, OrderPointBillResponse.OrderPointBillLine> lines = new LinkedHashMap<>();
-        for (OrderItemEntity item : items) {
-            boolean paid = item.getPaymentId() != null;
-            String key = (item.getMenuItemId() != null ? item.getMenuItemId().toString() : item.getName())
-                    + "|" + item.getPrice() + "|" + paid + "|" + item.getOriginalPrice();
+        for (Piece piece : pieces) {
+            String key = piece.productKey() + "|" + piece.price() + "|" + piece.paid() + "|" + piece.originalPrice();
             OrderPointBillResponse.OrderPointBillLine existing = lines.get(key);
             lines.put(key, existing == null
                     ? new OrderPointBillResponse.OrderPointBillLine(
-                            item.getMenuItemId(), item.getName(), item.getPrice(), item.getQuantity(), paid,
-                            item.getOriginalPrice())
+                            piece.menuItemId(), piece.name(), piece.price(), piece.quantity(), piece.paid(),
+                            piece.originalPrice())
                     : new OrderPointBillResponse.OrderPointBillLine(
                             existing.menuItemId(), existing.name(), existing.price(),
-                            existing.quantity() + item.getQuantity(), paid, existing.originalPrice()));
+                            existing.quantity() + piece.quantity(), piece.paid(), existing.originalPrice()));
         }
         BigDecimal total = BigDecimal.ZERO;
         BigDecimal unpaidTotal = BigDecimal.ZERO;

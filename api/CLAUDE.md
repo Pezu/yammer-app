@@ -124,7 +124,9 @@ Run from `api/`.
   `GET /public/order-points/{opId}/bill?token=` = the session's aggregated bill (unpaid +
   paid lines, totals) for an APPROVED device (403 otherwise) — the customer page's Order view.
   A split unit carries `originalPrice` on BOTH halves (paid + remainder) so both render as
-  partial. Closing the
+  partial; once every fragment of a unit is paid the bill re-joins them into one regular
+  unit at the original price (`OrderService.mergeSettledSplits`, display-only, unit-tested).
+  Closing the
   table invalidates every customer session with it (they hang off table_session).
 - **Payment lifecycle by type** (`OrderService.createPayment`): CASH → SUCCESS +
   fiscal-print request to the bridge (LOGGED for now); CARD → PENDING until
