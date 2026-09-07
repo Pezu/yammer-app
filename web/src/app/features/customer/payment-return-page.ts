@@ -1,6 +1,7 @@
 import { Component, OnDestroy, inject, signal } from '@angular/core';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { CustomerOrderPointService, OnlinePaymentStatus } from './customer-order-point.service';
+import { I18nService } from '../../core/i18n.service';
 
 /**
  * Where the Netopia gateway sends the customer's browser back
@@ -15,22 +16,22 @@ import { CustomerOrderPointService, OnlinePaymentStatus } from './customer-order
     <main class="ret">
       @if (status() === 'PAID') {
         <div class="icon ok">✓</div>
-        <h1>Payment confirmed</h1>
-        <p>Your order has been sent. Thank you!</p>
+        <h1>{{ t('ret.paidTitle') }}</h1>
+        <p>{{ t('cust.orderSent') }}</p>
       } @else if (status() === 'FAILED' || status() === 'EXPIRED') {
         <div class="icon bad">✕</div>
-        <h1>Payment not completed</h1>
-        <p>Your card was not charged for this order. You can try again from the menu.</p>
+        <h1>{{ t('ret.failedTitle') }}</h1>
+        <p>{{ t('ret.failedText') }}</p>
       } @else if (error()) {
         <div class="icon bad">✕</div>
-        <h1>Something went wrong</h1>
-        <p>We could not check your payment. Please ask your waiter.</p>
+        <h1>{{ t('ret.errorTitle') }}</h1>
+        <p>{{ t('ret.errorText') }}</p>
       } @else {
         <div class="spinner"></div>
-        <h1>Checking your payment…</h1>
-        <p>This usually takes a few seconds.</p>
+        <h1>{{ t('ret.checkingTitle') }}</h1>
+        <p>{{ t('ret.checkingText') }}</p>
       }
-      <a class="back" [routerLink]="['/customer/order-point', opId]">Back to the menu</a>
+      <a class="back" [routerLink]="['/customer/order-point', opId]">{{ t('ret.back') }}</a>
     </main>
   `,
   styles: `
@@ -102,6 +103,8 @@ import { CustomerOrderPointService, OnlinePaymentStatus } from './customer-order
 export class PaymentReturnPage implements OnDestroy {
   private readonly route = inject(ActivatedRoute);
   private readonly service = inject(CustomerOrderPointService);
+  private readonly i18n = inject(I18nService);
+  readonly t = this.i18n.t;
 
   readonly opId = this.route.snapshot.paramMap.get('id') ?? '';
   private readonly ref = this.route.snapshot.queryParamMap.get('ref') ?? '';
@@ -113,6 +116,7 @@ export class PaymentReturnPage implements OnDestroy {
   private attempts = 0;
 
   constructor() {
+    this.i18n.init('customer');
     if (!this.ref) {
       this.error.set(true);
       return;

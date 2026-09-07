@@ -7,7 +7,7 @@
   @if (!summaryOpen() && stack().length === 0 && hasProducts()) {
     <div class="search-combo">
       <svg class="search-icon" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
-      <input type="text" class="search-input" placeholder="Search products…" [value]="searchQuery()" (input)="onSearch($event)" />
+      <input type="text" class="search-input" [placeholder]="t('order.search')" [value]="searchQuery()" (input)="onSearch($event)" />
       @if (searchQuery()) {
         <button type="button" class="search-clear" (click)="clearSearch()" aria-label="Clear search">
           <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
@@ -50,15 +50,15 @@
 
 <section class="order-body">
   @if (loading()) {
-    <p class="state">Loading…</p>
+    <p class="state">{{ t('common.loading') }}</p>
   } @else if (error()) {
     <p class="state err">{{ error() }}</p>
   } @else if (!menu()?.menuId) {
-    <p class="state">No menu is set for this order point.</p>
+    <p class="state">{{ t('order.noMenu') }}</p>
   } @else if (summaryOpen()) {
     <!-- cart summary -->
     @if (cart().length === 0) {
-      <p class="state">Your cart is empty.</p>
+      <p class="state">{{ t('order.cartEmpty') }}</p>
     } @else {
       @if (placeError()) {
         <p class="state err">{{ placeError() }}</p>
@@ -78,7 +78,7 @@
       </ul>
     }
   } @else if (currentItems().length === 0) {
-    <p class="state">Nothing here.</p>
+    <p class="state">{{ t('order.nothingHere') }}</p>
   } @else {
     <!-- menu grid -->
     <div class="grid">
@@ -106,14 +106,14 @@
 @if (!loading() && menu()?.menuId) {
   <footer class="cart-bar">
     <div class="info">
-      <span class="total">TOTAL: {{ total() | number: '1.2-2' }} RON</span>
+      <span class="total">{{ t('order.total') }} {{ total() | number: '1.2-2' }} RON</span>
     </div>
     @if (summaryOpen()) {
       <button type="button" class="primary" [disabled]="!cart().length || placing()" (click)="placeOrder()">
-        {{ placing() ? 'Placing…' : 'Place order' }}
+        {{ placing() ? t('order.placing') : t('order.placeOrder') }}
       </button>
     } @else {
-      <button type="button" class="primary" [disabled]="!cart().length" (click)="openSummary()">Summary</button>
+      <button type="button" class="primary" [disabled]="!cart().length" (click)="openSummary()">{{ t('order.summary') }}</button>
     }
   </footer>
 }

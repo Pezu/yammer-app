@@ -10,6 +10,7 @@ import {
 } from './customer-order-point.service';
 import { TransparentImageDirective } from '../../shared/transparent-image.directive';
 import { LEGAL_LINKS, SiteFooter } from '../../shared/site-footer.component';
+import { I18nService, LANGS, Lang } from '../../core/i18n.service';
 
 /**
  * Ordering page a customer reaches by scanning an order point's QR code
@@ -38,10 +39,16 @@ import { LEGAL_LINKS, SiteFooter } from '../../shared/site-footer.component';
     @if (menuOpen()) {
       <div class="drawer-backdrop" (click)="closeMenu()"></div>
       <nav class="drawer">
-        <button type="button" class="drawer-close" (click)="closeMenu()" aria-label="Close menu">
+        <button type="button" class="drawer-close" (click)="closeMenu()" [attr.aria-label]="t('common.close')">
           <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
         </button>
-        <button type="button" class="drawer-item active" (click)="closeMenu()">Menu</button>
+        <button type="button" class="drawer-item active" (click)="closeMenu()">{{ t('cust.menu') }}</button>
+        <div class="drawer-lang" role="group" [attr.aria-label]="t('common.language')">
+          <span class="drawer-lang-label">{{ t('common.language') }}</span>
+          @for (l of langs; track l) {
+            <button type="button" class="lang-chip" [class.on]="i18n.lang() === l" (click)="setLang(l)">{{ l.toUpperCase() }}</button>
+          }
+        </div>
         <div class="drawer-legal">
           @for (link of legalLinks; track link.slug) {
             <a class="drawer-legal-item" [routerLink]="['/legal', link.slug]" (click)="closeMenu()">{{ link.label }}</a>
@@ -52,13 +59,13 @@ import { LEGAL_LINKS, SiteFooter } from '../../shared/site-footer.component';
 
     <main class="cust">
       @if (loading()) {
-        <p class="state">Loading…</p>
+        <p class="state">{{ t('common.loading') }}</p>
       } @else if (error()) {
         <p class="state err">{{ error() }}</p>
       } @else if (op(); as o) {
         @if (placed()) {
           <div class="placed" role="status">
-            {{ placedPendingApproval() ? 'Your order was sent to the waiter for approval.' : 'Your order has been sent. Thank you!' }}
+            {{ placedPendingApproval() ? t('cust.orderSentApproval') : t('cust.orderSent') }}
           </div>
         }
         @if (orderError()) {
@@ -68,13 +75,13 @@ import { LEGAL_LINKS, SiteFooter } from '../../shared/site-footer.component';
           @if (customerStatus() === 'PENDING') {
             <div class="approval-note" role="status">
               <span class="spinner"></span>
-              Waiting for the waiter to approve this table…
+              {{ t('cust.waitingApproval') }}
             </div>
           } @else if (customerStatus() === 'DENIED') {
-            <div class="order-err" role="alert">The waiter declined access at this table.</div>
+            <div class="order-err" role="alert">{{ t('cust.denied') }}</div>
           }
         } @else if (o.sessionOpen && o.selfOrderMode === 'DISALLOW') {
-          <div class="approval-note" role="status">Self-ordering is off at this table — please order with your waiter.</div>
+          <div class="approval-note" role="status">{{ t('cust.selfOrderOff') }}</div>
         }
 
         @if (o.menu.length > 0) {
@@ -91,18 +98,18 @@ import { LEGAL_LINKS, SiteFooter } from '../../shared/site-footer.component';
             }
           </div>
         } @else {
-          <p class="soon">No menu available for this table yet.</p>
+          <p class="soon">{{ t('cust.noMenu') }}</p>
         }
       }
 
       @if (cartCount() > 0 && canOrder()) {
         <footer class="cart-bar">
           <div class="cart-info">
-            <span class="cart-count">{{ cartCount() }} item{{ cartCount() === 1 ? '' : 's' }}</span>
+            <span class="cart-count">{{ cartCount() === 1 ? t('cust.itemOne') : t('cust.itemMany', { n: cartCount() }) }}</span>
             <span class="cart-total">{{ cartTotal() | number: '1.2-2' }}</span>
           </div>
           <button type="button" class="order-btn" [disabled]="placing()" (click)="placeOrder()">
-            {{ placing() ? 'Sending…' : 'Place order' }}
+            {{ placing() ? t('cust.sending') : t('cust.placeOrder') }}
           </button>
         </footer>
       }
@@ -270,6 +277,34 @@ import { LEGAL_LINKS, SiteFooter } from '../../shared/site-footer.component';
     .drawer-item.active {
       background: var(--page-bg);
       color: var(--primary);
+    }
+    .drawer-lang {
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      padding: 0.6rem 1rem;
+    }
+    .drawer-lang-label {
+      margin-right: auto;
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--muted);
+    }
+    .lang-chip {
+      padding: 0.25rem 0.6rem;
+      font: inherit;
+      font-size: 0.75rem;
+      font-weight: 700;
+      color: var(--muted);
+      background: none;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      cursor: pointer;
+    }
+    .lang-chip.on {
+      color: #fff;
+      background: var(--primary);
+      border-color: var(--primary);
     }
     .drawer-legal {
       margin-top: auto;
@@ -539,6 +574,13 @@ import { LEGAL_LINKS, SiteFooter } from '../../shared/site-footer.component';
 export class CustomerOrderPointPage implements OnDestroy {
   private readonly route = inject(ActivatedRoute);
   private readonly service = inject(CustomerOrderPointService);
+  readonly i18n = inject(I18nService);
+  readonly t = this.i18n.t;
+  readonly langs = LANGS;
+
+  setLang(lang: Lang): void {
+    this.i18n.setLang(lang);
+  }
   private readonly opId = this.route.snapshot.paramMap.get('id') ?? '';
 
   readonly loading = signal(true);
@@ -609,6 +651,8 @@ export class CustomerOrderPointPage implements OnDestroy {
   private readonly cartKey = `yammer.cart.${this.opId}`;
 
   constructor() {
+    // customers follow the browser language (RO fallback); a change is remembered on this device
+    this.i18n.init('customer');
     // The customer page is full-white (no admin gray peeking through on mobile overscroll).
     document.body.style.background = '#fff';
 
@@ -624,7 +668,7 @@ export class CustomerOrderPointPage implements OnDestroy {
     effect(() => sessionStorage.setItem(this.cartKey, JSON.stringify(this.cart())));
 
     if (!this.opId) {
-      this.error.set('Invalid link.');
+      this.error.set(this.t('cust.invalidLink'));
       this.loading.set(false);
       return;
     }
@@ -636,7 +680,7 @@ export class CustomerOrderPointPage implements OnDestroy {
         this.ensureJoined(op);
       },
       error: () => {
-        this.error.set('This table could not be found.');
+        this.error.set(this.t('cust.notFound'));
         this.loading.set(false);
       },
     });
@@ -770,7 +814,7 @@ export class CustomerOrderPointPage implements OnDestroy {
     if (this.placing() || this.cartCount() === 0) return;
     const token = this.storedToken();
     if (!token) {
-      this.orderError.set('Please wait for the waiter to approve this table.');
+      this.orderError.set(this.t('cust.waitApproval'));
       return;
     }
     const items = Object.entries(this.cart()).map(([menuItemId, quantity]) => ({
@@ -799,10 +843,10 @@ export class CustomerOrderPointPage implements OnDestroy {
         this.placing.set(false);
         this.orderError.set(
           err.status === 409
-            ? 'This table is not open yet — please ask a waiter to open it.'
+            ? this.t('cust.notOpen')
             : err.status === 403
-              ? 'Ordering is not available — please ask your waiter.'
-              : 'Could not place your order. Please try again.',
+              ? this.t('cust.notAvailable')
+              : this.t('cust.placeFailed'),
         );
       },
     });

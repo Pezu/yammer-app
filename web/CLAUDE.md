@@ -36,6 +36,11 @@ Run from `web/`.
 web/src/app/
 ├── app.{ts,html,config,routes}       # root component + router + providers
 ├── core/
+│   ├── i18n.service.ts               # RO/EN runtime translations for the waiter + customer surfaces:
+│   │                                 #   `lang` signal + `t(key, params)`; waiters default RO, customers
+│   │                                 #   follow the browser (RO fallback); choice remembered per scope in
+│   │                                 #   localStorage (yammer.lang.waiter / yammer.lang.customer)
+│   ├── i18n/translations.ts          # EN reference dictionary + RO (typed: every EN key required)
 │   ├── auth.service.ts               # login(), session signal, localStorage persistence
 │   ├── auth.interceptor.ts           # Bearer token + bounce to /login on 401
 │   └── auth.guard.ts                 # authGuard for routes that need a session
@@ -77,7 +82,7 @@ web/src/app/
 │   │                                 #   with a 409 message while the session is open — only
 │   │                                 #   Close table frees it). Tapping a tile → /waiter/tables/:id = the
 │   │                                 #   session's combined bill; header = name · self-order combo
-│   │                                 #   (Allowed/Confirm/Disabled) · Pay/Order; Unpaid/Paid view combo
+│   │                                 #   (Allowed/Confirm/Disabled) · Order; Pay is a sticky footer bar; Unpaid/Paid view combo
 │   │                                 #   (default Unpaid), the pay sheet, and — once everything
 │   │                                 #   is paid — the "Close table" button, the ONLY way to end
 │   │                                 #   the session (frees the table, back to the tiles).
@@ -135,7 +140,11 @@ web/src/app/
   SUPER go to `/backoffice` (default child: `users`), and the backend only lets
   ADMIN/SUPER log in. The Clients and Roles menu entries and routes are SUPER-only
   (`superGuard` + `@if (isSuper())` in the sidebar).
-- **All tables must look identical** — reuse `shared/styles/_crud-table.scss`
+- **Waiter + customer UI text goes through `t('key')`** (inject `I18nService`, expose
+  `readonly t = this.i18n.t`); add every new string to BOTH dictionaries in
+  `core/i18n/translations.ts`. Combo options that need translating are `computed()`.
+  The backoffice, login and service board stay English (no `t()` there).
+- - **All tables must look identical** — reuse `shared/styles/_crud-table.scss`
   (the `.table` panel pattern); copy the clients page as the template for new
   CRUD pages.
 

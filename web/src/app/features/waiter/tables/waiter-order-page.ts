@@ -11,6 +11,7 @@ import {
 } from './waiter-order-point.service';
 import { WaiterMenuCacheService } from '../waiter-menu-cache.service';
 import { ToastService } from '../../../core/toast.service';
+import { I18nService } from '../../../core/i18n.service';
 
 interface CartLine {
   menuItemId: string;
@@ -32,6 +33,7 @@ export class WaiterOrderPage {
   private readonly service = inject(WaiterOrderPointService);
   private readonly menuCache = inject(WaiterMenuCacheService);
   private readonly toast = inject(ToastService);
+  readonly t = inject(I18nService).t;
 
   private readonly id = this.route.snapshot.paramMap.get('id') ?? '';
   private readonly stateName = (history.state?.name as string) ?? '';
@@ -47,7 +49,7 @@ export class WaiterOrderPage {
   readonly menuComboOpen = signal(false);
   readonly menuOptions = computed<MenuOption[]>(() => this.menu()?.menus ?? []);
   readonly selectedMenuName = computed(
-    () => this.menuOptions().find((m) => m.id === this.selectedMenuId())?.name ?? 'Menu',
+    () => this.menuOptions().find((m) => m.id === this.selectedMenuId())?.name ?? this.t('order.menu'),
   );
 
   // --- product search (across all of the location's menus, grouped by menu) ---
@@ -113,12 +115,12 @@ export class WaiterOrderPage {
   // Bound via [innerHTML], which auto-sanitizes the plain string (no bypass → no stored XSS).
   readonly titleHtml = computed<string>(() => {
     if (this.summaryOpen()) {
-      return 'Cart';
+      return this.t('order.cart');
     }
     const s = this.stack();
     return s.length
       ? s[s.length - 1].name
-      : this.menu()?.orderPointName || this.stateName || 'Menu';
+      : this.menu()?.orderPointName || this.stateName || this.t('order.menu');
   });
 
   // --- cart ---
@@ -156,7 +158,7 @@ export class WaiterOrderPage {
         }
       },
       error: () => {
-        this.error.set('Could not load the menu.');
+        this.error.set(this.t('order.loadFailed'));
         this.loading.set(false);
       },
     });
@@ -175,7 +177,7 @@ export class WaiterOrderPage {
         }
       },
       error: () => {
-        this.error.set('Could not load the menu.');
+        this.error.set(this.t('order.loadFailed'));
         this.loading.set(false);
       },
     });
@@ -212,7 +214,7 @@ export class WaiterOrderPage {
   /** Add a searched product straight to the cart (stays open so several can be added). */
   addProduct(p: ProductOption): void {
     this.increase({ id: p.id, name: p.name, orderable: true, price: p.price, vatTypeId: null, children: [] });
-    this.toast.show('Added to cart');
+    this.toast.show(this.t('order.added'));
   }
 
   isCategory(n: MenuNode): boolean {
@@ -285,7 +287,7 @@ export class WaiterOrderPage {
       .subscribe({
         next: () => {
           this.cart.set([]);
-          this.toast.show('Order placed');
+          this.toast.show(this.t('order.placed'));
           // rewrite the cart entry to the Tables URL (silently) so a back from the
           // table page exits the table instead of returning to the cart/menu
           this.location.replaceState('/waiter/tables');
@@ -293,7 +295,7 @@ export class WaiterOrderPage {
         },
         error: () => {
           this.placing.set(false);
-          this.placeError.set('Could not place the order. Please try again.');
+          this.placeError.set(this.t('order.placeFailed'));
         },
       });
   }

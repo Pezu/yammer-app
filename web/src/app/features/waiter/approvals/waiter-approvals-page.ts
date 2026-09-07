@@ -2,6 +2,7 @@ import { Component, OnDestroy, inject, signal } from '@angular/core';
 import { DecimalPipe } from '@angular/common';
 import { Approvals, ApprovalService } from './approval.service';
 import { timeAgo } from '../../../shared/relative-time';
+import { I18nService } from '../../../core/i18n.service';
 
 const POLL_MS = 10000;
 
@@ -16,37 +17,37 @@ const POLL_MS = 10000;
   imports: [DecimalPipe],
   template: `
     <div class="head">
-      <h2>Approvals</h2>
+      <h2>{{ t('approvals.title') }}</h2>
     </div>
 
     @if (error()) {
       <p class="state err">{{ error() }}</p>
     } @else if (loading()) {
-      <p class="state">Loading…</p>
+      <p class="state">{{ t('common.loading') }}</p>
     } @else {
-      <h3 class="sec">Customers</h3>
+      <h3 class="sec">{{ t('approvals.customers') }}</h3>
       @if (data().customers.length === 0) {
-        <p class="empty">No customers waiting.</p>
+        <p class="empty">{{ t('approvals.noCustomers') }}</p>
       } @else {
         <ul class="cards">
           @for (c of data().customers; track c.id) {
             <li class="card">
               <div class="card-main">
                 <span class="table">{{ c.orderPointName }}</span>
-                <span class="sub">wants to order @if (c.requestedAt) {· {{ time(c.requestedAt) }}}</span>
+                <span class="sub">{{ t('approvals.wantsToOrder') }} @if (c.requestedAt) {· {{ time(c.requestedAt) }}}</span>
               </div>
               <div class="acts">
-                <button type="button" class="deny" [disabled]="busy()" (click)="decideCustomer(c.id, false)">Deny</button>
-                <button type="button" class="ok" [disabled]="busy()" (click)="decideCustomer(c.id, true)">Approve</button>
+                <button type="button" class="deny" [disabled]="busy()" (click)="decideCustomer(c.id, false)">{{ t('approvals.deny') }}</button>
+                <button type="button" class="ok" [disabled]="busy()" (click)="decideCustomer(c.id, true)">{{ t('approvals.approve') }}</button>
               </div>
             </li>
           }
         </ul>
       }
 
-      <h3 class="sec">Orders</h3>
+      <h3 class="sec">{{ t('approvals.orders') }}</h3>
       @if (data().orders.length === 0) {
-        <p class="empty">No orders waiting.</p>
+        <p class="empty">{{ t('approvals.noOrders') }}</p>
       } @else {
         <ul class="cards">
           @for (o of data().orders; track o.id) {
@@ -62,11 +63,11 @@ const POLL_MS = 10000;
                     </li>
                   }
                 </ul>
-                <div class="total"><span>Total</span><span>{{ o.total | number: '1.2-2' }} RON</span></div>
+                <div class="total"><span>{{ t('approvals.total') }}</span><span>{{ o.total | number: '1.2-2' }} RON</span></div>
               </div>
               <div class="acts">
-                <button type="button" class="deny" [disabled]="busy()" (click)="decideOrder(o.id, false)">Deny</button>
-                <button type="button" class="ok" [disabled]="busy()" (click)="decideOrder(o.id, true)">Approve</button>
+                <button type="button" class="deny" [disabled]="busy()" (click)="decideOrder(o.id, false)">{{ t('approvals.deny') }}</button>
+                <button type="button" class="ok" [disabled]="busy()" (click)="decideOrder(o.id, true)">{{ t('approvals.approve') }}</button>
               </div>
             </li>
           }
@@ -214,6 +215,7 @@ const POLL_MS = 10000;
 })
 export class WaiterApprovalsPage implements OnDestroy {
   private readonly service = inject(ApprovalService);
+  readonly t = inject(I18nService).t;
 
   readonly data = signal<Approvals>({ customers: [], orders: [] });
   readonly loading = signal(true);
@@ -232,7 +234,7 @@ export class WaiterApprovalsPage implements OnDestroy {
   }
 
   time(iso: string): string {
-    return timeAgo(iso);
+    return timeAgo(iso, this.t);
   }
 
   decideCustomer(id: string, approve: boolean): void {
@@ -244,7 +246,7 @@ export class WaiterApprovalsPage implements OnDestroy {
       },
       error: () => {
         this.busy.set(false);
-        this.error.set('Could not save the decision.');
+        this.error.set(this.t('approvals.saveFailed'));
       },
     });
   }
@@ -258,7 +260,7 @@ export class WaiterApprovalsPage implements OnDestroy {
       },
       error: () => {
         this.busy.set(false);
-        this.error.set('Could not save the decision.');
+        this.error.set(this.t('approvals.saveFailed'));
       },
     });
   }
@@ -273,7 +275,7 @@ export class WaiterApprovalsPage implements OnDestroy {
       },
       error: () => {
         this.loading.set(false);
-        if (initial) this.error.set('Failed to load approvals.');
+        if (initial) this.error.set(this.t('approvals.loadFailed'));
       },
     });
   }

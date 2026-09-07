@@ -12,6 +12,7 @@ import {
   PaymentTypeService,
 } from '../../backoffice/pages/payment-types/payment-type.service';
 import { ToastService } from '../../../core/toast.service';
+import { I18nService } from '../../../core/i18n.service';
 import { ComboBox } from '../../../shared/combo-box';
 
 type TipMode = 'none' | 'p10' | 'p12' | 'p15' | 'customPct' | 'customAmt';
@@ -51,6 +52,9 @@ export class WaiterTableDetailPage {
 
   readonly id = this.route.snapshot.paramMap.get('id') ?? '';
   /** Table name from navigation state; replaced by the API's name once the bill loads. */
+  readonly i18n = inject(I18nService);
+  readonly t = this.i18n.t;
+
   readonly name = signal<string>((history.state?.name as string) ?? '');
 
   readonly bill = signal<OrderPointBill | null>(null);
@@ -95,7 +99,7 @@ export class WaiterTableDetailPage {
       },
       error: () => {
         this.closing.set(false);
-        this.toast.show('Could not close the table.');
+        this.toast.show(this.t('detail.closeFailed'));
       },
     });
   }
@@ -111,7 +115,7 @@ export class WaiterTableDetailPage {
         this.loading.set(false);
       },
       error: () => {
-        this.error.set('Could not load the table.');
+        this.error.set(this.t('detail.loadFailed'));
         this.loading.set(false);
       },
     });
@@ -143,17 +147,17 @@ export class WaiterTableDetailPage {
 
   /** Which products to show: the outstanding ones (default) or the already-paid ones. */
   readonly view = signal<'unpaid' | 'paid'>('unpaid');
-  readonly viewOptions = [
-    { id: 'unpaid', name: 'Unpaid' },
-    { id: 'paid', name: 'Paid' },
-  ];
+  readonly viewOptions = computed(() => [
+    { id: 'unpaid', name: this.t('detail.view.unpaid') },
+    { id: 'paid', name: this.t('detail.view.paid') },
+  ]);
 
   /** Customer self-ordering at this table — set by the assigned waiter. */
-  readonly selfOrderModeOptions = [
-    { id: 'ALLOW', name: 'Allowed' },
-    { id: 'CONFIRM', name: 'Confirm' },
-    { id: 'DISALLOW', name: 'Disabled' },
-  ];
+  readonly selfOrderModeOptions = computed(() => [
+    { id: 'ALLOW', name: this.t('detail.mode.allowed') },
+    { id: 'CONFIRM', name: this.t('detail.mode.confirm') },
+    { id: 'DISALLOW', name: this.t('detail.mode.disabled') },
+  ]);
 
   setSelfOrderMode(mode: string): void {
     const bill = this.bill();
@@ -164,7 +168,7 @@ export class WaiterTableDetailPage {
       error: () => {
         const current = this.bill();
         if (current) this.bill.set({ ...current, selfOrderMode: previous });
-        this.toast.show('Could not change the self-order mode');
+        this.toast.show(this.t('detail.modeFailed'));
       },
     });
   }
@@ -564,13 +568,13 @@ export class WaiterTableDetailPage {
         // card payments stay PENDING until the softPOS terminal confirms
         this.toast.show(
           this.paymentTypeById().get(paymentTypeId) === 'CARD'
-            ? 'Sent to the card terminal — awaiting confirmation'
-            : 'Payment recorded',
+            ? this.t('pay.sentToTerminal')
+            : this.t('pay.recorded'),
         );
       },
       error: () => {
         this.submitting.set(false);
-        this.error.set('Could not record the payment. Please try again.');
+        this.error.set(this.t('pay.failed'));
         this.payOpen.set(false);
       },
     });

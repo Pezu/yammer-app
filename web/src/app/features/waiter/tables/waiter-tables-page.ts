@@ -1,5 +1,6 @@
 import { Component, computed, inject, signal } from '@angular/core';
 import { Router } from '@angular/router';
+import { I18nService } from '../../../core/i18n.service';
 import { AuthService } from '../../../core/auth.service';
 import {
   AssignableOrderPoint,
@@ -27,6 +28,7 @@ export class WaiterTablesPage {
   private readonly router = inject(Router);
   private readonly orderPointService = inject(OrderPointService);
   private readonly typeService = inject(OrderPointTypeService);
+  readonly t = inject(I18nService).t;
 
   readonly loading = signal(false);
   readonly error = signal<string | null>(null);
@@ -59,7 +61,7 @@ export class WaiterTablesPage {
         this.loading.set(false);
       },
       error: () => {
-        this.error.set('Failed to load your tables.');
+        this.error.set(this.t('tables.loadFailed'));
         this.loading.set(false);
       },
     });
@@ -113,7 +115,7 @@ export class WaiterTablesPage {
         this.pickerLoading.set(false);
       },
       error: () => {
-        this.error.set('Failed to load the table list.');
+        this.error.set(this.t('tables.listFailed'));
         this.pickerLoading.set(false);
       },
     });
@@ -126,12 +128,16 @@ export class WaiterTablesPage {
 
   statusOf(point: AssignableOrderPoint): string {
     if (point.allowMultipleUsers) {
-      return point.assignedCount === 1 ? '1 assigned' : `${point.assignedCount} assigned`;
+      return point.assignedCount === 1
+        ? this.t('tables.assignedOne')
+        : this.t('tables.assignedMany', { n: point.assignedCount });
     }
     if (point.assignedToMe) {
-      return 'Yours';
+      return this.t('tables.yours');
     }
-    return point.assignedCount > 0 ? `Taken — ${point.assignedNames[0]}` : 'Free';
+    return point.assignedCount > 0
+      ? this.t('tables.taken', { name: point.assignedNames[0] })
+      : this.t('tables.free');
   }
 
   toggle(point: AssignableOrderPoint): void {
@@ -152,8 +158,8 @@ export class WaiterTablesPage {
         // a 409 on unassign = the table's session is open; only Close table frees it
         this.error.set(
           point.assignedToMe && err?.status === 409
-            ? 'Table is open — close it from the table page (once everything is paid) to free it.'
-            : 'Could not update the assignment — someone may have taken it first.',
+            ? this.t('tables.openRefused')
+            : this.t('tables.assignFailed'),
         );
         this.loadBoard();
       },

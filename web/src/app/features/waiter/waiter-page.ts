@@ -4,6 +4,7 @@ import { AuthService } from '../../core/auth.service';
 import { ToastService } from '../../core/toast.service';
 import { WaiterMenuCacheService } from './waiter-menu-cache.service';
 import { AppLogo } from '../../shared/logo.component';
+import { I18nService, LANGS, Lang } from '../../core/i18n.service';
 
 /** Waiter shell — topbar with the hamburger menu; pages render in the outlet below. */
 @Component({
@@ -24,19 +25,28 @@ import { AppLogo } from '../../shared/logo.component';
             <!-- more items land above; Logout stays last -->
             <button type="button" class="menu-item" (click)="goToTables()">
               <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
-              <span>Tables</span>
+              <span>{{ t('menu.tables') }}</span>
             </button>
             <button type="button" class="menu-item" (click)="goToApprovals()">
               <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"></path><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path></svg>
-              <span>Approvals</span>
+              <span>{{ t('menu.approvals') }}</span>
             </button>
             <button type="button" class="menu-item" (click)="refreshMenu()">
               <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
-              <span>Refresh menu</span>
+              <span>{{ t('menu.refreshMenu') }}</span>
             </button>
+            <div class="menu-item lang" role="group" [attr.aria-label]="t('common.language')">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg>
+              <span>{{ t('common.language') }}</span>
+              <span class="lang-chips">
+                @for (l of langs; track l) {
+                  <button type="button" class="lang-chip" [class.on]="i18n.lang() === l" (click)="setLang(l)">{{ l.toUpperCase() }}</button>
+                }
+              </span>
+            </div>
             <button type="button" class="menu-item logout" (click)="logout()">
               <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
-              <span>Logout</span>
+              <span>{{ t('menu.logout') }}</span>
             </button>
           </div>
         }
@@ -137,6 +147,33 @@ import { AppLogo } from '../../shared/logo.component';
       .menu-item.logout:hover {
         color: var(--danger);
       }
+      .menu-item.lang {
+        cursor: default;
+      }
+      .menu-item.lang:hover {
+        background: none;
+      }
+      .lang-chips {
+        display: inline-flex;
+        gap: 0.25rem;
+        margin-left: auto;
+      }
+      .lang-chip {
+        padding: 0.2rem 0.5rem;
+        font: inherit;
+        font-size: 0.75rem;
+        font-weight: 700;
+        color: var(--muted);
+        background: none;
+        border: 1px solid var(--border);
+        border-radius: 999px;
+        cursor: pointer;
+      }
+      .lang-chip.on {
+        color: #fff;
+        background: var(--primary);
+        border-color: var(--primary);
+      }
       .content {
         flex: 1;
         background: var(--page-bg);
@@ -163,6 +200,18 @@ export class WaiterPage {
   private readonly router = inject(Router);
   private readonly menuCache = inject(WaiterMenuCacheService);
   readonly toast = inject(ToastService);
+  readonly i18n = inject(I18nService);
+  readonly t = this.i18n.t;
+  readonly langs = LANGS;
+
+  constructor() {
+    // waiters default to Romanian; a change is remembered on this device
+    this.i18n.init('waiter');
+  }
+
+  setLang(lang: Lang): void {
+    this.i18n.setLang(lang);
+  }
 
   /** The user's display name; falls back to the username for accounts without one. */
   readonly displayName = computed(() => {
@@ -195,7 +244,7 @@ export class WaiterPage {
   refreshMenu(): void {
     this.menuOpen.set(false);
     this.menuCache.refresh();
-    this.toast.show('Menu refreshed');
+    this.toast.show(this.t('menu.menuRefreshed'));
   }
 
   logout(): void {
