@@ -32,56 +32,54 @@
   }
 }
 
-.head-actions {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
-}
+/* no fill; light-blue outline */
 
-/* Pay lives in a sticky footer bar (not in the header) */
-.pay-bar {
+
+/* sticky footer: Pay (when something is due) + Order, sharing the width */
+.action-bar {
   position: sticky;
   bottom: 0;
   z-index: 5;
+  display: flex;
+  gap: 0.75rem;
   padding: 0.75rem 1rem calc(0.75rem + env(safe-area-inset-bottom));
   background: #fff;
   border-top: 1px solid var(--border);
+
+  > button {
+    flex: 1 1 0;
+    min-width: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.4rem;
+    padding: 0.85rem 0.75rem;
+    font: inherit;
+    font-size: 1rem;
+    font-weight: 700;
+    border-radius: 10px;
+    cursor: pointer;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    -webkit-tap-highlight-color: transparent;
+  }
 }
 
 .pay {
-  display: block;
-  width: 100%;
-  padding: 0.85rem 1.1rem;
-  font: inherit;
-  font-size: 1rem;
-  font-weight: 700;
   color: #fff;
   background: var(--primary);
   border: none;
-  border-radius: 10px;
-  cursor: pointer;
-  -webkit-tap-highlight-color: transparent;
 
   &:active {
     background: var(--primary-hover);
   }
 }
 
-/* no fill; light-blue outline */
 .new-order {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
-  padding: 0.5rem 0.9rem;
-  font: inherit;
-  font-size: 0.85rem;
-  font-weight: 600;
   color: var(--primary);
-  background: none;
-  border: 1px solid rgba(52, 84, 209, 0.45);
-  border-radius: 8px;
-  cursor: pointer;
-  -webkit-tap-highlight-color: transparent;
+  background: #fff;
+  border: 1.5px solid var(--primary);
 
   &:active {
     background: rgba(52, 84, 209, 0.08);

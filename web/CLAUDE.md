@@ -82,7 +82,7 @@ web/src/app/
 │   │                                 #   with a 409 message while the session is open — only
 │   │                                 #   Close table frees it). Tapping a tile → /waiter/tables/:id = the
 │   │                                 #   session's combined bill; header = name · self-order combo
-│   │                                 #   (Allowed/Confirm/Disabled) · Order; Pay is a sticky footer bar; Unpaid/Paid view combo
+│   │                                 #   (Allowed/Confirm/Disabled); sticky footer = Pay (only while something is due) + Order, half width each; Unpaid/Paid view combo
 │   │                                 #   (default Unpaid), the pay sheet, and — once everything
 │   │                                 #   is paid — the "Close table" button, the ONLY way to end
 │   │                                 #   the session (frees the table, back to the tiles).

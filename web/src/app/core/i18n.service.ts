@@ -2,7 +2,24 @@ import { Injectable, signal } from '@angular/core';
 import { EN, RO, TKey } from './i18n/translations';
 
 export type Lang = 'ro' | 'en';
-export const LANGS: Lang[] = ['ro', 'en'];
+
+/** Languages offered in the selector — add an entry (+ a dictionary) to offer another one. */
+export interface LangOption {
+  id: Lang;
+  flag: string;
+  label: string;
+}
+export const LANGS: LangOption[] = [
+  { id: 'ro', flag: '🇷🇴', label: 'Română' },
+  { id: 'en', flag: '🇬🇧', label: 'English' },
+];
+
+/** Combo-box options for the language selector: flag + native name. */
+export const LANG_OPTIONS = LANGS.map((l) => ({ id: l.id, name: `${l.flag} ${l.label}` }));
+
+export function isLang(value: string): value is Lang {
+  return LANGS.some((l) => l.id === value);
+}
 
 /** Who the language choice belongs to — each is remembered separately in localStorage. */
 export type I18nScope = 'waiter' | 'customer';
@@ -55,7 +72,7 @@ export class I18nService {
   private stored(scope: I18nScope): Lang | null {
     try {
       const v = localStorage.getItem(this.key(scope));
-      return v === 'ro' || v === 'en' ? v : null;
+      return v && isLang(v) ? v : null;
     } catch {
       return null;
     }

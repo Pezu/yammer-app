@@ -10,7 +10,8 @@ import {
 } from './customer-order-point.service';
 import { TransparentImageDirective } from '../../shared/transparent-image.directive';
 import { LEGAL_LINKS, SiteFooter } from '../../shared/site-footer.component';
-import { I18nService, LANGS, Lang } from '../../core/i18n.service';
+import { I18nService, LANG_OPTIONS, isLang } from '../../core/i18n.service';
+import { ComboBox } from '../../shared/combo-box';
 
 /**
  * Ordering page a customer reaches by scanning an order point's QR code
@@ -22,7 +23,7 @@ import { I18nService, LANGS, Lang } from '../../core/i18n.service';
  */
 @Component({
   selector: 'app-customer-order-point-page',
-  imports: [DecimalPipe, NgTemplateOutlet, TransparentImageDirective, RouterLink, SiteFooter],
+  imports: [DecimalPipe, NgTemplateOutlet, TransparentImageDirective, RouterLink, SiteFooter, ComboBox],
   template: `
     <header class="topbar">
       <div class="brand">
@@ -43,11 +44,8 @@ import { I18nService, LANGS, Lang } from '../../core/i18n.service';
           <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
         </button>
         <button type="button" class="drawer-item active" (click)="closeMenu()">{{ t('cust.menu') }}</button>
-        <div class="drawer-lang" role="group" [attr.aria-label]="t('common.language')">
-          <span class="drawer-lang-label">{{ t('common.language') }}</span>
-          @for (l of langs; track l) {
-            <button type="button" class="lang-chip" [class.on]="i18n.lang() === l" (click)="setLang(l)">{{ l.toUpperCase() }}</button>
-          }
+        <div class="drawer-lang" [attr.aria-label]="t('common.language')">
+          <app-combo-box [options]="langOptions" [value]="i18n.lang()" (valueChange)="setLang($event)" />
         </div>
         <div class="drawer-legal">
           @for (link of legalLinks; track link.slug) {
@@ -279,32 +277,7 @@ import { I18nService, LANGS, Lang } from '../../core/i18n.service';
       color: var(--primary);
     }
     .drawer-lang {
-      display: flex;
-      align-items: center;
-      gap: 0.4rem;
       padding: 0.6rem 1rem;
-    }
-    .drawer-lang-label {
-      margin-right: auto;
-      font-size: 0.85rem;
-      font-weight: 600;
-      color: var(--muted);
-    }
-    .lang-chip {
-      padding: 0.25rem 0.6rem;
-      font: inherit;
-      font-size: 0.75rem;
-      font-weight: 700;
-      color: var(--muted);
-      background: none;
-      border: 1px solid var(--border);
-      border-radius: 999px;
-      cursor: pointer;
-    }
-    .lang-chip.on {
-      color: #fff;
-      background: var(--primary);
-      border-color: var(--primary);
     }
     .drawer-legal {
       margin-top: auto;
@@ -576,10 +549,10 @@ export class CustomerOrderPointPage implements OnDestroy {
   private readonly service = inject(CustomerOrderPointService);
   readonly i18n = inject(I18nService);
   readonly t = this.i18n.t;
-  readonly langs = LANGS;
+  readonly langOptions = LANG_OPTIONS;
 
-  setLang(lang: Lang): void {
-    this.i18n.setLang(lang);
+  setLang(lang: string): void {
+    if (isLang(lang)) this.i18n.setLang(lang);
   }
   private readonly opId = this.route.snapshot.paramMap.get('id') ?? '';
 

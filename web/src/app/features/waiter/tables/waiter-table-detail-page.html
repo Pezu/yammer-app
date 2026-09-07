@@ -14,12 +14,6 @@
       </div>
     }
   }
-  <div class="head-actions">
-    <button type="button" class="new-order" (click)="newOrder()">
-      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
-      {{ t('detail.order') }}
-    </button>
-  </div>
 </header>
 
 <section class="table-body">
@@ -69,10 +63,16 @@
   }
 </section>
 
-@if (canPay()) {
-  <footer class="pay-bar">
-    <button type="button" class="pay" (click)="openPay()">
-      {{ t('detail.pay') }} · {{ bill()!.unpaidTotal | number: '1.2-2' }} RON
+@if (!loading() && !error()) {
+  <footer class="action-bar">
+    @if (canPay()) {
+      <button type="button" class="pay" (click)="openPay()">
+        {{ t('detail.pay') }} · {{ bill()!.unpaidTotal | number: '1.2-2' }} RON
+      </button>
+    }
+    <button type="button" class="new-order" (click)="newOrder()">
+      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+      {{ t('detail.order') }}
     </button>
   </footer>
 }

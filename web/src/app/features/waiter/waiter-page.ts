@@ -4,12 +4,13 @@ import { AuthService } from '../../core/auth.service';
 import { ToastService } from '../../core/toast.service';
 import { WaiterMenuCacheService } from './waiter-menu-cache.service';
 import { AppLogo } from '../../shared/logo.component';
-import { I18nService, LANGS, Lang } from '../../core/i18n.service';
+import { I18nService, LANG_OPTIONS, isLang } from '../../core/i18n.service';
+import { ComboBox } from '../../shared/combo-box';
 
 /** Waiter shell — topbar with the hamburger menu; pages render in the outlet below. */
 @Component({
   selector: 'app-waiter-page',
-  imports: [AppLogo, RouterOutlet],
+  imports: [AppLogo, RouterOutlet, ComboBox],
   template: `
     <header class="topbar">
       <app-logo [height]="30" />
@@ -37,11 +38,8 @@ import { I18nService, LANGS, Lang } from '../../core/i18n.service';
             </button>
             <div class="menu-item lang" role="group" [attr.aria-label]="t('common.language')">
               <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg>
-              <span>{{ t('common.language') }}</span>
-              <span class="lang-chips">
-                @for (l of langs; track l) {
-                  <button type="button" class="lang-chip" [class.on]="i18n.lang() === l" (click)="setLang(l)">{{ l.toUpperCase() }}</button>
-                }
+              <span class="lang-combo">
+                <app-combo-box [options]="langOptions" [value]="i18n.lang()" (valueChange)="setLang($event)" />
               </span>
             </div>
             <button type="button" class="menu-item logout" (click)="logout()">
@@ -153,26 +151,9 @@ import { I18nService, LANGS, Lang } from '../../core/i18n.service';
       .menu-item.lang:hover {
         background: none;
       }
-      .lang-chips {
-        display: inline-flex;
-        gap: 0.25rem;
-        margin-left: auto;
-      }
-      .lang-chip {
-        padding: 0.2rem 0.5rem;
-        font: inherit;
-        font-size: 0.75rem;
-        font-weight: 700;
-        color: var(--muted);
-        background: none;
-        border: 1px solid var(--border);
-        border-radius: 999px;
-        cursor: pointer;
-      }
-      .lang-chip.on {
-        color: #fff;
-        background: var(--primary);
-        border-color: var(--primary);
+      .lang-combo {
+        flex: 1;
+        min-width: 0;
       }
       .content {
         flex: 1;
@@ -202,15 +183,15 @@ export class WaiterPage {
   readonly toast = inject(ToastService);
   readonly i18n = inject(I18nService);
   readonly t = this.i18n.t;
-  readonly langs = LANGS;
+  readonly langOptions = LANG_OPTIONS;
 
   constructor() {
     // waiters default to Romanian; a change is remembered on this device
     this.i18n.init('waiter');
   }
 
-  setLang(lang: Lang): void {
-    this.i18n.setLang(lang);
+  setLang(lang: string): void {
+    if (isLang(lang)) this.i18n.setLang(lang);
   }
 
   /** The user's display name; falls back to the username for accounts without one. */
