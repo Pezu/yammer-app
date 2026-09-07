@@ -56,7 +56,10 @@ web/src/app/
 │   │                                 #   printed QR codes (ported from old yammer): client logo
 │   │                                 #   top-left, hamburger drawer top-right (Menu first + legal
 │   │                                 #   links), category quick-nav chips, menu list with images +
-│   │                                 #   qty steppers, session-persisted cart, Place order. Menu is
+│   │                                 #   qty steppers, session-persisted cart, Place order. Drawer =
+│   │                                 #   Menu · Language · Order (the table's bill: To pay + Paid
+│   │                                 #   section when non-empty; split units tinted + half-circle icon).
+│   │                                 #   Menu is
 │   │                                 #   always browsable; ordering 409s with "ask a waiter" while
 │   │                                 #   the table has no open session. (No Orders history / pay-now
 │   │                                 #   flow yet — those come with the customer-identity port.)

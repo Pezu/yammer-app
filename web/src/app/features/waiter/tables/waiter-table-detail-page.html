@@ -35,9 +35,17 @@
     </div>
     <ul class="bill">
       @for (line of shownLines(); track $index) {
-        <li class="line" [class.partial]="view() === 'unpaid' && line.originalPrice != null">
+        <li class="line" [class.partial]="line.originalPrice != null">
           <span class="qty">{{ line.quantity }}×</span>
-          <span class="name" [innerHTML]="line.name"></span>
+          <span class="name">
+            <span [innerHTML]="line.name"></span>
+            @if (line.originalPrice != null) {
+              <span class="partial-tag">
+                <svg viewBox="0 0 24 24" width="13" height="13" aria-hidden="true"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2"></circle><path d="M12 3a9 9 0 0 1 0 18z" fill="currentColor"></path></svg>
+                {{ line.price | number: '1.2-2' }} / {{ line.originalPrice | number: '1.2-2' }}
+              </span>
+            }
+          </span>
           <span class="price">{{ (line.price ?? 0) * line.quantity | number: '1.2-2' }}</span>
         </li>
       } @empty {

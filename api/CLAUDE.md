@@ -120,7 +120,11 @@ Run from `api/`.
   born in APPROVAL status. Waiter side: `GET /approvals` (pending joins +
   APPROVAL orders across MY assigned tables), `POST /approvals/customers/{id}`
   and `POST /approvals/orders/{id}` `{approve}` (deny deletes the order),
-  `PUT /order-points/{id}/self-order-mode` (assigned users only). Closing the
+  `PUT /order-points/{id}/self-order-mode` (assigned users only).
+  `GET /public/order-points/{opId}/bill?token=` = the session's aggregated bill (unpaid +
+  paid lines, totals) for an APPROVED device (403 otherwise) — the customer page's Order view.
+  A split unit carries `originalPrice` on BOTH halves (paid + remainder) so both render as
+  partial. Closing the
   table invalidates every customer session with it (they hang off table_session).
 - **Payment lifecycle by type** (`OrderService.createPayment`): CASH → SUCCESS +
   fiscal-print request to the bridge (LOGGED for now); CARD → PENDING until

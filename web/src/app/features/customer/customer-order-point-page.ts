@@ -3,6 +3,8 @@ import { DecimalPipe, NgTemplateOutlet } from '@angular/common';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { HttpErrorResponse } from '@angular/common/http';
 import {
+  CustomerBill,
+  CustomerBillLine,
   CustomerOrderPoint,
   CustomerOrderPointService,
   CustomerStatus,
@@ -43,10 +45,11 @@ import { ComboBox } from '../../shared/combo-box';
         <button type="button" class="drawer-close" (click)="closeMenu()" [attr.aria-label]="t('common.close')">
           <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
         </button>
-        <button type="button" class="drawer-item active" (click)="closeMenu()">{{ t('cust.menu') }}</button>
+        <button type="button" class="drawer-item" [class.active]="view() === 'menu'" (click)="showMenu()">{{ t('cust.menu') }}</button>
         <div class="drawer-lang" [attr.aria-label]="t('common.language')">
           <app-combo-box [options]="langOptions" [value]="i18n.lang()" (valueChange)="setLang($event)" />
         </div>
+        <button type="button" class="drawer-item" [class.active]="view() === 'orders'" (click)="showOrders()">{{ t('cust.order') }}</button>
         <div class="drawer-legal">
           @for (link of legalLinks; track link.slug) {
             <a class="drawer-legal-item" [routerLink]="['/legal', link.slug]" (click)="closeMenu()">{{ link.label }}</a>
@@ -82,7 +85,38 @@ import { ComboBox } from '../../shared/combo-box';
           <div class="approval-note" role="status">{{ t('cust.selfOrderOff') }}</div>
         }
 
-        @if (o.menu.length > 0) {
+        @if (view() === 'orders') {
+          <section class="orders">
+            @if (billLoading()) {
+              <p class="state">{{ t('common.loading') }}</p>
+            } @else if (billError()) {
+              <p class="state err">{{ billError() }}</p>
+            } @else if (bill(); as b) {
+              <h2 class="orders-title">{{ t('cust.toPay') }}</h2>
+              @if (unpaidLines().length === 0) {
+                <p class="soon">{{ b.lines.length === 0 ? t('cust.noOrders') : t('cust.nothingToPay') }}</p>
+              } @else {
+                <ul class="bill">
+                  @for (line of unpaidLines(); track $index) {
+                    <ng-container *ngTemplateOutlet="billLine; context: { $implicit: line }"></ng-container>
+                  }
+                </ul>
+                <div class="bill-total">
+                  <span>{{ t('cust.totalDue') }}</span>
+                  <span>{{ b.unpaidTotal | number: '1.2-2' }} RON</span>
+                </div>
+              }
+              @if (paidLines().length > 0) {
+                <h2 class="orders-title paid">{{ t('cust.paid') }}</h2>
+                <ul class="bill">
+                  @for (line of paidLines(); track $index) {
+                    <ng-container *ngTemplateOutlet="billLine; context: { $implicit: line }"></ng-container>
+                  }
+                </ul>
+              }
+            }
+          </section>
+        } @else if (o.menu.length > 0) {
           @if (topCategories().length > 1) {
             <nav class="cat-nav">
               @for (cat of topCategories(); track cat.id) {
@@ -100,7 +134,7 @@ import { ComboBox } from '../../shared/combo-box';
         }
       }
 
-      @if (cartCount() > 0 && canOrder()) {
+      @if (view() === 'menu' && cartCount() > 0 && canOrder()) {
         <footer class="cart-bar">
           <div class="cart-info">
             <span class="cart-count">{{ cartCount() === 1 ? t('cust.itemOne') : t('cust.itemMany', { n: cartCount() }) }}</span>
@@ -116,6 +150,23 @@ import { ComboBox } from '../../shared/combo-box';
     @if (op()) {
       <app-site-footer />
     }
+
+    <!-- One bill line; a split unit (partially paid) is tinted and flagged with a half-circle icon. -->
+    <ng-template #billLine let-line>
+      <li class="bill-line" [class.partial]="line.originalPrice != null">
+        <span class="bl-qty">{{ line.quantity }}×</span>
+        <span class="bl-name">
+          <span [innerHTML]="line.name"></span>
+          @if (line.originalPrice != null) {
+            <span class="bl-partial" [title]="t('cust.partial')">
+              <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2"></circle><path d="M12 3a9 9 0 0 1 0 18z" fill="currentColor"></path></svg>
+              {{ line.price | number: '1.2-2' }} / {{ line.originalPrice | number: '1.2-2' }}
+            </span>
+          }
+        </span>
+        <span class="bl-price">{{ (line.price ?? 0) * line.quantity | number: '1.2-2' }}</span>
+      </li>
+    </ng-template>
 
     <!-- Recursive node: an orderable product renders as a row; a category renders a header + its children. -->
     <ng-template #nodeTpl let-node let-level="level">
@@ -308,6 +359,77 @@ import { ComboBox } from '../../shared/combo-box';
     }
     .state.err {
       color: var(--danger);
+    }
+    /* Order view: the table's bill (to pay + paid) */
+    .orders {
+      padding-bottom: 1rem;
+    }
+    .orders-title {
+      margin: 1rem 0 0.5rem;
+      font-size: 0.8rem;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+    .orders-title.paid {
+      margin-top: 1.5rem;
+    }
+    .bill {
+      margin: 0;
+      padding: 0;
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .bill-line {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      padding: 0.55rem 0.5rem;
+      font-size: 0.95rem;
+      border-bottom: 1px solid var(--border);
+    }
+    .bill-line.partial {
+      color: #92610a;
+      background: rgba(245, 158, 11, 0.12);
+      border-radius: 6px;
+      border-bottom-color: transparent;
+    }
+    .bl-qty {
+      flex: 0 0 2.2rem;
+      font-weight: 700;
+      color: var(--muted);
+    }
+    .bill-line.partial .bl-qty {
+      color: inherit;
+    }
+    .bl-name {
+      flex: 1;
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 0.1rem;
+    }
+    .bl-partial {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.3rem;
+      font-size: 0.78rem;
+      font-weight: 600;
+    }
+    .bl-price {
+      font-weight: 700;
+      white-space: nowrap;
+    }
+    .bill-total {
+      display: flex;
+      justify-content: space-between;
+      margin-top: 0.6rem;
+      padding: 0.6rem 0.5rem;
+      font-weight: 800;
+      border-top: 2px solid var(--text);
     }
     .placed {
       margin: 0.75rem 0;
@@ -562,6 +684,49 @@ export class CustomerOrderPointPage implements OnDestroy {
 
   // app bar / drawer
   readonly menuOpen = signal(false);
+
+  /** Which drawer page is showing: the menu (default) or the table's orders/bill. */
+  readonly view = signal<'menu' | 'orders'>('menu');
+  readonly bill = signal<CustomerBill | null>(null);
+  readonly billLoading = signal(false);
+  readonly billError = signal<string | null>(null);
+  readonly unpaidLines = computed<CustomerBillLine[]>(() => (this.bill()?.lines ?? []).filter((l) => !l.paid));
+  readonly paidLines = computed<CustomerBillLine[]>(() => (this.bill()?.lines ?? []).filter((l) => l.paid));
+
+  showMenu(): void {
+    this.view.set('menu');
+    this.closeMenu();
+  }
+
+  /** Open the Order view and (re)load the table's bill — needs the approved token. */
+  showOrders(): void {
+    this.view.set('orders');
+    this.closeMenu();
+    this.loadBill();
+  }
+
+  private loadBill(): void {
+    const token = this.storedToken();
+    this.bill.set(null);
+    this.billError.set(null);
+    if (!token || this.customerStatus() !== 'APPROVED') {
+      this.billError.set(this.t('cust.billNeedsApproval'));
+      return;
+    }
+    this.billLoading.set(true);
+    this.service.bill(this.opId, token).subscribe({
+      next: (bill) => {
+        this.bill.set(bill);
+        this.billLoading.set(false);
+      },
+      error: (err: HttpErrorResponse) => {
+        this.billLoading.set(false);
+        this.billError.set(
+          err.status === 403 || err.status === 409 ? this.t('cust.billNeedsApproval') : this.t('cust.billFailed'),
+        );
+      },
+    });
+  }
   readonly logoFailed = signal(false);
   readonly legalLinks = LEGAL_LINKS;
 

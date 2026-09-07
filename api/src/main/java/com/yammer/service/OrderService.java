@@ -274,7 +274,22 @@ public class OrderService {
      */
     @Transactional(readOnly = true)
     public OrderPointBillResponse billByOrderPoint(UUID orderPointId) {
-        OrderPointEntity op = accessGuard.requireAccessibleOrderPoint(orderPointId);
+        return billFor(accessGuard.requireAccessibleOrderPoint(orderPointId));
+    }
+
+    /**
+     * The bill WITHOUT a tenant check — for the public customer page, where the caller
+     * proves access with an APPROVED customer-session token instead of a login.
+     */
+    @Transactional(readOnly = true)
+    public OrderPointBillResponse billUnchecked(UUID orderPointId) {
+        return billFor(orderPointRepository.findById(orderPointId)
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND, "Order point not found: " + orderPointId)));
+    }
+
+    private OrderPointBillResponse billFor(OrderPointEntity op) {
+        UUID orderPointId = op.getId();
         Optional<TableSessionEntity> session = sessionRepository.findByOrderPointIdAndClosedAtIsNull(orderPointId);
         List<OrderEntity> orders = session
                 .map(s -> orderRepository.findBySessionIdOrderByCreatedAtDesc(s.getId()))
@@ -476,10 +491,13 @@ public class OrderService {
             }
             // …then split ONE unit's price into a paid part and an unpaid remainder line.
             if (remaining.signum() > 0) {
-                orderItemRepository.save(copyLine(line, 1, remaining, payment.getId()));
-                OrderItemEntity remainder = copyLine(line, 1, unit.subtract(remaining), null);
                 // keep the FIRST original price when re-splitting an already-partial unit
-                remainder.setOriginalPrice(line.getOriginalPrice() != null ? line.getOriginalPrice() : unit);
+                BigDecimal original = line.getOriginalPrice() != null ? line.getOriginalPrice() : unit;
+                OrderItemEntity paidPart = copyLine(line, 1, remaining, payment.getId());
+                paidPart.setOriginalPrice(original);
+                orderItemRepository.save(paidPart);
+                OrderItemEntity remainder = copyLine(line, 1, unit.subtract(remaining), null);
+                remainder.setOriginalPrice(original);
                 orderItemRepository.save(remainder);
                 line.setQuantity(line.getQuantity() - 1);
                 remaining = BigDecimal.ZERO;
@@ -563,6 +581,7 @@ public class OrderService {
         copy.setPrice(price);
         copy.setQuantity(quantity);
         copy.setPaymentId(paymentId);
+        copy.setOriginalPrice(source.getOriginalPrice()); // a split unit stays marked on both halves
         return copy;
     }
 

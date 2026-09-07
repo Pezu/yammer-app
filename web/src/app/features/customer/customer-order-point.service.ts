@@ -50,6 +50,23 @@ export interface OnlinePaymentStatus {
   orderId: string | null;
 }
 
+/** One aggregated bill line; `originalPrice` marks a split unit (partially paid). */
+export interface CustomerBillLine {
+  menuItemId: string | null;
+  name: string;
+  price: number | null;
+  quantity: number;
+  paid: boolean;
+  originalPrice: number | null;
+}
+
+/** The table's current bill for an approved customer device. */
+export interface CustomerBill {
+  lines: CustomerBillLine[];
+  total: number;
+  unpaidTotal: number;
+}
+
 /** Result of joining a table: the token this browser stores + its approval status. */
 export interface JoinResult {
   token: string;
@@ -89,6 +106,13 @@ export class CustomerOrderPointService {
       `${environment.apiUrl}/public/order-points/${opId}/orders`,
       { token, items, returnUrl: returnUrl ?? null },
     );
+  }
+
+  /** The table's bill (unpaid + paid lines) — needs the APPROVED token (403 otherwise). */
+  bill(opId: string, token: string): Observable<CustomerBill> {
+    return this.http.get<CustomerBill>(`${environment.apiUrl}/public/order-points/${opId}/bill`, {
+      params: { token },
+    });
   }
 
   /** Poll the status of an online payment (after returning from the gateway). */

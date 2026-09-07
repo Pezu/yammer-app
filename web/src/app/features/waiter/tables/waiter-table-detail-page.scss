@@ -172,10 +172,21 @@
     font-variant-numeric: tabular-nums;
   }
 
-  /* a partially-paid unit's remainder */
+  /* a split unit (partially paid) — both its paid and unpaid halves */
   &.partial {
+    color: #92610a;
     background: rgba(245, 158, 11, 0.12); /* light orange */
     border-radius: 6px;
+  }
+
+  .partial-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    margin-left: 0.4rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    white-space: nowrap;
   }
 
   &.all-paid {

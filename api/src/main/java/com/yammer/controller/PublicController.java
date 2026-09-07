@@ -1,5 +1,6 @@
 package com.yammer.controller;
 
+import com.yammer.dto.CustomerBillResponse;
 import com.yammer.dto.CustomerJoinResponse;
 import com.yammer.dto.CustomerOrderPointResponse;
 import com.yammer.dto.CustomerOrderRequest;
@@ -91,6 +92,16 @@ public class PublicController {
     }
 
     public record JoinRequest(UUID token) {
+    }
+
+    /**
+     * The table's current bill (unpaid + paid lines) for an APPROVED customer device —
+     * the token is the proof of access (403 otherwise; 409 while the table is not open).
+     */
+    @GetMapping("/order-points/{opId}/bill")
+    public CustomerBillResponse bill(@PathVariable UUID opId, @RequestParam UUID token) {
+        customerAccessService.requireApproved(opId, token);
+        return CustomerBillResponse.from(orderService.billUnchecked(opId));
     }
 
     /**
