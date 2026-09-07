@@ -1,0 +1,205 @@
+<header class="table-head">
+  <button type="button" class="back" (click)="back()" aria-label="Back to tables">
+    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
+    <span class="title">{{ name() || 'Table' }}</span>
+  </button>
+  <div class="head-actions">
+    @if (canPay()) {
+      <button type="button" class="pay" (click)="openPay()">Pay</button>
+    }
+    <button type="button" class="new-order" (click)="newOrder()">
+      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+      Order
+    </button>
+  </div>
+</header>
+
+<section class="table-body">
+  @if (bill(); as b) {
+    @if (b.sessionOpen) {
+      <div class="mode-row">
+        <span class="mode-label">Customers</span>
+        <div class="mode-combo">
+          <app-combo-box
+            [options]="selfOrderModeOptions"
+            [value]="b.selfOrderMode"
+            (valueChange)="setSelfOrderMode($event)"
+          />
+        </div>
+      </div>
+    }
+  }
+  @if (loading()) {
+    <p class="state">Loading…</p>
+  } @else if (error()) {
+    <p class="state err">{{ error() }}</p>
+  } @else if (!bill()?.lines?.length) {
+    <p class="state">No orders yet — tap "Order" to place the first one.</p>
+  } @else {
+    <div class="view-row">
+      <div class="view-combo">
+        <app-combo-box
+          [options]="viewOptions"
+          [value]="view()"
+          (valueChange)="view.set($any($event))"
+        />
+      </div>
+    </div>
+    <ul class="bill">
+      @for (line of shownLines(); track $index) {
+        <li class="line" [class.partial]="view() === 'unpaid' && line.originalPrice != null">
+          <span class="qty">{{ line.quantity }}×</span>
+          <span class="name" [innerHTML]="line.name"></span>
+          <span class="price">{{ (line.price ?? 0) * line.quantity | number: '1.2-2' }}</span>
+        </li>
+      } @empty {
+        <li class="line all-paid">{{ view() === 'unpaid' ? 'Everything is paid.' : 'Nothing paid yet.' }}</li>
+      }
+    </ul>
+    @if (view() === 'unpaid') {
+      <div class="bill-total">
+        <span>TOTAL DUE</span>
+        <span>{{ bill()!.unpaidTotal | number: '1.2-2' }} RON</span>
+      </div>
+    } @else {
+      <div class="bill-total">
+        <span>TOTAL PAID</span>
+        <span>{{ paidTotal() | number: '1.2-2' }} RON</span>
+      </div>
+    }
+  }
+  @if (canClose()) {
+    <button type="button" class="close-table" (click)="closeTable()" [disabled]="closing()">
+      {{ closing() ? 'Closing…' : 'Close table' }}
+    </button>
+  }
+</section>
+
+@if (payOpen()) {
+  <div class="pay-overlay" (mousedown)="closePay()">
+    <div class="pay-sheet" (mousedown)="$event.stopPropagation()" role="dialog" aria-modal="true">
+      <div class="pay-head">
+        <h3>Pay {{ name() }}</h3>
+        <button type="button" class="close-btn" (click)="closePay()" aria-label="Close">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+        </button>
+      </div>
+      <div class="pay-body">
+        <div class="mode-switch">
+          <button type="button" class="mode" [class.selected]="payMode() === 'FULL'" (click)="setMode('FULL')">Full bill</button>
+          <button type="button" class="mode" [class.selected]="payMode() === 'AMOUNT'" (click)="setMode('AMOUNT')">Amount</button>
+          <button type="button" class="mode" [class.selected]="payMode() === 'PARTIAL'" (click)="setMode('PARTIAL')">Select items</button>
+        </div>
+
+        @if (payMode() === 'FULL') {
+          <div class="amount-row">
+            <span class="lbl">Amount</span>
+            <span class="amount-fixed">{{ bill()!.unpaidTotal | number: '1.2-2' }} RON</span>
+          </div>
+        }
+
+        @if (payMode() === 'AMOUNT') {
+          <div class="section-label">Sum to pay</div>
+          <div class="tip-input-row">
+            <input type="number" inputmode="decimal" min="0" step="0.5" placeholder="Amount" #fx [value]="fixedAmount() ?? ''" (input)="setFixedAmount(fx.value)" autofocus />
+            <span class="suffix">RON</span>
+          </div>
+          <p class="hint">Pays the ordered products oldest-first; the last one may end up partially paid.</p>
+        }
+
+        @if (payMode() === 'PARTIAL') {
+          <p class="hint">Drag items from the bill to “Paying” (or tap to move one). Long-press an item to type a quantity.</p>
+          <div class="dnd">
+            <div class="zone bill" data-zone="bill" (dragover)="$event.preventDefault()" (drop)="dropToBill()">
+              <div class="zone-title">
+                <span>Bill</span>
+                <button type="button" class="zone-action" (click)="moveAllToPaying()" [disabled]="billList().length === 0">All →</button>
+              </div>
+              @for (p of billList(); track p.key) {
+                <button type="button" class="chip" [class.partial]="p.partial" draggable="true" (dragstart)="onDragStart(p.key, 'bill')" (pointerdown)="onChipPointerDown($event, p.key, 'bill')" (click)="onChipClick(p.key, 'bill')">
+                  <span class="cname" [innerHTML]="p.name"></span>
+                  <span class="cprice">{{ p.price | number: '1.2-2' }}</span>
+                  <span class="cqty">×{{ p.rem }}</span>
+                </button>
+              } @empty {
+                <p class="zone-empty">— all selected —</p>
+              }
+            </div>
+            <div class="zone paying" data-zone="paying" (dragover)="$event.preventDefault()" (drop)="dropToPaying()">
+              <div class="zone-title">
+                <span>Paying</span>
+                <button type="button" class="zone-action" (click)="clearPaying()" [disabled]="payingList().length === 0">Clear</button>
+              </div>
+              @for (p of payingList(); track p.key) {
+                <button type="button" class="chip on" [class.partial]="p.partial" draggable="true" (dragstart)="onDragStart(p.key, 'paying')" (pointerdown)="onChipPointerDown($event, p.key, 'paying')" (click)="onChipClick(p.key, 'paying')">
+                  <span class="cname" [innerHTML]="p.name"></span>
+                  <span class="cprice">{{ p.price | number: '1.2-2' }}</span>
+                  <span class="cqty">×{{ p.pay }}</span>
+                </button>
+              } @empty {
+                <p class="zone-empty">drag items here</p>
+              }
+            </div>
+          </div>
+
+          @if (editingId()) {
+            <div class="qty-edit-backdrop" (mousedown)="cancelQtyEdit()"></div>
+            <div class="qty-edit" (mousedown)="$event.stopPropagation()">
+              <span class="qty-edit-name" [innerHTML]="editingName()"></span>
+              <span class="qty-edit-sub">Quantity to pay — max {{ editingMax() }}</span>
+              <input
+                #qe
+                class="qty-edit-input"
+                type="number"
+                inputmode="numeric"
+                min="0"
+                [max]="editingMax()"
+                [value]="editingCurrent()"
+                (keydown.enter)="applyQty(qe.valueAsNumber)"
+                autofocus
+              />
+              <div class="qty-edit-actions">
+                <button type="button" class="qe-btn" (click)="cancelQtyEdit()">Cancel</button>
+                <button type="button" class="qe-btn primary" (click)="applyQty(qe.valueAsNumber)">Set</button>
+              </div>
+            </div>
+          }
+        }
+
+        <div class="section-label">Tip</div>
+        <div class="tip-row">
+          <button type="button" class="tip-chip" [class.active]="tipMode() === 'none'" (click)="setTip('none')">None</button>
+          <button type="button" class="tip-chip" [class.active]="tipMode() === 'p10'" (click)="setTip('p10')">10%</button>
+          <button type="button" class="tip-chip" [class.active]="tipMode() === 'p12'" (click)="setTip('p12')">12%</button>
+          <button type="button" class="tip-chip" [class.active]="tipMode() === 'p15'" (click)="setTip('p15')">15%</button>
+          <button type="button" class="tip-chip" [class.active]="tipMode() === 'customPct'" (click)="setTip('customPct')">Custom %</button>
+          <button type="button" class="tip-chip" [class.active]="tipMode() === 'customAmt'" (click)="setTip('customAmt')">Custom RON</button>
+        </div>
+        @if (tipMode() === 'customPct') {
+          <div class="tip-input-row">
+            <input type="number" inputmode="decimal" min="0" step="0.5" placeholder="Percent" #tpp [value]="tipCustomPercent() ?? ''" (input)="tipCustomPercent.set(tpp.value === '' ? null : +tpp.value)" />
+            <span class="suffix">%</span>
+          </div>
+        }
+        @if (tipMode() === 'customAmt') {
+          <div class="tip-input-row">
+            <input type="number" inputmode="decimal" min="0" step="0.5" placeholder="Amount" #tpa [value]="tipCustomAmount() ?? ''" (input)="tipCustomAmount.set(tpa.value === '' ? null : +tpa.value)" />
+            <span class="suffix">RON</span>
+          </div>
+        }
+
+        <div class="sum-row"><span>Amount</span><span>{{ chargeTotal() | number: '1.2-2' }} RON</span></div>
+        <div class="sum-row"><span>Tip</span><span>{{ computedTip() | number: '1.2-2' }} RON</span></div>
+        <div class="sum-row total"><span>Total to pay</span><span>{{ totalToPay() | number: '1.2-2' }} RON</span></div>
+
+        <div class="methods">
+          @for (option of payOptions(); track option.id) {
+            <button type="button" class="method" [disabled]="!canSubmit()" (click)="pay(option.id)">
+              {{ submitting() ? '…' : option.name }}
+            </button>
+          }
+        </div>
+      </div>
+    </div>
+  </div>
+}

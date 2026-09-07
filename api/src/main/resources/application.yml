@@ -1,0 +1,77 @@
+spring:
+  application:
+    name: yammer
+  datasource:
+    url: ${DATABASE_URL:jdbc:postgresql://localhost:5432/yammer?currentSchema=yammer}
+    username: ${DATABASE_USERNAME:yammer}
+    password: ${DATABASE_PASSWORD:yammerpass}
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+    # No lazy JPA associations (FKs are plain UUID columns), so holding a DB
+    # connection for the whole request buys nothing — free it after the service layer.
+    open-in-view: false
+    properties:
+      hibernate:
+        # dialect is auto-detected from the JDBC connection — don't set it explicitly.
+        format_sql: false
+        default_schema: yammer
+  flyway:
+    enabled: true
+    baseline-on-migrate: true
+    locations: classpath:db/migration
+    schemas: yammer
+  servlet:
+    multipart:
+      max-file-size: 5MB
+      max-request-size: 5MB
+
+server:
+  port: ${SERVER_PORT:8080}
+
+# JWT signing config. Secret must be >= 32 bytes for HS256.
+# Override JWT_SECRET in any real environment.
+jwt:
+  secret: ${JWT_SECRET:dev-secret-change-me-please-32-bytes-minimum!!}
+  # Token time-to-live in milliseconds (default 24h).
+  expiration-ms: ${JWT_EXPIRATION_MS:86400000}
+
+# Web app base URL — used to build the QR-login links (Users → QR).
+# Override per environment via APP_URL (prod: the public web app URL). The `local`
+# profile overrides it with the dev machine's LAN IP so the QR is scannable from a phone.
+app:
+  base-url: ${APP_URL:http://localhost:4200}
+
+# Netopia online payments (ONLINE self-pay order points). Disabled unless configured.
+# notify-url must be a PUBLICLY reachable URL of this app's /public/payments/netopia/notify
+# (use an ngrok/tunnel in dev). The browser redirect URL is sent per-request by the client.
+netopia:
+  enabled: ${NETOPIA_ENABLED:false}
+  api-key: ${NETOPIA_API_KEY:}
+  pos-signature: ${NETOPIA_POS_SIGNATURE:}
+  base-url: ${NETOPIA_BASE_URL:https://secure.sandbox.netopia-payments.com}
+  notify-url: ${NETOPIA_NOTIFY_URL:}
+  language: ${NETOPIA_LANGUAGE:ro}
+  currency: ${NETOPIA_CURRENCY:RON}
+
+# Google Cloud Storage for media (client logos, future menu-item images).
+# endpoint blank -> real GCS via Application Default Credentials (GCP/Cloud Run).
+# For local dev use the `local` profile, which points at the fake-gcs-server emulator.
+gcs:
+  bucket: ${GCS_BUCKET:yammer-media}
+  project-id: ${GCS_PROJECT_ID:yammer}
+  endpoint: ${GCS_ENDPOINT:}
+
+# Actuator endpoints. Only health/info are exposed; health detail is shown only
+# to authenticated callers so anonymous probes get a bare UP/DOWN.
+management:
+  endpoints:
+    web:
+      base-path: /actuator
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: when-authorized

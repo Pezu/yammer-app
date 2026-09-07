@@ -1,0 +1,48 @@
+# Local Postgres + fake-GCS for the Yammer API.
+#
+#   docker compose up -d      # start
+#   docker compose down       # stop
+#   docker compose down -v    # stop + wipe the data volumes
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: yammer-postgres
+    environment:
+      POSTGRES_DB: yammer
+      POSTGRES_USER: yammer
+      POSTGRES_PASSWORD: yammerpass
+    ports:
+      - "5432:5432"
+    volumes:
+      - yammer-postgres-data:/var/lib/postgresql/data
+      - ./init-schemas.sql:/docker-entrypoint-initdb.d/init-schemas.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U yammer -d yammer"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Local Google Cloud Storage emulator (object storage for client logos / media).
+  # The API talks to it when GCS_ENDPOINT=http://localhost:4443 (the `local` profile).
+  fake-gcs:
+    image: fsouza/fake-gcs-server:latest
+    container_name: yammer-gcs
+    command:
+      - "-scheme"
+      - "http"
+      - "-host"
+      - "0.0.0.0"
+      - "-port"
+      - "4443"
+      - "-external-url"
+      - "http://localhost:4443"
+      - "-public-host"
+      - "localhost:4443"
+    ports:
+      - "4443:4443"
+    volumes:
+      - yammer-gcs-data:/data
+
+volumes:
+  yammer-postgres-data:
+  yammer-gcs-data:

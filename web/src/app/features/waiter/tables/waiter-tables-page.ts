@@ -1,0 +1,154 @@
+import { Component, computed, inject, signal } from '@angular/core';
+import { Router } from '@angular/router';
+import { AuthService } from '../../../core/auth.service';
+import {
+  AssignableOrderPoint,
+  OrderPoint,
+  OrderPointService,
+} from '../../backoffice/pages/order-points/order-point.service';
+import {
+  OrderPointType,
+  OrderPointTypeService,
+} from '../../backoffice/pages/order-point-types/order-point-type.service';
+
+/**
+ * The waiter's ASSIGNED tables and bars as square tiles, plus a picker (the "+"
+ * tile) to assign more from the location's full table list. Single-user points
+ * accept one waiter and show who holds them; multi-user points always accept
+ * and show how many waiters are on them.
+ */
+@Component({
+  selector: 'app-waiter-tables-page',
+  templateUrl: './waiter-tables-page.html',
+  styleUrl: './waiter-tables-page.scss',
+})
+export class WaiterTablesPage {
+  private readonly auth = inject(AuthService);
+  private readonly router = inject(Router);
+  private readonly orderPointService = inject(OrderPointService);
+  private readonly typeService = inject(OrderPointTypeService);
+
+  readonly loading = signal(false);
+  readonly error = signal<string | null>(null);
+  readonly assigned = signal<OrderPoint[]>([]);
+  readonly types = signal<OrderPointType[]>([]);
+
+  /** The waiter's home location, from the session (set at login). */
+  readonly locationId = this.auth.session()?.locationId ?? null;
+
+  private readonly typeById = computed(() => new Map(this.types().map((t) => [t.id, t.type])));
+
+  constructor() {
+    this.typeService.list().subscribe({
+      next: (types) => this.types.set(types),
+    });
+    this.loadAssigned();
+  }
+
+  /** Enter one of my tables — its orders + the place-order flow. */
+  open(point: OrderPoint): void {
+    this.router.navigate(['/waiter/tables', point.id], { state: { name: point.name } });
+  }
+
+  loadAssigned(): void {
+    this.loading.set(true);
+    this.error.set(null);
+    this.orderPointService.assigned().subscribe({
+      next: (points) => {
+        this.assigned.set(points);
+        this.loading.set(false);
+      },
+      error: () => {
+        this.error.set('Failed to load your tables.');
+        this.loading.set(false);
+      },
+    });
+  }
+
+  // --- assign picker ---
+
+  readonly pickerOpen = signal(false);
+  readonly pickerLoading = signal(false);
+  readonly board = signal<AssignableOrderPoint[]>([]);
+  /** id of the point whose assign/unassign call is in flight. */
+  readonly busy = signal<string | null>(null);
+
+  /** TABLE and BAR points of the location, with assignment state. */
+  readonly pickerTiles = computed(() =>
+    this.board().filter((p) => {
+      const type = this.typeById().get(p.typeId);
+      return type === 'TABLE' || type === 'BAR';
+    }),
+  );
+
+  openPicker(): void {
+    if (!this.locationId) {
+      return;
+    }
+    this.pickerOpen.set(true);
+    this.loadBoard();
+  }
+
+  closePicker(): void {
+    this.pickerOpen.set(false);
+    this.loadAssigned();
+  }
+
+  private loadBoard(): void {
+    if (!this.locationId) {
+      return;
+    }
+    this.pickerLoading.set(true);
+    this.orderPointService.assignable(this.locationId).subscribe({
+      next: (board) => {
+        this.board.set(board);
+        this.pickerLoading.set(false);
+      },
+      error: () => {
+        this.error.set('Failed to load the table list.');
+        this.pickerLoading.set(false);
+      },
+    });
+  }
+
+  /** A tile can be tapped unless it is a single-user point already taken by someone else. */
+  canToggle(point: AssignableOrderPoint): boolean {
+    return point.allowMultipleUsers || point.assignedToMe || point.assignedCount === 0;
+  }
+
+  statusOf(point: AssignableOrderPoint): string {
+    if (point.allowMultipleUsers) {
+      return point.assignedCount === 1 ? '1 assigned' : `${point.assignedCount} assigned`;
+    }
+    if (point.assignedToMe) {
+      return 'Yours';
+    }
+    return point.assignedCount > 0 ? `Taken — ${point.assignedNames[0]}` : 'Free';
+  }
+
+  toggle(point: AssignableOrderPoint): void {
+    if (!this.canToggle(point) || this.busy()) {
+      return;
+    }
+    this.busy.set(point.id);
+    const call = point.assignedToMe
+      ? this.orderPointService.unassign(point.id)
+      : this.orderPointService.assign(point.id);
+    call.subscribe({
+      next: () => {
+        this.busy.set(null);
+        this.loadBoard();
+      },
+      error: (err) => {
+        this.busy.set(null);
+        // a 409 on unassign = the table's session is open; only Close table frees it
+        this.error.set(
+          point.assignedToMe && err?.status === 409
+            ? 'Table is open — close it from the table page (once everything is paid) to free it.'
+            : 'Could not update the assignment — someone may have taken it first.',
+        );
+        this.loadBoard();
+      },
+    });
+  }
+}

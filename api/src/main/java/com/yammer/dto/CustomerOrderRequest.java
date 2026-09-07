@@ -1,0 +1,22 @@
+package com.yammer.dto;
+
+import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.NotEmpty;
+import jakarta.validation.constraints.NotNull;
+import java.util.List;
+import java.util.UUID;
+
+/**
+ * A customer-placed order from the public QR page. Only menu-item ids + quantities are
+ * sent — the server resolves name/price from the menu, so the client can't tamper with
+ * prices.
+ */
+public record CustomerOrderRequest(
+        @NotNull UUID token,
+        @NotEmpty List<Line> items,
+        /* where the gateway sends the browser back — required only for ONLINE self-pay points */
+        String returnUrl) {
+
+    public record Line(@NotNull UUID menuItemId, @Min(1) int quantity) {
+    }
+}

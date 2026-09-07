@@ -1,0 +1,136 @@
+@use '../../../../shared/styles/crud-table';
+
+:host {
+  display: block;
+}
+
+/* role chips (display mode) */
+.role-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.chip {
+  display: inline-block;
+  padding: 0.15rem 0.55rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--primary);
+  background: rgba(52, 84, 209, 0.08);
+  border-radius: 999px;
+}
+
+/* header location filter — same footprint as the client combo next to it */
+.location-combo {
+  min-width: 200px;
+}
+
+/* QR-login button + popup */
+.icon-btn.qr:hover {
+  background: var(--primary);
+  border-color: var(--primary);
+}
+
+.qr-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  background: rgba(18, 27, 46, 0.45);
+}
+
+.qr-dialog {
+  width: 100%;
+  max-width: 360px;
+  padding: 1.75rem;
+  text-align: center;
+  background: #fff;
+  border-radius: 10px;
+  box-shadow: 0 1rem 3rem rgba(18, 27, 46, 0.25);
+}
+
+.qr-head {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+  margin-bottom: 0.2rem;
+}
+
+.qr-title {
+  margin: 0;
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: var(--text);
+}
+
+.qr-copy {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  color: var(--muted);
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  cursor: pointer;
+
+  &:hover {
+    background: var(--page-bg);
+    color: var(--text);
+  }
+}
+
+.qr-reset:hover {
+  color: var(--danger);
+  border-color: rgba(234, 77, 77, 0.4);
+}
+
+.qr-subtitle {
+  margin: 0 0 1rem;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.qr-img {
+  width: 240px;
+  height: 240px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.qr-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 240px;
+  height: 240px;
+  margin: 0 auto;
+  color: var(--muted);
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+}
+
+.qr-footer {
+  display: flex;
+  justify-content: center;
+  margin-top: 1.25rem;
+}
+
+.qr-close {
+  padding: 0.5rem 1.5rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #fff;
+  background: var(--primary);
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+}
+

@@ -1,0 +1,20 @@
+@use '../../../../shared/styles/crud-table';
+
+:host {
+  display: block;
+}
+
+.header-combo {
+  min-width: 200px;
+}
+
+.table .num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.table tfoot .totals td {
+  padding: 12px 15px;
+  font-weight: 700;
+  border-top: 2px solid var(--border);
+}

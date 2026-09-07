@@ -1,0 +1,8 @@
+# OS / editor / tooling
+.DS_Store
+.idea/
+.claude/
+
+# Logs
+*.log
+*.log.*

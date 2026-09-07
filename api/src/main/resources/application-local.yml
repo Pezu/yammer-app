@@ -1,0 +1,39 @@
+# Local development profile.
+# Activate with: --spring.profiles.active=local  (or set it in the IntelliJ run config).
+#
+# Values are hard-coded here for local convenience — no environment variables required.
+# Do NOT use these values anywhere but local development.
+
+# Web app base — the URL the QR-login codes (Users → QR) point at.
+# localhost for now; switch to the dev machine's LAN IP when the QR needs to be
+# scannable from a phone (e.g. http://172.20.231.41:4200).
+app:
+  base-url: http://localhost:4200
+
+# Netopia SANDBOX credentials (same test POS as the old project). notify-url needs a
+# public tunnel to this machine's :8080 for IPNs to arrive — update it to YOUR tunnel.
+netopia:
+  enabled: true
+  api-key: GMaWOObfdYQBlUWcuZFVnEqw-5DOTm6s7iOz5FFbdh0TYH23CJPEeKFx284g
+  pos-signature: 37ZT-B3X1-VZOC-GOIK-2RXP
+  base-url: https://secure.sandbox.netopia-payments.com
+  notify-url: https://overprominently-hemodynamic-veronica.ngrok-free.dev/public/payments/netopia/notify
+
+# Object storage → fake-gcs-server emulator from docker-compose (no real GCP credentials needed).
+gcs:
+  bucket: yammer-media
+  project-id: yammer-local
+  endpoint: http://localhost:4443
+
+# A local-only JWT signing secret (>= 32 bytes). The base config has no usable default on
+# purpose — JwtService refuses to start on the committed placeholder outside a dev profile —
+# so local runs need a real secret here.
+jwt:
+  secret: local-dev-only-jwt-secret-change-me-please-0123456789
+
+# Local Postgres (matches the docker-compose db).
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/yammer?currentSchema=yammer
+    username: yammer
+    password: yammerpass

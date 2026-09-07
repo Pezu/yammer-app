@@ -1,0 +1,68 @@
+package com.yammer.controller;
+
+import com.yammer.dto.LocationRequest;
+import com.yammer.dto.LocationResponse;
+import com.yammer.service.LocationService;
+import com.yammer.service.QrPdfService;
+import jakarta.validation.Valid;
+import java.util.List;
+import java.util.UUID;
+import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.ResponseStatus;
+import org.springframework.web.bind.annotation.RestController;
+
+@RestController
+@RequestMapping("/locations")
+@RequiredArgsConstructor
+@PreAuthorize("hasAnyRole('ADMIN','SUPER')") // location admin is admin-only; read relaxed below
+public class LocationController {
+
+    private final LocationService locationService;
+    private final QrPdfService qrPdfService;
+
+    @GetMapping
+    @PreAuthorize("isAuthenticated()")
+    public List<LocationResponse> list(@RequestParam(required = false) UUID clientId) {
+        return locationService.list(clientId);
+    }
+
+    @PostMapping
+    @ResponseStatus(HttpStatus.CREATED)
+    public LocationResponse create(@Valid @RequestBody LocationRequest request) {
+        return locationService.create(request);
+    }
+
+    @PutMapping("/{id}")
+    public LocationResponse update(@PathVariable UUID id, @Valid @RequestBody LocationRequest request) {
+        return locationService.update(id, request);
+    }
+
+    @DeleteMapping("/{id}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void delete(@PathVariable UUID id) {
+        locationService.delete(id);
+    }
+
+    /** Printable PDF of customer-ordering QR codes — one per TABLE/BAR point of the location. */
+    @GetMapping("/{id}/qr")
+    public ResponseEntity<byte[]> qrPdf(@PathVariable UUID id) {
+        byte[] pdf = qrPdfService.generateOrderPointsQrPdf(id);
+        return ResponseEntity.ok()
+                .contentType(MediaType.APPLICATION_PDF)
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"qr-" + id + ".pdf\"")
+                .body(pdf);
+    }
+}

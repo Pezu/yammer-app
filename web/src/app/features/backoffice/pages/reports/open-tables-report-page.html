@@ -1,0 +1,78 @@
+<header class="page-header">
+  <h1>Open tables</h1>
+  <div class="header-actions">
+    @if (showClientCombo()) {
+      <div class="header-combo">
+        <app-combo-box
+          [options]="clients()"
+          [value]="clientFilter()"
+          (valueChange)="selectClient($event)"
+          placeholder="Select a client…"
+          searchPlaceholder="Search clients…"
+          noMatchLabel="No clients found"
+        />
+      </div>
+    }
+    @if (showLocationCombo()) {
+      <div class="header-combo">
+        <app-combo-box
+          [options]="headerLocationOptions()"
+          [value]="locationFilter()"
+          (valueChange)="locationFilter.set($event)"
+          placeholder="Select a location…"
+          searchPlaceholder="Search locations…"
+          noMatchLabel="No locations"
+        />
+      </div>
+    }
+  </div>
+</header>
+
+<section class="page-body">
+  @if (error()) {
+    <div class="error" role="alert">{{ error() }}</div>
+  }
+
+  @if (!locationFilter()) {
+    <div class="select-prompt">Select a location to view its open tables.</div>
+  } @else {
+    <div class="card">
+      <div class="card-body">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>Table</th>
+              <th>Opened by</th>
+              <th>Opened at</th>
+              <th class="num">Amount</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (row of rows(); track row.sessionId) {
+              <tr>
+                <td>{{ row.orderPointName }}</td>
+                <td>{{ row.openedBy }}</td>
+                <td>{{ row.openedAt ? (row.openedAt | date: 'dd.MM.yyyy HH:mm') : '—' }}</td>
+                <td class="num">{{ row.amount | number: '1.2-2' }}</td>
+              </tr>
+            }
+
+            @if (!loading() && rows().length === 0) {
+              <tr>
+                <td colspan="4" class="empty">No open tables.</td>
+              </tr>
+            }
+          </tbody>
+          @if (rows().length > 0) {
+            <tfoot>
+              <tr class="totals">
+                <td colspan="3">TOTAL</td>
+                <td class="num">{{ totalAmount() | number: '1.2-2' }}</td>
+              </tr>
+            </tfoot>
+          }
+        </table>
+      </div>
+    </div>
+  }
+</section>

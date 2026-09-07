@@ -1,0 +1,85 @@
+<header class="page-header">
+  <h1>Payments</h1>
+  <div class="header-actions">
+    @if (showClientCombo()) {
+      <div class="header-combo">
+        <app-combo-box
+          [options]="clients()"
+          [value]="clientFilter()"
+          (valueChange)="selectClient($event)"
+          placeholder="Select a client…"
+          searchPlaceholder="Search clients…"
+          noMatchLabel="No clients found"
+        />
+      </div>
+    }
+    @if (showLocationCombo()) {
+      <div class="header-combo">
+        <app-combo-box
+          [options]="headerLocationOptions()"
+          [value]="locationFilter()"
+          (valueChange)="locationFilter.set($event)"
+          placeholder="Select a location…"
+          searchPlaceholder="Search locations…"
+          noMatchLabel="No locations"
+        />
+      </div>
+    }
+  </div>
+</header>
+
+<section class="page-body">
+  @if (error()) {
+    <div class="error" role="alert">{{ error() }}</div>
+  }
+
+  @if (!locationFilter()) {
+    <div class="select-prompt">Select a location to view its payments.</div>
+  } @else {
+    <div class="card">
+      <div class="card-body">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>Table</th>
+              <th>Waiter</th>
+              <th class="num">Amount</th>
+              <th class="num">Tip</th>
+              <th class="num">Total</th>
+              <th>Payment type</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (row of rows(); track row.id) {
+              <tr>
+                <td>{{ row.orderPointName }}</td>
+                <td>{{ row.waiter }}</td>
+                <td class="num">{{ row.amount | number: '1.2-2' }}</td>
+                <td class="num">{{ row.tip | number: '1.2-2' }}</td>
+                <td class="num">{{ row.total | number: '1.2-2' }}</td>
+                <td>{{ row.paymentType }}</td>
+              </tr>
+            }
+
+            @if (!loading() && rows().length === 0) {
+              <tr>
+                <td colspan="6" class="empty">No payments yet.</td>
+              </tr>
+            }
+          </tbody>
+          @if (rows().length > 0) {
+            <tfoot>
+              <tr class="totals">
+                <td colspan="2">TOTAL</td>
+                <td class="num">{{ totals().amount | number: '1.2-2' }}</td>
+                <td class="num">{{ totals().tip | number: '1.2-2' }}</td>
+                <td class="num">{{ totals().total | number: '1.2-2' }}</td>
+                <td></td>
+              </tr>
+            </tfoot>
+          }
+        </table>
+      </div>
+    </div>
+  }
+</section>

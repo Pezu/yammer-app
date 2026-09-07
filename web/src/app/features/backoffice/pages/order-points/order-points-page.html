@@ -1,0 +1,314 @@
+<header class="page-header">
+  <h1>Order Points</h1>
+  <div class="header-actions">
+    @if (showClientCombo()) {
+      <div class="header-combo">
+        <app-combo-box
+          [options]="clients()"
+          [value]="clientFilter()"
+          (valueChange)="selectClient($event)"
+          placeholder="Select a client…"
+          searchPlaceholder="Search clients…"
+          noMatchLabel="No clients found"
+        />
+      </div>
+    }
+    @if (showLocationCombo()) {
+      <div class="header-combo">
+        <app-combo-box
+          [options]="headerLocationOptions()"
+          [value]="locationFilter()"
+          (valueChange)="locationFilter.set($event)"
+          placeholder="Select a location…"
+          searchPlaceholder="Search locations…"
+          noMatchLabel="No locations"
+        />
+      </div>
+    }
+    <button type="button" class="add-btn" (click)="openModal()" [disabled]="!locationFilter()" title="Add order points" aria-label="Add order points">
+      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="12" y1="5" x2="12" y2="19"></line>
+        <line x1="5" y1="12" x2="19" y2="12"></line>
+      </svg>
+    </button>
+  </div>
+</header>
+
+<section class="page-body">
+  @if (error()) {
+    <div class="error" role="alert">{{ error() }}</div>
+  }
+
+  @if (!locationFilter()) {
+    <div class="select-prompt">Select a location to view its order points.</div>
+  } @else {
+    <div class="card">
+      <div class="card-body">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Menu</th>
+              <th>Printer</th>
+              <th>Cash register</th>
+              <th>Self pay</th>
+              <th>Multiple users</th>
+              <th>Payment types</th>
+              <th>Service point</th>
+              <th class="actions-col">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (point of orderPoints(); track point.id) {
+              <tr>
+                @if (editingId() === point.id) {
+                  <td><input type="text" class="input" [formControl]="editName" (keyup.enter)="saveEdit(point.id)" (keyup.escape)="cancelEdit()" /></td>
+                  <td>
+                    <app-combo-box
+                      [options]="menuOptions()"
+                      [value]="editMenuId()"
+                      (valueChange)="editMenuId.set($event)"
+                      placeholder="No menu"
+                      [allowEmpty]="true"
+                      emptyLabel="No menu"
+                      noMatchLabel="No menus yet"
+                    />
+                  </td>
+                  <td>
+                    <app-combo-box
+                      [options]="printerOptions()"
+                      [value]="editPrinterId()"
+                      (valueChange)="editPrinterId.set($event)"
+                      placeholder="No printer"
+                      [allowEmpty]="true"
+                      emptyLabel="No printer"
+                      noMatchLabel="No printers yet"
+                    />
+                  </td>
+                  <td>
+                    <app-combo-box
+                      [options]="cashRegisterOptions()"
+                      [value]="editCashRegisterId()"
+                      (valueChange)="editCashRegisterId.set($event)"
+                      placeholder="No cash register"
+                      [allowEmpty]="true"
+                      emptyLabel="No cash register"
+                      noMatchLabel="No cash registers yet"
+                    />
+                  </td>
+                  <td>
+                    <app-combo-box
+                      [options]="selfPayTypeOptions()"
+                      [value]="editSelfPayTypeId()"
+                      (valueChange)="editSelfPayTypeId.set($event)"
+                      placeholder="No self pay"
+                      [allowEmpty]="true"
+                      emptyLabel="No self pay"
+                      noMatchLabel="No self pay types"
+                    />
+                  </td>
+                  <td class="paylater-col">
+                    <input type="checkbox" class="checkbox" #eamu [checked]="editAllowMultipleUsers()" (change)="editAllowMultipleUsers.set(eamu.checked)" aria-label="Allow multiple users" />
+                  </td>
+                  <td>
+                    <app-combo-box
+                      [options]="paymentTypeOptions()"
+                      [multiple]="true"
+                      [values]="editPaymentTypeIds()"
+                      (valuesChange)="editPaymentTypeIds.set($event)"
+                      placeholder="No payment types"
+                      noMatchLabel="No payment types"
+                    />
+                  </td>
+                  <td>
+                    <app-combo-box
+                      [options]="editServiceOptions()"
+                      [value]="editServiceId()"
+                      (valueChange)="editServiceId.set($event)"
+                      placeholder="No service point"
+                      [allowEmpty]="true"
+                      emptyLabel="No service point"
+                      noMatchLabel="No SERVICE points in this location"
+                    />
+                  </td>
+                } @else {
+                  <td>{{ point.name }}</td>
+                  <td>{{ menuName(point.menuId) }}</td>
+                  <td>{{ deviceName(point.printerId) }}</td>
+                  <td>{{ deviceName(point.cashRegisterId) }}</td>
+                  <td>{{ selfPayTypeName(point.selfPayTypeId) }}</td>
+                  <td class="paylater-col">
+                    @if (point.allowMultipleUsers) {
+                      <svg class="check" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-label="Allow multiple users"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                    }
+                  </td>
+                  <td>
+                    @if (point.paymentTypeIds.length) {
+                      <div class="type-chips">
+                        @for (id of point.paymentTypeIds; track id) {
+                          <span class="chip">{{ paymentTypeName(id) }}</span>
+                        }
+                      </div>
+                    } @else {
+                      <span class="muted">—</span>
+                    }
+                  </td>
+                  <td>{{ pointName(point.serviceOrderPointId) }}</td>
+                }
+                <td class="actions-col">
+                  <div class="actions">
+                    @if (editingId() === point.id) {
+                      <button type="button" class="icon-btn save" (click)="saveEdit(point.id)" title="Save" aria-label="Save">
+                        <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                      </button>
+                      <button type="button" class="icon-btn cancel" (click)="cancelEdit()" title="Cancel" aria-label="Cancel">
+                        <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                      </button>
+                    } @else {
+                      <button type="button" class="icon-btn edit" (click)="startEdit(point)" title="Edit" aria-label="Edit">
+                        <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
+                      </button>
+                      <button type="button" class="icon-btn danger" (click)="remove(point)" title="Delete" aria-label="Delete">
+                        <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
+                      </button>
+                    }
+                  </div>
+                </td>
+              </tr>
+            }
+
+            @if (!loading() && orderPoints().length === 0) {
+              <tr>
+                <td colspan="9" class="empty">No order points yet — use the + button to add some.</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    </div>
+  }
+</section>
+
+@if (pendingDelete(); as point) {
+  <app-confirm-dialog
+    title="Delete order point"
+    [message]="'Are you sure you want to delete &quot;' + point.name + '&quot;?'"
+    confirmLabel="Delete"
+    [danger]="true"
+    (confirmed)="confirmDelete()"
+    (cancelled)="cancelDelete()"
+  />
+}
+
+@if (modalOpen()) {
+  <div class="modal-overlay" (mousedown)="closeModal()">
+    <div class="modal" (mousedown)="$event.stopPropagation()" role="dialog" aria-modal="true">
+      <div class="modal-header">
+        <h3>Add order points</h3>
+        <button type="button" class="close-btn" (click)="closeModal()" aria-label="Close">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label>Order point type</label>
+          <app-combo-box
+            [options]="typeOptions()"
+            [value]="mTypeId()"
+            (valueChange)="mTypeId.set($event)"
+            placeholder="Select a type…"
+            noMatchLabel="No types"
+          />
+        </div>
+        <div class="form-group">
+          <label for="batchCount">How many</label>
+          <input id="batchCount" type="number" min="1" step="1" class="form-control" #cnt [value]="mCount()" (input)="mCount.set(+cnt.value)" autofocus />
+        </div>
+        <div class="form-group">
+          <label>Self pay</label>
+          <app-combo-box
+            [options]="selfPayTypeOptions()"
+            [value]="mSelfPayTypeId()"
+            (valueChange)="mSelfPayTypeId.set($event)"
+            placeholder="No self pay"
+            [allowEmpty]="true"
+            emptyLabel="No self pay"
+            noMatchLabel="No self pay types"
+          />
+        </div>
+        <div class="form-group">
+          <label class="checkbox-label">
+            <input type="checkbox" class="checkbox" #amu [checked]="mAllowMultipleUsers()" (change)="mAllowMultipleUsers.set(amu.checked)" />
+            Allow multiple users
+          </label>
+        </div>
+        <div class="form-group">
+          <label>Payment types</label>
+          <app-combo-box
+            [options]="paymentTypeOptions()"
+            [multiple]="true"
+            [values]="mPaymentTypeIds()"
+            (valuesChange)="mPaymentTypeIds.set($event)"
+            placeholder="No payment types"
+            noMatchLabel="No payment types"
+          />
+        </div>
+        <div class="form-group">
+          <label>Menu</label>
+          <app-combo-box
+            [options]="menuOptions()"
+            [value]="mMenuId()"
+            (valueChange)="mMenuId.set($event)"
+            placeholder="No menu"
+            [allowEmpty]="true"
+            emptyLabel="No menu"
+            noMatchLabel="No menus yet"
+          />
+        </div>
+        <div class="form-group">
+          <label>Service point</label>
+          <app-combo-box
+            [options]="serviceOptions()"
+            [value]="mServiceId()"
+            (valueChange)="mServiceId.set($event)"
+            placeholder="No service point"
+            [allowEmpty]="true"
+            emptyLabel="No service point"
+            noMatchLabel="No SERVICE points in this location"
+          />
+        </div>
+        <div class="form-group">
+          <label>Printer</label>
+          <app-combo-box
+            [options]="printerOptions()"
+            [value]="mPrinterId()"
+            (valueChange)="mPrinterId.set($event)"
+            placeholder="No printer"
+            [allowEmpty]="true"
+            emptyLabel="No printer"
+            noMatchLabel="No printers yet"
+          />
+        </div>
+        <div class="form-group">
+          <label>Cash register</label>
+          <app-combo-box
+            [options]="cashRegisterOptions()"
+            [value]="mCashRegisterId()"
+            (valueChange)="mCashRegisterId.set($event)"
+            placeholder="No cash register"
+            [allowEmpty]="true"
+            emptyLabel="No cash register"
+            noMatchLabel="No cash registers yet"
+          />
+        </div>
+        <p class="hint muted">Names are generated automatically — B1, … / S1, …; tables as T1.1, T2.1, … (ready to split).</p>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" (click)="closeModal()">Cancel</button>
+        <button type="button" class="btn btn-primary" (click)="saveBatch()" [disabled]="saving()">
+          {{ saving() ? 'Saving…' : 'Add' }}
+        </button>
+      </div>
+    </div>
+  </div>
+}

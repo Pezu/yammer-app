@@ -1,0 +1,98 @@
+name: deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:   # manual run deploys everything
+
+permissions:
+  contents: read
+  id-token: write        # required for Workload Identity Federation
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  PROJECT_ID: yammer-order-app
+  REGION: europe-west1
+  AR: europe-west1-docker.pkg.dev/yammer-order-app/yammer
+  SQL_INSTANCE: yammer-order-app:europe-west1:yammer-pg
+  # Public identifiers, not secrets: the WIF provider only trusts tokens from this repo.
+  WIF_PROVIDER: projects/926521730520/locations/global/workloadIdentityPools/github/providers/github
+  WIF_SERVICE_ACCOUNT: gh-deployer@yammer-order-app.iam.gserviceaccount.com
+  # Public web app base (QR-login links, Netopia notify). Main domain.
+  APP_URL: https://yammer.ro
+
+jobs:
+  # Detect which top-level folder changed so we only deploy the affected service.
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      api: ${{ steps.filter.outputs.api }}
+      web: ${{ steps.filter.outputs.web }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            api:
+              - 'api/**'
+            web:
+              - 'web/**'
+
+  api:
+    needs: changes
+    if: ${{ needs.changes.outputs.api == 'true' || github.event_name == 'workflow_dispatch' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - id: vars
+        run: echo "sha=${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ env.WIF_PROVIDER }}
+          service_account: ${{ env.WIF_SERVICE_ACCOUNT }}
+      - uses: google-github-actions/setup-gcloud@v2
+      - run: gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev --quiet
+      - name: Build & push api image
+        run: |
+          docker build -t "$AR/api:${{ steps.vars.outputs.sha }}" -t "$AR/api:latest" ./api
+          docker push "$AR/api:${{ steps.vars.outputs.sha }}"
+          docker push "$AR/api:latest"
+      - name: Deploy api to Cloud Run
+        run: |
+          gcloud run deploy yammer-api \
+            --image "$AR/api:${{ steps.vars.outputs.sha }}" \
+            --project "$PROJECT_ID" --region "$REGION" \
+            --platform managed --allow-unauthenticated \
+            --port 8080 --min-instances 1 --max-instances 2 --timeout 300 \
+            --memory 1Gi --cpu 1 \
+            --add-cloudsql-instances "$SQL_INSTANCE" \
+            --set-env-vars "^@^DATABASE_URL=jdbc:postgresql:///yammer?cloudSqlInstance=$SQL_INSTANCE&socketFactory=com.google.cloud.sql.postgres.SocketFactory&currentSchema=yammer@DATABASE_USERNAME=yammer_app@GCS_BUCKET=yammer-order-app-uploads@GCS_PROJECT_ID=yammer-order-app@GCS_ENDPOINT=@APP_URL=$APP_URL@NETOPIA_ENABLED=true@NETOPIA_BASE_URL=https://secure.sandbox.netopia-payments.com@NETOPIA_NOTIFY_URL=$APP_URL/api/public/payments/netopia/notify@JAVA_TOOL_OPTIONS=-XX:MaxRAMPercentage=75.0" \
+            --set-secrets "DATABASE_PASSWORD=yammer-db-password:latest,JWT_SECRET=jwt-secret:latest,NETOPIA_API_KEY=netopia-api-key:latest,NETOPIA_POS_SIGNATURE=netopia-pos-signature:latest"
+
+  web:
+    needs: changes
+    if: ${{ needs.changes.outputs.web == 'true' || github.event_name == 'workflow_dispatch' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - id: vars
+        run: echo "sha=${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ env.WIF_PROVIDER }}
+          service_account: ${{ env.WIF_SERVICE_ACCOUNT }}
+      - uses: google-github-actions/setup-gcloud@v2
+      - run: gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev --quiet
+      - name: Build & push web image
+        run: |
+          docker build -t "$AR/web:${{ steps.vars.outputs.sha }}" -t "$AR/web:latest" ./web
+          docker push "$AR/web:${{ steps.vars.outputs.sha }}"
+          docker push "$AR/web:latest"
+      - name: Deploy web to Cloud Run
+        run: |
+          gcloud run deploy yammer-web \
+            --image "$AR/web:${{ steps.vars.outputs.sha }}" \
+            --project "$PROJECT_ID" --region "$REGION" \
+            --platform managed --allow-unauthenticated --port 8080 \
+            --min-instances 0 --max-instances 5

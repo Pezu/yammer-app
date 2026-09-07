@@ -1,0 +1,111 @@
+<header class="page-header">
+  <h1>Recipes</h1>
+  <div class="header-actions">
+    @if (showClientCombo()) {
+      <div class="header-combo">
+        <app-combo-box
+          [options]="clients()"
+          [value]="clientFilter()"
+          (valueChange)="selectClient($event)"
+          placeholder="Select a client…"
+          searchPlaceholder="Search clients…"
+          noMatchLabel="No clients found"
+        />
+      </div>
+    }
+    @if (showLocationCombo()) {
+      <div class="header-combo">
+        <app-combo-box
+          [options]="headerLocationOptions()"
+          [value]="locationFilter()"
+          (valueChange)="locationFilter.set($event)"
+          placeholder="Select a location…"
+          searchPlaceholder="Search locations…"
+          noMatchLabel="No locations"
+        />
+      </div>
+    }
+  </div>
+</header>
+
+<section class="page-body">
+  @if (error()) {
+    <div class="error" role="alert">{{ error() }}</div>
+  }
+
+  @if (!locationFilter()) {
+    <div class="select-prompt">Select a location to manage recipes.</div>
+  } @else {
+    <div class="recipe-editor">
+      <div class="form-group product-pick">
+        <label>Product</label>
+        <app-combo-box
+          [options]="productOptions()"
+          [value]="productId()"
+          (valueChange)="selectProduct($event)"
+          placeholder="Select a product…"
+          searchPlaceholder="Search products…"
+          noMatchLabel="No products — define them on the Products page"
+        />
+      </div>
+
+      @if (productId()) {
+        @if (loadingRecipe()) {
+          <p class="state">Loading…</p>
+        } @else {
+          <div class="components">
+            <div class="components-head">
+              <span>Component</span>
+              <span>Quantity (fraction)</span>
+              <span></span>
+            </div>
+            @for (row of rows(); track $index) {
+              <div class="component-row">
+                <app-combo-box
+                  [options]="componentOptions()"
+                  [value]="row.componentProductId"
+                  (valueChange)="setComponent($index, $event)"
+                  placeholder="Select a component…"
+                  searchPlaceholder="Search products…"
+                  noMatchLabel="No other products"
+                />
+                <input
+                  type="number"
+                  class="qty-input"
+                  step="0.0001"
+                  min="0"
+                  placeholder="e.g. 0.0714"
+                  #q
+                  [value]="row.quantity ?? ''"
+                  (input)="setQuantity($index, q.value)"
+                />
+                <button type="button" class="icon-btn danger" (click)="removeRow($index)" title="Remove" aria-label="Remove">
+                  <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                </button>
+              </div>
+            } @empty {
+              <p class="state">No components yet — this product has no recipe.</p>
+            }
+
+            <div class="components-actions">
+              <button type="button" class="btn-add" (click)="addRow()">
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                Add component
+              </button>
+              <span class="spacer"></span>
+              @if (saved()) {
+                <span class="saved">Saved ✓</span>
+              }
+              <button type="button" class="btn-save" [disabled]="!canSave()" (click)="save()">
+                {{ saving() ? 'Saving…' : 'Save recipe' }}
+              </button>
+            </div>
+            <p class="hint">
+              Quantities are fractions of the component product — e.g. 1/14 of a prosecco bottle = 0.0714.
+            </p>
+          </div>
+        }
+      }
+    </div>
+  }
+</section>
