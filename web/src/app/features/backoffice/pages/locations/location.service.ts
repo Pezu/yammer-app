@@ -7,11 +7,25 @@ export interface Location {
   id: string;
   name: string;
   clientId: string;
+  active: boolean;
 }
 
 export interface LocationInput {
   name: string;
   clientId: string | null;
+  active: boolean;
+}
+
+/**
+ * The location a backoffice page should pre-select: the single ACTIVE one when there is
+ * exactly one, else the only location at all; undefined when the user has to choose.
+ */
+export function defaultLocation(locations: Location[]): Location | undefined {
+  const active = locations.filter((l) => l.active);
+  if (active.length === 1) {
+    return active[0];
+  }
+  return locations.length === 1 ? locations[0] : undefined;
 }
 
 @Injectable({ providedIn: 'root' })

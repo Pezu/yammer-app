@@ -9,7 +9,7 @@ import {
 } from './order-point.service';
 import { OrderPointType, OrderPointTypeService } from '../order-point-types/order-point-type.service';
 import { Client, ClientService } from '../clients/client.service';
-import { Location, LocationService } from '../locations/location.service';
+import { Location, LocationService, defaultLocation } from '../locations/location.service';
 import { Menu, MenuService } from '../menu/menu.service';
 import { Integration, IntegrationService } from '../integrations/integration.service';
 import { PaymentType, PaymentTypeService } from '../payment-types/payment-type.service';
@@ -141,9 +141,9 @@ export class OrderPointsPage {
     });
     // Auto-select the location when the context client has exactly one.
     effect(() => {
-      const options = this.headerLocationOptions();
-      if (options.length === 1 && !this.locationFilter()) {
-        this.locationFilter.set(options[0].id);
+      const preferred = defaultLocation(this.headerLocationOptions());
+      if (preferred && !this.locationFilter()) {
+        this.locationFilter.set(preferred.id);
       }
     });
     // (Re)load the order points + the location's menus and peripherals whenever

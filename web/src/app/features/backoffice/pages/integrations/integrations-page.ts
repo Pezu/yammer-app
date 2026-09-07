@@ -3,7 +3,7 @@ import { FormControl, ReactiveFormsModule, Validators } from '@angular/forms';
 import { HttpErrorResponse } from '@angular/common/http';
 import { AuthService } from '../../../../core/auth.service';
 import { Client, ClientService } from '../clients/client.service';
-import { Location, LocationService } from '../locations/location.service';
+import { Location, LocationService, defaultLocation } from '../locations/location.service';
 import {
   BridgeDevice,
   ConnectionType,
@@ -217,8 +217,9 @@ export class IntegrationsPage {
     this.locationService.list(clientId).subscribe({
       next: (locations) => {
         this.locations.set(locations);
-        if (locations.length === 1) {
-          this.selectLocation(locations[0].id);
+        const preferred = defaultLocation(locations);
+        if (preferred) {
+          this.selectLocation(preferred.id);
         }
       },
       error: () => this.error.set('Failed to load locations.'),

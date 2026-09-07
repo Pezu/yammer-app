@@ -49,6 +49,7 @@
           <thead>
             <tr>
               <th>Name</th>
+              <th class="active-col">Active</th>
               <th class="actions-col">Actions</th>
             </tr>
           </thead>
@@ -57,6 +58,9 @@
               <tr>
                 <td>
                   <input type="text" class="input" placeholder="Location name" [formControl]="draftName" (keyup.enter)="saveCreate()" (keyup.escape)="cancelCreate()" autofocus />
+                </td>
+                <td class="active-col">
+                  <input type="checkbox" class="checkbox" #da [checked]="draftActive()" (change)="draftActive.set(da.checked)" aria-label="Active" />
                 </td>
                 <td class="actions-col">
                   <div class="actions">
@@ -78,6 +82,13 @@
                     <input type="text" class="input" [formControl]="editName" (keyup.enter)="saveEdit(location)" (keyup.escape)="cancelEdit()" />
                   } @else {
                     {{ location.name }}
+                  }
+                </td>
+                <td class="active-col">
+                  @if (editingId() === location.id) {
+                    <input type="checkbox" class="checkbox" #ea [checked]="editActive()" (change)="editActive.set(ea.checked)" aria-label="Active" />
+                  } @else {
+                    <input type="checkbox" class="checkbox" #ra [checked]="location.active" (change)="toggleActive(location, ra.checked)" [attr.aria-label]="'Active: ' + location.name" />
                   }
                 </td>
                 <td class="actions-col">
@@ -107,7 +118,7 @@
 
             @if (!draft() && !loading() && visibleLocations().length === 0) {
               <tr>
-                <td colspan="2" class="empty">No locations yet — use the + button to add one.</td>
+                <td colspan="3" class="empty">No locations yet — use the + button to add one.</td>
               </tr>
             }
           </tbody>

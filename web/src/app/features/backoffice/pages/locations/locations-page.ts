@@ -27,7 +27,9 @@ export class LocationsPage {
   readonly pendingDelete = signal<Location | null>(null);
 
   readonly draftName = new FormControl('', { nonNullable: true, validators: [Validators.required] });
+  readonly draftActive = signal(true);
   readonly editName = new FormControl('', { nonNullable: true, validators: [Validators.required] });
+  readonly editActive = signal(true);
 
   // --- access model (same as Users) ---
   readonly isSuper = this.auth.isSuper;
@@ -103,6 +105,7 @@ export class LocationsPage {
   startCreate(): void {
     this.editingId.set(null);
     this.draftName.reset();
+    this.draftActive.set(true);
     this.error.set(null);
     this.draft.set(true);
   }
@@ -116,7 +119,9 @@ export class LocationsPage {
       return;
     }
     const clientId = (this.isSuper() ? this.clientFilter() : this.ownClientId()) || null;
-    this.locationService.create({ name: this.draftName.value.trim(), clientId }).subscribe({
+    this.locationService
+      .create({ name: this.draftName.value.trim(), clientId, active: this.draftActive() })
+      .subscribe({
       next: (location) => {
         this.locations.update((list) => this.sorted([...list, location]));
         this.draft.set(false);
@@ -131,6 +136,7 @@ export class LocationsPage {
     this.draft.set(false);
     this.editingId.set(location.id);
     this.editName.setValue(location.name);
+    this.editActive.set(location.active);
     this.error.set(null);
   }
 
@@ -143,12 +149,31 @@ export class LocationsPage {
       return;
     }
     const clientId = (this.isSuper() ? location.clientId : this.ownClientId()) || null;
-    this.locationService.update(location.id, { name: this.editName.value.trim(), clientId }).subscribe({
-      next: (updated) => {
-        this.locations.update((list) => this.sorted(list.map((l) => (l.id === updated.id ? updated : l))));
-        this.editingId.set(null);
+    this.locationService
+      .update(location.id, { name: this.editName.value.trim(), clientId, active: this.editActive() })
+      .subscribe({
+        next: (updated) => {
+          this.locations.update((list) => this.sorted(list.map((l) => (l.id === updated.id ? updated : l))));
+          this.editingId.set(null);
+        },
+        error: (err: HttpErrorResponse) => this.error.set(this.message(err, 'update')),
+      });
+  }
+
+  // --- inline active toggle ---
+
+  /** Flip a row's active flag straight from the table (no edit mode needed). */
+  toggleActive(location: Location, active: boolean): void {
+    this.error.set(null);
+    const clientId = (this.isSuper() ? location.clientId : this.ownClientId()) || null;
+    // optimistic update; revert on failure
+    this.locations.update((list) => list.map((l) => (l.id === location.id ? { ...l, active } : l)));
+    this.locationService.update(location.id, { name: location.name, clientId, active }).subscribe({
+      next: (updated) => this.locations.update((list) => list.map((l) => (l.id === updated.id ? updated : l))),
+      error: (err: HttpErrorResponse) => {
+        this.locations.update((list) => list.map((l) => (l.id === location.id ? { ...l, active: !active } : l)));
+        this.error.set(this.message(err, 'update'));
       },
-      error: (err: HttpErrorResponse) => this.error.set(this.message(err, 'update')),
     });
   }
 

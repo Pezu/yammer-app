@@ -3,7 +3,7 @@ import { FormBuilder, ReactiveFormsModule } from '@angular/forms';
 import { HttpErrorResponse } from '@angular/common/http';
 import { Product, ProductInput, ProductService } from './product.service';
 import { Client, ClientService } from '../clients/client.service';
-import { Location, LocationService } from '../locations/location.service';
+import { Location, LocationService, defaultLocation } from '../locations/location.service';
 import { VatService, VatType } from '../vat/vat.service';
 import { AuthService } from '../../../../core/auth.service';
 import { ConfirmDialog } from '../../../../shared/confirm-dialog/confirm-dialog';
@@ -69,9 +69,9 @@ export class ProductsPage {
       next: (locations) => this.locations.set(locations),
     });
     effect(() => {
-      const options = this.headerLocationOptions();
-      if (options.length === 1 && !this.locationFilter()) {
-        this.locationFilter.set(options[0].id);
+      const preferred = defaultLocation(this.headerLocationOptions());
+      if (preferred && !this.locationFilter()) {
+        this.locationFilter.set(preferred.id);
       }
     });
     effect(() => {

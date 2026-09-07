@@ -2,7 +2,7 @@ import { Component, ElementRef, computed, effect, inject, signal, untracked, vie
 import { DecimalPipe, NgTemplateOutlet } from '@angular/common';
 import { AuthService } from '../../../../core/auth.service';
 import { Client, ClientService } from '../clients/client.service';
-import { Location, LocationService } from '../locations/location.service';
+import { Location, LocationService, defaultLocation } from '../locations/location.service';
 import { Menu, MenuNode, MenuService } from './menu.service';
 import { VatService, VatType } from '../vat/vat.service';
 import { Product, ProductService } from '../products/product.service';
@@ -230,8 +230,9 @@ export class MenuPage {
     this.locationService.list(clientId).subscribe({
       next: (locations) => {
         this.locations.set(locations);
-        if (locations.length === 1) {
-          this.selectLocation(locations[0].id);
+        const preferred = defaultLocation(locations);
+        if (preferred) {
+          this.selectLocation(preferred.id);
         }
       },
       error: () => this.error.set('Failed to load locations.'),

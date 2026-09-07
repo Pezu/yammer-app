@@ -26,4 +26,8 @@ public class LocationEntity {
 
     @Column(name = "client_id", nullable = false)
     private UUID clientId;
+
+    /** Inactive locations stay listed but are never auto-selected in the backoffice. */
+    @Column(nullable = false)
+    private boolean active = true;
 }

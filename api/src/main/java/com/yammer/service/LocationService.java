@@ -54,6 +54,7 @@ public class LocationService {
         LocationEntity entity = new LocationEntity();
         entity.setName(request.name().trim());
         entity.setClientId(resolveClient(me, request.clientId()));
+        entity.setActive(request.active() == null || request.active());
         return LocationResponse.from(locationRepository.save(entity));
     }
 
@@ -62,6 +63,9 @@ public class LocationService {
         LocationEntity entity = accessGuard.requireAccessibleLocation(id);
         entity.setName(request.name().trim());
         entity.setClientId(resolveClient(me, request.clientId()));
+        if (request.active() != null) {
+            entity.setActive(request.active());
+        }
         return LocationResponse.from(locationRepository.save(entity));
     }
 

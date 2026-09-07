@@ -170,7 +170,8 @@ Run from `api/`.
   UI): CRUD, writes ADMIN/SUPER, list for any authenticated user with optional
   `?type=`. TCP (ip) or USB (bridge device_id) connections.
 - `/locations` — CRUD, writes ADMIN/SUPER; list for any authenticated user with
-  `?clientId=` filter. `GET /locations/{id}/qr` (ADMIN/SUPER) = printable PDF of
+  `?clientId=` filter. `active` (V29) is toggled inline from the Locations page; the
+  backoffice pages auto-select a location only when exactly one ACTIVE one exists. `GET /locations/{id}/qr` (ADMIN/SUPER) = printable PDF of
   customer-ordering QR codes, one per TABLE/BAR point of the location, naturally
   ordered (ported from old yammer's per-EVENT `QrPdfService`; iText 7 + ZXing).
   Each QR encodes `<app.base-url>/customer/order-point/{opId}` — the public
@@ -264,6 +265,7 @@ Same model as the old project:
 - `V27__Payment_status.sql`: `payment.status` (SUCCESS/PENDING/FAILED).
 - `V28__Add_online_payment.sql`: `online_payment` parked-cart intents (Netopia)
   + seeds the ONLINE payment type.
+- `V29__Location_active.sql`: `location.active` (default true).
 - The old DB had 30 migrations; this baseline restarts at V1, so the API must run
   against a **fresh database volume**, not the old one.
 

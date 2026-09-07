@@ -2,7 +2,7 @@ import { Component, computed, effect, inject, signal } from '@angular/core';
 import { DatePipe, DecimalPipe } from '@angular/common';
 import { OpenTableReportRow, OpenTableReportService } from './open-table-report.service';
 import { Client, ClientService } from '../clients/client.service';
-import { Location, LocationService } from '../locations/location.service';
+import { Location, LocationService, defaultLocation } from '../locations/location.service';
 import { AuthService } from '../../../../core/auth.service';
 import { ComboBox } from '../../../../shared/combo-box';
 
@@ -51,9 +51,9 @@ export class OpenTablesReportPage {
       next: (locations) => this.locations.set(locations),
     });
     effect(() => {
-      const options = this.headerLocationOptions();
-      if (options.length === 1 && !this.locationFilter()) {
-        this.locationFilter.set(options[0].id);
+      const preferred = defaultLocation(this.headerLocationOptions());
+      if (preferred && !this.locationFilter()) {
+        this.locationFilter.set(preferred.id);
       }
     });
     effect(() => {

@@ -4,7 +4,7 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { User, UserQr, UserService } from './user.service';
 import { RoleService } from '../roles/role.service';
 import { Client, ClientService } from '../clients/client.service';
-import { Location, LocationService } from '../locations/location.service';
+import { Location, LocationService, defaultLocation } from '../locations/location.service';
 import { AuthService, ROLE_SUPER } from '../../../../core/auth.service';
 import { ConfirmDialog } from '../../../../shared/confirm-dialog/confirm-dialog';
 import { ComboBox } from '../../../../shared/combo-box';
@@ -152,9 +152,9 @@ export class UsersPage {
     // When the context client has exactly one location, select it automatically;
     // with several the operator must pick one (the add button stays disabled until then).
     effect(() => {
-      const options = this.headerLocationOptions();
-      if (options.length === 1 && !this.locationFilter()) {
-        this.locationFilter.set(options[0].id);
+      const preferred = defaultLocation(this.headerLocationOptions());
+      if (preferred && !this.locationFilter()) {
+        this.locationFilter.set(preferred.id);
       }
     });
   }
