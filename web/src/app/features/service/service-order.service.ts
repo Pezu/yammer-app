@@ -26,6 +26,17 @@ export interface ServiceOrder {
   total: number;
 }
 
+/** A SERVICE station of the user's location with who currently works it. */
+export interface ServiceStation {
+  id: string;
+  name: string;
+  typeId: string;
+  allowMultipleUsers: boolean;
+  assignedCount: number;
+  assignedToMe: boolean;
+  assignedNames: string[];
+}
+
 @Injectable({ providedIn: 'root' })
 export class ServiceOrderService {
   private readonly http = inject(HttpClient);
@@ -33,6 +44,16 @@ export class ServiceOrderService {
   /** Orders routed to the service user's stations (ORDERED / READY). */
   board(): Observable<ServiceOrder[]> {
     return this.http.get<ServiceOrder[]>(`${environment.apiUrl}/order-points/service-board`);
+  }
+
+  /** The location's SERVICE stations with assignment state (the station picker). */
+  stations(): Observable<ServiceStation[]> {
+    return this.http.get<ServiceStation[]>(`${environment.apiUrl}/order-points/stations`);
+  }
+
+  /** Work at this station — replaces any other station assignment of the user. */
+  selectStation(id: string): Observable<void> {
+    return this.http.put<void>(`${environment.apiUrl}/order-points/stations/${id}`, {});
   }
 
   /** Move an order to a new status. */

@@ -162,7 +162,7 @@ Run from `api/`.
 - **Assignment (new model, replaces the old per-event one)**: `order_point_assignment`
   (point↔user, V17). Self-service under `/order-points` (any authenticated user):
   `GET /assigned` (my points), `GET /assignable?locationId=` (board with
-  assignedCount / assignedToMe / assignedNames), `POST|DELETE /{id}/assign`
+  assignedCount / assignedToMe / assignedNames), `GET /stations` (the home location's SERVICE points with assignment state) + `PUT /stations/{id}` (work at this station: drops the caller's other station assignments, 409 if a single-user station is held by someone else; assigning/unassigning a SERVICE point never touches table sessions), `POST|DELETE /{id}/assign`
   (idempotent; a single-user point — allow_multiple_users=false — returns 409
   when already taken by someone else). Waiters see only their assigned points
   and pick more from the board.

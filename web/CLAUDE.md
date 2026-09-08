@@ -49,6 +49,9 @@ web/src/app/
 │   ├── auth/login/                   # the login screen (verbatim from yammer-old)
 │   ├── auth/qr-login/                # /login/qr/:token — exchanges a scanned QR token for a session
 │   ├── service/                      # /service — kitchen/bar kanban (SERVICE users land here via
+│   │                                 #   ROLE_HOME). First a station picker (the location's SERVICE
+│   │                                 #   points, Free/Yours/Taken, via /order-points/stations) unless
+│   │                                 #   one is already mine; the top-bar station pill reopens it.
 │   │                                 #   ROLE_HOME): Ordered/Ready columns, pointer drag + action
 │   │                                 #   buttons, fullscreen + wake lock; live refresh over
 │   │                                 #   /api/ws/orders (WebSocket, auto-reconnect 3 s) with polling

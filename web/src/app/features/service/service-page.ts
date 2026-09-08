@@ -4,7 +4,7 @@ import { environment } from '../../../environments/environment';
 import { AuthService } from '../../core/auth.service';
 import { timeAgo } from '../../shared/relative-time';
 import { AppLogo } from '../../shared/logo.component';
-import { OrderStatus, ServiceOrder, ServiceOrderService } from './service-order.service';
+import { OrderStatus, ServiceOrder, ServiceOrderService, ServiceStation } from './service-order.service';
 
 interface Column {
   status: Extract<OrderStatus, 'ORDERED' | 'READY'>;
@@ -92,12 +92,7 @@ export class ServicePage implements OnDestroy {
   private destroyed = false;
 
   constructor() {
-    this.load(true);
-    this.connectWs();
-    this.poll = setInterval(() => {
-      const live = this.ws?.readyState === WebSocket.OPEN;
-      if (!live || ++this.pollTick % CONNECTED_POLL_EVERY === 0) this.load(false);
-    }, POLL_MS);
+    this.loadStations(true);
     document.addEventListener('fullscreenchange', this.onFsChange);
     document.addEventListener('visibilitychange', this.onVisibility);
   }
@@ -112,6 +107,93 @@ export class ServicePage implements OnDestroy {
     this.detachDragListeners();
     this.ghost?.remove();
     void this.releaseWakeLock();
+  }
+
+  // --- station (which SERVICE point this screen serves) ------------------
+
+  readonly stations = signal<ServiceStation[]>([]);
+  readonly stationsLoading = signal(false);
+  readonly busy = signal<string | null>(null);
+  /** The station this screen works; null until one is picked. */
+  readonly station = computed(() => this.stations().find((s) => s.assignedToMe) ?? null);
+  readonly pickerOpen = signal(false);
+  private liveStarted = false;
+
+  /** Load the location's stations; go straight to the board when one is already mine. */
+  private loadStations(initial: boolean): void {
+    if (initial) this.stationsLoading.set(true);
+    this.service.stations().subscribe({
+      next: (stations) => {
+        this.stations.set(stations);
+        this.stationsLoading.set(false);
+        if (this.station()) {
+          this.pickerOpen.set(false);
+          this.startLive();
+        } else {
+          this.loading.set(false);
+          this.pickerOpen.set(true);
+        }
+      },
+      error: () => {
+        this.stationsLoading.set(false);
+        this.loading.set(false);
+        this.error.set('Failed to load stations.');
+      },
+    });
+  }
+
+  openPicker(): void {
+    this.pickerOpen.set(true);
+    this.loadStations(false);
+  }
+
+  closePicker(): void {
+    if (this.station()) this.pickerOpen.set(false);
+  }
+
+  /** A station can be picked unless it is single-user and held by someone else. */
+  canPick(st: ServiceStation): boolean {
+    return st.allowMultipleUsers || st.assignedToMe || st.assignedCount === 0;
+  }
+
+  statusOf(st: ServiceStation): string {
+    if (st.assignedToMe) return 'Yours';
+    if (st.allowMultipleUsers) return st.assignedCount === 0 ? 'Free' : `${st.assignedCount} working`;
+    return st.assignedCount > 0 ? `Taken — ${st.assignedNames[0]}` : 'Free';
+  }
+
+  pick(st: ServiceStation): void {
+    if (!this.canPick(st) || this.busy()) return;
+    this.busy.set(st.id);
+    this.service.selectStation(st.id).subscribe({
+      next: () => {
+        this.busy.set(null);
+        this.stations.update((list) =>
+          list.map((x) => ({ ...x, assignedToMe: x.id === st.id })),
+        );
+        this.pickerOpen.set(false);
+        this.error.set(null);
+        this.startLive();
+        this.load(true);
+      },
+      error: () => {
+        this.busy.set(null);
+        this.error.set('Could not select the station — someone may have taken it first.');
+        this.loadStations(false);
+      },
+    });
+  }
+
+  /** Board + socket + polling, started once a station is known. */
+  private startLive(): void {
+    if (this.liveStarted) return;
+    this.liveStarted = true;
+    this.load(true);
+    this.connectWs();
+    this.poll = setInterval(() => {
+      const live = this.ws?.readyState === WebSocket.OPEN;
+      if (!live || ++this.pollTick % CONNECTED_POLL_EVERY === 0) this.load(false);
+    }, POLL_MS);
   }
 
   // --- live updates over WebSocket ---------------------------------------
@@ -341,6 +423,7 @@ export class ServicePage implements OnDestroy {
   }
 
   private load(initial: boolean): void {
+    if (!this.station()) return;
     if (initial) this.loading.set(true);
     this.service.board().subscribe({
       next: (orders) => {

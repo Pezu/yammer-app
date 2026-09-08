@@ -53,6 +53,19 @@ public class OrderPointAssignmentController {
         assignmentService.unassign(id);
     }
 
+    /** The caller's location's SERVICE stations with assignment state (service station picker). */
+    @GetMapping("/stations")
+    public List<AssignableOrderPointResponse> stations() {
+        return assignmentService.stations();
+    }
+
+    /** Work at this station (replaces the caller's other station assignments). */
+    @PutMapping("/stations/{id}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void selectStation(@PathVariable UUID id) {
+        assignmentService.selectStation(id);
+    }
+
     /** Service kanban: undelivered orders routed to the caller's service stations. */
     @GetMapping("/service-board")
     public List<OrderReportRow> serviceBoard() {

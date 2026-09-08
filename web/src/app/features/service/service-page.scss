@@ -36,6 +36,27 @@
     gap: 0.75rem;
   }
 
+  /* the station this screen serves — tap to change */
+  .station-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    margin-left: 0.75rem;
+    padding: 0.35rem 0.75rem;
+    font: inherit;
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: var(--primary);
+    background: rgba(52, 84, 209, 0.08);
+    border: 1px solid rgba(52, 84, 209, 0.3);
+    border-radius: 999px;
+    cursor: pointer;
+
+    &:hover {
+      background: rgba(52, 84, 209, 0.14);
+    }
+  }
+
   .user {
     font-size: 0.85rem;
     color: var(--muted);
@@ -62,6 +83,90 @@
       color: var(--danger);
       border-color: var(--danger);
     }
+  }
+}
+
+/* station picker (modal; not dismissible until a station is chosen) */
+.picker-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  background: rgba(18, 27, 46, 0.45);
+}
+
+.picker {
+  width: min(560px, 100%);
+  max-height: 85vh;
+  overflow: auto;
+  padding: 1rem 1.25rem 1.25rem;
+  background: #fff;
+  border-radius: 14px;
+  box-shadow: 0 1rem 3rem rgba(18, 27, 46, 0.3);
+}
+
+.picker-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.75rem;
+
+  h3 {
+    margin: 0;
+    font-size: 1.05rem;
+  }
+}
+
+.picker-state {
+  margin: 1.5rem 0;
+  text-align: center;
+  color: var(--muted);
+}
+
+.picker-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 0.75rem;
+}
+
+.station-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.3rem;
+  min-height: 92px;
+  padding: 0.75rem;
+  font: inherit;
+  color: var(--text);
+  background: var(--page-bg);
+  border: 2px solid var(--border);
+  border-radius: 12px;
+  cursor: pointer;
+
+  .st-name {
+    font-size: 1.15rem;
+    font-weight: 800;
+  }
+  .st-status {
+    font-size: 0.75rem;
+    color: var(--muted);
+  }
+
+  &:hover:not(:disabled) {
+    border-color: var(--primary);
+  }
+  &.mine {
+    color: var(--primary);
+    border-color: var(--primary);
+    background: rgba(52, 84, 209, 0.08);
+  }
+  &.taken {
+    opacity: 0.55;
+    cursor: not-allowed;
   }
 }
 

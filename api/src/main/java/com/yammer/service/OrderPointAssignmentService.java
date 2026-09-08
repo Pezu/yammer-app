@@ -21,6 +21,7 @@ import java.time.LocalDateTime;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
@@ -131,6 +132,66 @@ public class OrderPointAssignmentService {
     }
 
     /**
+     * The SERVICE stations of the caller's home location with their assignment state —
+     * the service user's station picker. Empty for users without a home location.
+     */
+    @Transactional(readOnly = true)
+    public List<AssignableOrderPointResponse> stations() {
+        UserEntity me = requireUser();
+        if (me.getLocationId() == null) {
+            return List.of();
+        }
+        Set<UUID> serviceTypes = serviceTypeIds();
+        return assignable(me.getLocationId()).stream()
+                .filter(p -> serviceTypes.contains(p.typeId()))
+                .toList();
+    }
+
+    /**
+     * Work at this SERVICE station: the caller's other station assignments are dropped
+     * (one station at a time), a single-user station taken by someone else is refused
+     * (409). No table session is involved — stations are not tables.
+     */
+    public void selectStation(UUID orderPointId) {
+        OrderPointEntity point = accessGuard.requireAccessibleOrderPoint(orderPointId);
+        UserEntity me = requireUser();
+        Set<UUID> serviceTypes = serviceTypeIds();
+        if (!serviceTypes.contains(point.getTypeId())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Not a service station");
+        }
+        boolean mine = assignmentRepository.existsByOrderPointIdAndUserId(orderPointId, me.getId());
+        if (!mine && !point.isAllowMultipleUsers() && assignmentRepository.countByOrderPointId(orderPointId) > 0) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Station is already taken");
+        }
+        for (OrderPointAssignmentEntity a : assignmentRepository.findByUserId(me.getId())) {
+            if (a.getOrderPointId().equals(orderPointId)) {
+                continue;
+            }
+            OrderPointEntity other = orderPointRepository.findById(a.getOrderPointId()).orElse(null);
+            if (other != null && serviceTypes.contains(other.getTypeId())) {
+                assignmentRepository.delete(a);
+            }
+        }
+        if (!mine) {
+            OrderPointAssignmentEntity assignment = new OrderPointAssignmentEntity();
+            assignment.setOrderPointId(orderPointId);
+            assignment.setUserId(me.getId());
+            assignmentRepository.save(assignment);
+        }
+    }
+
+    private Set<UUID> serviceTypeIds() {
+        return orderPointTypeRepository.findAll().stream()
+                .filter(t -> "SERVICE".equals(t.getType()))
+                .map(OrderPointTypeEntity::getId)
+                .collect(Collectors.toSet());
+    }
+
+    private boolean isServicePoint(OrderPointEntity point) {
+        return serviceTypeIds().contains(point.getTypeId());
+    }
+
+    /**
      * Assign the current user to the point (idempotent). Single-user points refuse a
      * second user. Assignment opens the table session (or joins the one already open).
      */
@@ -146,7 +207,8 @@ public class OrderPointAssignmentService {
             assignment.setUserId(me.getId());
             assignmentRepository.save(assignment);
         }
-        if (sessionRepository.findByOrderPointIdAndClosedAtIsNull(orderPointId).isEmpty()) {
+        if (!isServicePoint(point)
+                && sessionRepository.findByOrderPointIdAndClosedAtIsNull(orderPointId).isEmpty()) {
             TableSessionEntity session = new TableSessionEntity();
             session.setOrderPointId(orderPointId);
             session.setOpenedBy(me.getUsername());
@@ -160,12 +222,13 @@ public class OrderPointAssignmentService {
      * it ({@link #closeTable}), which clears the assignments itself.
      */
     public void unassign(UUID orderPointId) {
-        accessGuard.requireAccessibleOrderPoint(orderPointId);
+        OrderPointEntity point = accessGuard.requireAccessibleOrderPoint(orderPointId);
         UserEntity me = requireUser();
         if (!assignmentRepository.existsByOrderPointIdAndUserId(orderPointId, me.getId())) {
             return;
         }
-        if (sessionRepository.findByOrderPointIdAndClosedAtIsNull(orderPointId).isPresent()) {
+        if (!isServicePoint(point)
+                && sessionRepository.findByOrderPointIdAndClosedAtIsNull(orderPointId).isPresent()) {
             throw new ResponseStatusException(
                     HttpStatus.CONFLICT, "Table session is open — close the table to free it");
         }
