@@ -117,9 +117,12 @@ Run from `api/`.
   assigned waiter. `GET /public/order-points/{opId}?token=` reports
   `selfOrderMode` + `customerStatus` (+ `selfPayOnline`); customer order
   placement requires APPROVED + mode ≠ DISALLOW, and under CONFIRM the order is
-  born in APPROVAL status. Waiter side: `GET /approvals` (pending joins +
+  born as a **DRAFT** (V30): no order number, absent from the bill, kanban, waiter order
+  list, reports and the customer bill — visible ONLY on the assigned waiter's Approvals
+  page. Approve = number issued (per-client max+1) + ORDERED (normal flow, pushed to the
+  board); deny = deleted; closing the table deletes any drafts left on its session. Waiter side: `GET /approvals` (pending joins +
   APPROVAL orders across MY assigned tables), `POST /approvals/customers/{id}`
-  and `POST /approvals/orders/{id}` `{approve}` (deny deletes the order),
+  and `POST /approvals/orders/{id}` `{approve}` (approve numbers the DRAFT and sends it ORDERED; deny deletes it),
   `PUT /order-points/{id}/self-order-mode` (assigned users only).
   `GET /public/order-points/{opId}/bill?token=` = the session's aggregated bill (unpaid +
   paid lines, totals) for an APPROVED device (403 otherwise) — the customer page's Order view.
@@ -282,6 +285,8 @@ Same model as the old project:
 - `V28__Add_online_payment.sql`: `online_payment` parked-cart intents (Netopia)
   + seeds the ONLINE payment type.
 - `V29__Location_active.sql`: `location.active` (default true).
+- `V30__Order_draft_status.sql`: `orders.order_no` nullable; APPROVAL → DRAFT (number cleared);
+  APPROVAL orders on already-closed sessions deleted (never accepted).
 - The old DB had 30 migrations; this baseline restarts at V1, so the API must run
   against a **fresh database volume**, not the old one.
 

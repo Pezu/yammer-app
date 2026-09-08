@@ -119,7 +119,7 @@ public class PublicController {
             return onlinePaymentService.start(op, request);
         }
         OrderEntity order = orderService.placeCustomerOrder(opId, request);
-        return CustomerOrderResponse.placed(order.getId(), "APPROVAL".equals(order.getStatus()));
+        return CustomerOrderResponse.placed(order.getId(), OrderService.DRAFT.equals(order.getStatus()));
     }
 
     /**

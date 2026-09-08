@@ -61,7 +61,9 @@ public class OrderService {
     public static final Set<String> BOARD_STATUSES = Set.of("ORDERED", "READY");
     private static final Set<String> KANBAN_STATUSES = Set.of("ORDERED", "READY", "DELIVERED", "CANCELED");
     /** Orders that never reach the bill: awaiting approval, or canceled. */
-    private static final Set<String> NOT_BILLABLE = Set.of("APPROVAL", "CANCELED");
+    /** A customer order awaiting the waiter's confirmation: no number, shown only on Approvals. */
+    public static final String DRAFT = "DRAFT";
+    private static final Set<String> NOT_BILLABLE = Set.of(DRAFT, "CANCELED");
 
     private static boolean billable(OrderEntity order) {
         return !NOT_BILLABLE.contains(order.getStatus());
@@ -124,7 +126,7 @@ public class OrderService {
      * (product names fresh from the catalog, as the customer saw them). Requires the
      * table's session to be OPEN (409 otherwise), an APPROVED customer session (403),
      * and a self-order mode other than DISALLOW. Under CONFIRM the order enters the
-     * APPROVAL status — invisible on the kanban and the bill until the waiter approves.
+     * DRAFT status — no order number yet, invisible everywhere but the Approvals page.
      */
     public OrderEntity placeCustomerOrder(UUID orderPointId, CustomerOrderRequest request) {
         OrderPointEntity op = orderPointRepository.findById(orderPointId)
@@ -147,16 +149,17 @@ public class OrderService {
         List<ResolvedLine> lines = resolveCustomerOrderLines(op, request.items());
 
         OrderEntity order = new OrderEntity();
-        order.setOrderNo(orderRepository.maxOrderNoForClient(location.getClientId()) + 1);
+        boolean draft = "CONFIRM".equals(op.getSelfOrderMode());
+        order.setOrderNo(draft ? null : orderRepository.maxOrderNoForClient(location.getClientId()) + 1);
         order.setOrderPointId(op.getId());
         order.setSessionId(session.getId());
         order.setCustomerSessionId(customer.getId());
         order.setCreatedBy("Customer");
         order.setCreatedAt(LocalDateTime.now());
-        order.setStatus("CONFIRM".equals(op.getSelfOrderMode()) ? "APPROVAL" : "ORDERED");
+        order.setStatus(draft ? DRAFT : "ORDERED");
         OrderEntity savedOrder = orderRepository.save(order);
         orderItemRepository.saveAll(itemsFor(savedOrder.getId(), lines, null));
-        if ("ORDERED".equals(savedOrder.getStatus())) { // APPROVAL orders reach the board once approved
+        if ("ORDERED".equals(savedOrder.getStatus())) { // drafts reach the board once approved
             eventPublisher.publishEvent(new OrderChangedEvent(savedOrder, "ORDER_CREATED"));
         }
         return savedOrder;
@@ -684,7 +687,7 @@ public class OrderService {
 
     /**
      * Moves an order to a new kanban status (ORDERED / READY / DELIVERED / CANCELED).
-     * Orders awaiting customer-order APPROVAL are not movable here — they enter the
+     * DRAFT customer orders are not movable here — they enter the
      * flow through the waiter's approval, never the kanban.
      */
     public void updateStatus(UUID orderId, String status) {
@@ -704,6 +707,19 @@ public class OrderService {
         eventPublisher.publishEvent(new OrderChangedEvent(saved, "ORDER_" + wanted));
     }
 
+    /** Delete the session's DRAFT orders — they were never accepted (called when the table closes). */
+    public void deleteDrafts(UUID sessionId) {
+        List<OrderEntity> drafts = orderRepository.findBySessionIdOrderByCreatedAtAsc(sessionId).stream()
+                .filter(o -> DRAFT.equals(o.getStatus()))
+                .toList();
+        if (drafts.isEmpty()) {
+            return;
+        }
+        orderItemRepository.deleteAll(orderItemRepository.findByOrderIdIn(
+                drafts.stream().map(OrderEntity::getId).toList()));
+        orderRepository.deleteAll(drafts);
+    }
+
     /** Whether the session still has unsettled lines (the guard against closing it). */
     @Transactional(readOnly = true)
     public boolean sessionHasUnpaid(UUID sessionId) {
@@ -720,7 +736,10 @@ public class OrderService {
         OrderPointEntity op = accessGuard.requireAccessibleOrderPoint(orderPointId);
         List<OrderEntity> orders = sessionRepository.findByOrderPointIdAndClosedAtIsNull(orderPointId)
                 .map(s -> orderRepository.findBySessionIdOrderByCreatedAtDesc(s.getId()))
-                .orElse(List.of());
+                .orElse(List.of())
+                .stream()
+                .filter(o -> !DRAFT.equals(o.getStatus()))
+                .toList();
         Map<UUID, List<OrderItemEntity>> itemsByOrder = orderItemRepository
                 .findByOrderIdIn(orders.stream().map(OrderEntity::getId).toList())
                 .stream()

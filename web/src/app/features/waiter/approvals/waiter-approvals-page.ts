@@ -53,7 +53,7 @@ const POLL_MS = 10000;
           @for (o of data().orders; track o.id) {
             <li class="card order">
               <div class="card-main">
-                <span class="table">{{ o.orderPointName }} · #{{ o.orderNo }} <span class="sub">{{ time(o.createdAt) }}</span></span>
+                <span class="table">{{ o.orderPointName }}@if (o.orderNo != null) { · #{{ o.orderNo }}} <span class="sub">{{ time(o.createdAt) }}</span></span>
                 <ul class="items">
                   @for (it of o.items; track it.id) {
                     <li>

@@ -40,7 +40,7 @@ export interface PlaceOrderResult {
   orderId: string | null;
   paymentUrl: string | null;
   reference: string | null;
-  /** The order was born in APPROVAL status (table in CONFIRM mode) — the waiter must accept it. */
+  /** The order is a DRAFT (table in CONFIRM mode) — the waiter must accept it before it counts. */
   pendingApproval: boolean;
 }
 

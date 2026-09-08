@@ -12,7 +12,7 @@ import java.util.UUID;
  */
 public record OrderReportRow(
         UUID id,
-        long orderNo,
+        Long orderNo, // null for a DRAFT (customer order awaiting approval)
         UUID orderPointId,
         String orderPointName,
         String createdBy,

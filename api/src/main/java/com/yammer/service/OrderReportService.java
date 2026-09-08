@@ -54,7 +54,8 @@ public class OrderReportService {
         List<OrderEntity> orders = orderRepository
                 .findByOrderPointIdInOrderByCreatedAtDesc(pointNames.keySet())
                 .stream()
-                .filter(o -> orderNo == null || o.getOrderNo() == orderNo.longValue())
+                .filter(o -> !OrderService.DRAFT.equals(o.getStatus()))
+                .filter(o -> orderNo == null || (o.getOrderNo() != null && o.getOrderNo() == orderNo.longValue()))
                 .filter(o -> orderPointId == null || orderPointId.equals(o.getOrderPointId()))
                 .filter(o -> waiter == null || waiter.equals(o.getCreatedBy()))
                 .toList();
@@ -85,7 +86,10 @@ public class OrderReportService {
                 .toList();
         List<OrderEntity> orders = orderRepository
                 .findByOrderPointIdInOrderByCreatedAtDesc(
-                        points.stream().map(OrderPointEntity::getId).toList());
+                        points.stream().map(OrderPointEntity::getId).toList())
+                .stream()
+                .filter(o -> !OrderService.DRAFT.equals(o.getStatus()))
+                .toList();
         Map<String, String> displayNames = displayNames(orders);
         List<OrderFilterOptionsResponse.WaiterOption> waiters = orders.stream()
                 .map(OrderEntity::getCreatedBy)

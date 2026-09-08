@@ -247,6 +247,7 @@ public class OrderPointAssignmentService {
         if (orderService.sessionHasUnpaid(session.getId())) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Table is not fully settled");
         }
+        orderService.deleteDrafts(session.getId()); // never-accepted customer orders die with the table
         session.setClosedBy(me.getUsername());
         session.setClosedAt(LocalDateTime.now());
         sessionRepository.save(session);

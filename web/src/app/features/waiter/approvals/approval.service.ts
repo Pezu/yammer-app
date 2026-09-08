@@ -14,7 +14,8 @@ export interface CustomerApprovalRow {
 /** A customer order awaiting confirmation (CONFIRM self-order mode). */
 export interface ApprovalOrderRow {
   id: string;
-  orderNo: number;
+  /** null while the order is a DRAFT — the number is issued on approval. */
+  orderNo: number | null;
   orderPointId: string;
   orderPointName: string;
   createdAt: string;

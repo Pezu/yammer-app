@@ -50,7 +50,10 @@ public class OpenTableReportService {
                 sessionRepository.findByOrderPointIdInAndClosedAtIsNull(pointNames.keySet());
 
         List<OrderEntity> orders =
-                orderRepository.findBySessionIdIn(sessions.stream().map(TableSessionEntity::getId).toList());
+                orderRepository.findBySessionIdIn(sessions.stream().map(TableSessionEntity::getId).toList())
+                        .stream()
+                        .filter(o -> !OrderService.DRAFT.equals(o.getStatus()))
+                        .toList();
         Map<UUID, UUID> orderToSession = orders.stream()
                 .collect(Collectors.toMap(OrderEntity::getId, OrderEntity::getSessionId));
         Map<UUID, BigDecimal> dueBySession = orderItemRepository

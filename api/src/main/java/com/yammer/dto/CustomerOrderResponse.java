@@ -11,7 +11,7 @@ public record CustomerOrderResponse(
         UUID orderId,
         String paymentUrl,
         UUID reference,
-        /** True when the order was born in APPROVAL status (table in CONFIRM mode) and the waiter must accept it. */
+        /** True when the order is a DRAFT (table in CONFIRM mode) and the waiter must accept it first. */
         boolean pendingApproval) {
 
     public static CustomerOrderResponse placed(UUID orderId, boolean pendingApproval) {

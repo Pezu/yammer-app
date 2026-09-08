@@ -74,7 +74,8 @@ web/src/app/
 │   │                                 #   message uses the server's pendingApproval flag, not the
 │   │                                 #   cached table mode, and the table state is re-read after
 │   │                                 #   each order;
-│   │                                 #   CONFIRM mode = orders go to the waiter's Approvals first.
+│   │                                 #   CONFIRM mode = orders are DRAFTs on the waiter's Approvals page first
+│   │                                 #   (no number until approved; deleted if denied).
 │   │                                 # ONLINE self-pay: Place order redirects to Netopia; the
 │   │                                 #   payment-return page polls /public/payments/{ref}/status.
 │   ├── waiter/approvals/             # hamburger → Approvals: pending customer joins + APPROVAL

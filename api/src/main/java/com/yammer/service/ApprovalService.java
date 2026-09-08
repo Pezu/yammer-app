@@ -8,6 +8,7 @@ import com.yammer.entity.OrderPointEntity;
 import com.yammer.entity.TableSessionEntity;
 import com.yammer.entity.UserEntity;
 import com.yammer.repository.CustomerSessionRepository;
+import com.yammer.repository.LocationRepository;
 import com.yammer.repository.OrderItemRepository;
 import com.yammer.repository.OrderPointAssignmentRepository;
 import com.yammer.repository.OrderPointRepository;
@@ -46,6 +47,7 @@ public class ApprovalService {
     private final ApplicationEventPublisher eventPublisher;
     private final OrderPointAssignmentRepository assignmentRepository;
     private final OrderPointRepository orderPointRepository;
+    private final LocationRepository locationRepository;
     private final TableSessionRepository sessionRepository;
     private final CustomerSessionRepository customerSessionRepository;
     private final OrderRepository orderRepository;
@@ -54,7 +56,7 @@ public class ApprovalService {
     private final UserRepository userRepository;
     private final CurrentUserProvider currentUser;
 
-    /** Pending customer joins + APPROVAL orders across the caller's assigned tables. */
+    /** Pending customer joins + DRAFT orders across the caller's assigned tables. */
     @Transactional(readOnly = true)
     public ApprovalsResponse list() {
         UserEntity me = requireUser();
@@ -87,7 +89,7 @@ public class ApprovalService {
 
         List<OrderEntity> approvalOrders = orderRepository.findBySessionIdIn(sessionToPoint.keySet())
                 .stream()
-                .filter(o -> "APPROVAL".equals(o.getStatus()))
+                .filter(o -> OrderService.DRAFT.equals(o.getStatus()))
                 .sorted(Comparator.comparing(OrderEntity::getCreatedAt))
                 .toList();
         return new ApprovalsResponse(customers, orderReportService.assembleRows(approvalOrders, pointNames));
@@ -112,17 +114,22 @@ public class ApprovalService {
         customerSessionRepository.save(cs);
     }
 
-    /** Approve (→ ORDERED, into the normal flow) or deny (delete) an APPROVAL order. */
+    /** Approve (number issued, → ORDERED, into the normal flow) or deny (delete) a DRAFT order. */
     public void decideOrder(UUID orderId, boolean approve) {
         UserEntity me = requireUser();
         OrderEntity order = orderRepository.findById(orderId)
                 .orElseThrow(() -> new ResponseStatusException(
                         HttpStatus.NOT_FOUND, "Order not found: " + orderId));
         requireAssigned(me, order.getOrderPointId());
-        if (!"APPROVAL".equals(order.getStatus())) {
+        if (!OrderService.DRAFT.equals(order.getStatus())) {
             return;
         }
         if (approve) {
+            UUID clientId = orderPointRepository.findById(order.getOrderPointId())
+                    .flatMap(op -> locationRepository.findById(op.getLocationId()))
+                    .map(l -> l.getClientId())
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Order point not found"));
+            order.setOrderNo(orderRepository.maxOrderNoForClient(clientId) + 1); // numbered on entry
             order.setStatus("ORDERED");
             eventPublisher.publishEvent(new OrderChangedEvent(orderRepository.save(order), "ORDER_CREATED"));
         } else {

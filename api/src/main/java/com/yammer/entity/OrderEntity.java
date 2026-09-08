@@ -22,7 +22,8 @@ public class OrderEntity {
     @Column(nullable = false, updatable = false)
     private UUID id;
 
-    @Column(name = "order_no", nullable = false)
+    /** Per-client sequence, issued when the order enters the flow (null while a DRAFT). */
+    @Column(name = "order_no")
     private Long orderNo;
 
     @Column(name = "order_point_id", nullable = false)
