@@ -40,6 +40,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
@@ -78,6 +79,11 @@ public class BridgeService {
     @PostConstruct
     void initTx() {
         this.txTemplate = new TransactionTemplate(transactionManager);
+        // The listener runs AFTER_COMMIT of the payment transaction, whose (completed)
+        // resources are still bound to the thread: a REQUIRED template would silently join
+        // it and every update would fail with TransactionRequiredException (or never flush).
+        // Each step must therefore run in its own fresh transaction.
+        this.txTemplate.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
     }
 
     // ─── fiscal dispatch ─────────────────────────────────────────────────────

@@ -145,7 +145,8 @@ Run from `api/`.
   outbox: `PaymentCommittedEvent` (CASH/CARD at creation, ONLINE on confirmation, manual
   retry) → `BridgeService` AFTER_COMMIT builds `{type:RECEIPT, requestId=payment id,
   fiscal:true, paymentMethod, cashRegister ip, lines[name, quantity, unitPrice, vat]}`
-  (VAT from the product; tip as a VAT-0 line) and sends it ONCE to the point's cash
+  (VAT from the product; tip as a VAT-0 line; its DB steps run in REQUIRES_NEW transactions
+  because AFTER_COMMIT listeners still see the finished payment tx) and sends it ONCE to the point's cash
   register: connection MOBILE → only the attached phone (`device_id`), TCP → any one bridge;
   the first device that accepted it is pinned in `payment.fiscal_device`. No automatic
   retry ever. `RECEIPT_RESULT` (OK / ERROR / UNKNOWN) lands via guarded UPDATEs in
