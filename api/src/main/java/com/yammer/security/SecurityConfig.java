@@ -41,6 +41,7 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/clients/*/logo").permitAll()
                         // Customer-facing endpoints (menu-item images today; more as they're ported).
                         .requestMatchers("/public/**").permitAll()
+                        .requestMatchers("/ws/**").permitAll() // handshake auth = ?token= (WsAuthHandshakeInterceptor)
                         // Everything else requires a valid token. Fine-grained rules
                         // (e.g. SUPER-only client writes) live on the methods via @PreAuthorize.
                         .anyRequest().authenticated())

@@ -3,6 +3,7 @@ package com.yammer;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.autoconfigure.security.servlet.UserDetailsServiceAutoConfiguration;
+import org.springframework.scheduling.annotation.EnableAsync;
 import org.springframework.scheduling.annotation.EnableScheduling;
 
 // Auth is JWT-based (JwtAuthFilter + /auth/login); we never use Spring's default in-memory
@@ -10,6 +11,7 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 // password" log line at startup.
 // Scheduling backs the online-payment expiry sweep (OnlinePaymentService.expireStale).
 @EnableScheduling
+@EnableAsync
 @SpringBootApplication(exclude = UserDetailsServiceAutoConfiguration.class)
 public class YammerApplication {
 

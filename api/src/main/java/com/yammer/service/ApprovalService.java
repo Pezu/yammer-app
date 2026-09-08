@@ -23,7 +23,9 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
+import com.yammer.event.OrderChangedEvent;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -41,6 +43,7 @@ public class ApprovalService {
 
     private static final Set<String> SELF_ORDER_MODES = Set.of("ALLOW", "CONFIRM", "DISALLOW");
 
+    private final ApplicationEventPublisher eventPublisher;
     private final OrderPointAssignmentRepository assignmentRepository;
     private final OrderPointRepository orderPointRepository;
     private final TableSessionRepository sessionRepository;
@@ -121,7 +124,7 @@ public class ApprovalService {
         }
         if (approve) {
             order.setStatus("ORDERED");
-            orderRepository.save(order);
+            eventPublisher.publishEvent(new OrderChangedEvent(orderRepository.save(order), "ORDER_CREATED"));
         } else {
             orderItemRepository.deleteAll(orderItemRepository.findByOrderIdIn(List.of(orderId)));
             orderRepository.delete(order);

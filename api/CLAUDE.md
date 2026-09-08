@@ -147,6 +147,16 @@ Run from `api/`.
   location's OPEN table sessions on TABLE-type points only (no bars), naturally
   ordered by table name, with who opened each, when, and the outstanding unpaid
   amount.
+- **Live order push** `ws(s)://…/ws/orders?token=<jwt>` (`ws/` package, ported from old yammer):
+  the handshake is authenticated from the token (`WsAuthHandshakeInterceptor`; `/ws/**` is
+  permitAll for Spring Security), sessions are tracked per username (`OrderWsHandler`).
+  `OrderChangedEvent` is published inside the transaction on every order creation
+  (waiter, customer when ORDERED, approval, online-payment confirm) and kanban status change;
+  `OrderNotificationService` consumes it AFTER_COMMIT + `@Async` and pushes
+  `{type, orderId}` to the users whose service board shows the order (same routing as
+  `serviceBoard()`: assigned station, else all SERVICE points of the home location). The
+  session registry is in-memory, so the api stays pinned to ONE Cloud Run instance
+  (min=max=1, request timeout 3600 s = how long a socket lives before the client reconnects).
 - `GET /bridge/devices` — stub returning `[]` until the on-prem bridge (WebSocket)
   subsystem is ported; the peripherals page polls it for the USB device picker.
 - **Assignment (new model, replaces the old per-event one)**: `order_point_assignment`

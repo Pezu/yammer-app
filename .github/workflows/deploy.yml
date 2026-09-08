@@ -64,7 +64,7 @@ jobs:
             --image "$AR/api:${{ steps.vars.outputs.sha }}" \
             --project "$PROJECT_ID" --region "$REGION" \
             --platform managed --allow-unauthenticated \
-            --port 8080 --min-instances 1 --max-instances 2 --timeout 300 \
+            --port 8080 --min-instances 1 --max-instances 1 --timeout 3600 \
             --memory 1Gi --cpu 1 \
             --add-cloudsql-instances "$SQL_INSTANCE" \
             --set-env-vars "^@^DATABASE_URL=jdbc:postgresql:///yammer?cloudSqlInstance=$SQL_INSTANCE&socketFactory=com.google.cloud.sql.postgres.SocketFactory&currentSchema=yammer@DATABASE_USERNAME=yammer_app@GCS_BUCKET=yammer-order-app-uploads@GCS_PROJECT_ID=yammer-order-app@GCS_ENDPOINT=@APP_URL=$APP_URL@NETOPIA_ENABLED=true@NETOPIA_BASE_URL=https://secure.sandbox.netopia-payments.com@NETOPIA_NOTIFY_URL=$APP_URL/api/public/payments/netopia/notify@JAVA_TOOL_OPTIONS=-XX:MaxRAMPercentage=75.0" \

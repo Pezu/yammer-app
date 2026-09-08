@@ -18,4 +18,6 @@ public interface UserRepository extends JpaRepository<UserEntity, UUID> {
     boolean existsByUsernameIgnoreCase(String username);
 
     List<UserEntity> findByClientIdOrderByUsername(UUID clientId);
+
+    List<UserEntity> findByLocationId(UUID locationId);
 }

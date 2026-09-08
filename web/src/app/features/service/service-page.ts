@@ -1,5 +1,6 @@
 import { Component, OnDestroy, computed, inject, signal } from '@angular/core';
 import { Router } from '@angular/router';
+import { environment } from '../../../environments/environment';
 import { AuthService } from '../../core/auth.service';
 import { timeAgo } from '../../shared/relative-time';
 import { AppLogo } from '../../shared/logo.component';
@@ -17,8 +18,13 @@ interface WakeLockSentinelLike {
   addEventListener?: (type: 'release', listener: () => void) => void;
 }
 
-/** Poll cadence — the old project pushed over WebSocket; polling stands in until that is ported. */
+/**
+ * Live updates arrive over WebSocket (/ws/orders); polling is the safety net — fast while
+ * the socket is down, slow (a resync every minute) while it is connected.
+ */
 const POLL_MS = 8000;
+const CONNECTED_POLL_EVERY = 8; // ticks of POLL_MS → ~64 s
+const WS_RECONNECT_MS = 3000;
 
 @Component({
   selector: 'app-service-page',
@@ -80,21 +86,62 @@ export class ServicePage implements OnDestroy {
   });
 
   private poll: ReturnType<typeof setInterval> | undefined;
+  private pollTick = 0;
+  private ws: WebSocket | null = null;
+  private wsReconnect: ReturnType<typeof setTimeout> | undefined;
+  private destroyed = false;
 
   constructor() {
     this.load(true);
-    this.poll = setInterval(() => this.load(false), POLL_MS);
+    this.connectWs();
+    this.poll = setInterval(() => {
+      const live = this.ws?.readyState === WebSocket.OPEN;
+      if (!live || ++this.pollTick % CONNECTED_POLL_EVERY === 0) this.load(false);
+    }, POLL_MS);
     document.addEventListener('fullscreenchange', this.onFsChange);
     document.addEventListener('visibilitychange', this.onVisibility);
   }
 
   ngOnDestroy(): void {
     if (this.poll) clearInterval(this.poll);
+    this.destroyed = true;
+    if (this.wsReconnect) clearTimeout(this.wsReconnect);
+    this.ws?.close();
     document.removeEventListener('fullscreenchange', this.onFsChange);
     document.removeEventListener('visibilitychange', this.onVisibility);
     this.detachDragListeners();
     this.ghost?.remove();
     void this.releaseWakeLock();
+  }
+
+  // --- live updates over WebSocket ---------------------------------------
+
+  private connectWs(): void {
+    const token = this.auth.token;
+    if (!token || this.destroyed) return;
+    const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+    const url = `${proto}://${location.host}${environment.apiUrl}/ws/orders?token=${encodeURIComponent(token)}`;
+    try {
+      const ws = new WebSocket(url);
+      this.ws = ws;
+      ws.onopen = () => this.load(false); // resync on (re)connect
+      ws.onmessage = () => this.load(false); // ORDER_CREATED / ORDER_READY / ... → refresh
+      ws.onclose = () => {
+        if (this.ws === ws) this.ws = null;
+        this.scheduleReconnect();
+      };
+      ws.onerror = () => ws.close();
+    } catch {
+      this.scheduleReconnect();
+    }
+  }
+
+  private scheduleReconnect(): void {
+    if (this.destroyed || this.wsReconnect) return;
+    this.wsReconnect = setTimeout(() => {
+      this.wsReconnect = undefined;
+      this.connectWs();
+    }, WS_RECONNECT_MS);
   }
 
   // --- fullscreen + keep-awake -------------------------------------------

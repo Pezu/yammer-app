@@ -50,8 +50,9 @@ web/src/app/
 │   ├── auth/qr-login/                # /login/qr/:token — exchanges a scanned QR token for a session
 │   ├── service/                      # /service — kitchen/bar kanban (SERVICE users land here via
 │   │                                 #   ROLE_HOME): Ordered/Ready columns, pointer drag + action
-│   │                                 #   buttons, fullscreen + wake lock; 8s polling (old yammer
-│   │                                 #   pushed over WebSocket — port later)
+│   │                                 #   buttons, fullscreen + wake lock; live refresh over
+│   │                                 #   /api/ws/orders (WebSocket, auto-reconnect 3 s) with polling
+│   │                                 #   as the safety net (8 s while disconnected, ~64 s while live)
 │   ├── customer/                     # /customer/order-point/:id — PUBLIC ordering page behind the
 │   │                                 #   printed QR codes (ported from old yammer): client logo
 │   │                                 #   top-left, hamburger drawer top-right (Menu first + legal

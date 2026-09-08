@@ -10,6 +10,8 @@ public interface OrderPointAssignmentRepository extends JpaRepository<OrderPoint
 
     List<OrderPointAssignmentEntity> findByUserId(UUID userId);
 
+    List<OrderPointAssignmentEntity> findByUserIdIn(Collection<UUID> userIds);
+
     List<OrderPointAssignmentEntity> findByOrderPointIdIn(Collection<UUID> orderPointIds);
 
     boolean existsByOrderPointIdAndUserId(UUID orderPointId, UUID userId);

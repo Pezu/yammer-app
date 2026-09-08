@@ -3,6 +3,7 @@ package com.yammer.service;
 import com.yammer.dto.CustomerOrderRequest;
 import com.yammer.dto.OrderItemRequest;
 import com.yammer.dto.OrderPointBillResponse;
+import com.yammer.event.OrderChangedEvent;
 import com.yammer.dto.OrderResponse;
 import com.yammer.dto.PayRequest;
 import com.yammer.dto.PlaceOrderRequest;
@@ -45,6 +46,7 @@ import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
@@ -65,6 +67,7 @@ public class OrderService {
         return !NOT_BILLABLE.contains(order.getStatus());
     }
 
+    private final ApplicationEventPublisher eventPublisher;
     private final OrderRepository orderRepository;
     private final OrderItemRepository orderItemRepository;
     private final PaymentRepository paymentRepository;
@@ -111,6 +114,7 @@ public class OrderService {
             toSave.add(item);
         }
         List<OrderItemEntity> savedItems = orderItemRepository.saveAll(toSave);
+        eventPublisher.publishEvent(new OrderChangedEvent(savedOrder, "ORDER_CREATED"));
         return OrderResponse.from(savedOrder, savedItems, op.getName());
     }
 
@@ -152,6 +156,9 @@ public class OrderService {
         order.setStatus("CONFIRM".equals(op.getSelfOrderMode()) ? "APPROVAL" : "ORDERED");
         OrderEntity savedOrder = orderRepository.save(order);
         orderItemRepository.saveAll(itemsFor(savedOrder.getId(), lines, null));
+        if ("ORDERED".equals(savedOrder.getStatus())) { // APPROVAL orders reach the board once approved
+            eventPublisher.publishEvent(new OrderChangedEvent(savedOrder, "ORDER_CREATED"));
+        }
         return savedOrder;
     }
 
@@ -323,6 +330,7 @@ public class OrderService {
         order.setStatus("ORDERED");
         OrderEntity savedOrder = orderRepository.save(order);
         orderItemRepository.saveAll(itemsFor(savedOrder.getId(), lines, savedPayment.getId()));
+        eventPublisher.publishEvent(new OrderChangedEvent(savedOrder, "ORDER_CREATED"));
         return new OnlineOrderResult(savedOrder.getId(), savedPayment.getId());
     }
 
@@ -692,7 +700,8 @@ public class OrderService {
             throw badRequest("Order is awaiting approval");
         }
         order.setStatus(wanted);
-        orderRepository.save(order);
+        OrderEntity saved = orderRepository.save(order);
+        eventPublisher.publishEvent(new OrderChangedEvent(saved, "ORDER_" + wanted));
     }
 
     /** Whether the session still has unsettled lines (the guard against closing it). */
