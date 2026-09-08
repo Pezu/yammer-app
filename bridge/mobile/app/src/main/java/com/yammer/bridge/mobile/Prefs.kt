@@ -36,8 +36,9 @@ class Prefs(context: Context) {
         get() = sp.getString("serverUrl", DEFAULT_SERVER_URL)!!
         set(v) = sp.edit().putString("serverUrl", v.trim()).apply()
 
+    /** A blank saved key means "use the build's default" (a save with the field empty must not lock the app out). */
     var apiKey: String
-        get() = sp.getString("apiKey", DEFAULT_API_KEY)!!
+        get() = sp.getString("apiKey", "")!!.ifBlank { DEFAULT_API_KEY }
         set(v) = sp.edit().putString("apiKey", v.trim()).apply()
 
     /** Serial baud rate for the USB link to the Datecs register. */
@@ -67,11 +68,11 @@ class Prefs(context: Context) {
         set(v) = sp.edit().putInt("tcpPort", v).apply()
 
     companion object {
-        // The api's Cloud Run URL (yammer-order-app, europe-west1). Custom-domain mappings do not
-        // forward WebSocket upgrades, so the bridge talks to run.app directly.
-        const val DEFAULT_SERVER_URL = "wss://yammer-api-926521730520.europe-west1.run.app/ws/bridge"
+        // The api's custom domain (Cloud Run domain mapping — WebSocket upgrades verified to pass).
+        const val DEFAULT_SERVER_URL = "wss://api.yammer.ro/ws/bridge"
 
-        // No default: the key is the backend's BRIDGE_API_KEY secret, typed in once on the device.
-        const val DEFAULT_API_KEY = ""
+        // Baked in at build time from local.properties (bridge.apiKey) — blank in a plain build,
+        // in which case the key is typed in once on the device.
+        val DEFAULT_API_KEY: String = BuildConfig.DEFAULT_API_KEY
     }
 }

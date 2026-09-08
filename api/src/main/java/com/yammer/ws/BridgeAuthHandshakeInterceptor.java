@@ -1,5 +1,6 @@
 package com.yammer.ws;
 
+import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.util.Arrays;
@@ -58,6 +59,9 @@ public class BridgeAuthHandshakeInterceptor implements HandshakeInterceptor {
         }
         String provided = UriComponentsBuilder.fromUri(request.getURI()).build()
                 .getQueryParams().getFirst("key");
+        if (provided != null) {
+            provided = URLDecoder.decode(provided, StandardCharsets.UTF_8); // keys carry + / =
+        }
         if (provided == null) {
             provided = request.getHeaders().getFirst(HEADER_API_KEY);
         }

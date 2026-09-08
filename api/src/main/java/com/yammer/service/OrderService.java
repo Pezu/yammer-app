@@ -607,8 +607,8 @@ public class OrderService {
 
     /**
      * Creates the Payment with the lifecycle of its type:
-     * CASH → SUCCESS + fiscal RECEIPT pushed to the bridge (after commit);
-     * CARD → PENDING until the softPOS callback confirms; PROTOCOL / PO → SUCCESS, no fiscal.
+     * CASH / CARD → SUCCESS + fiscal RECEIPT pushed to the bridge after commit (the register
+     * records the payment mode); PROTOCOL / PO → SUCCESS, no fiscal.
      */
     private PaymentEntity createPayment(
             PayRequest request, BigDecimal amount, UserPrincipal me, TableSessionEntity session) {
@@ -623,48 +623,18 @@ public class OrderService {
         String type = paymentTypeRepository.findById(request.paymentTypeId())
                 .map(PaymentTypeEntity::getType)
                 .orElse("");
-        payment.setStatus("CARD".equals(type) ? "PENDING" : "SUCCESS");
-        // CASH is fiscalized right away; CARD once the terminal confirms; PROTOCOL / PO never
-        payment.setFiscalStatus("CASH".equals(type) ? FiscalStatus.PENDING : FiscalStatus.NONE);
+        payment.setStatus("SUCCESS");
+        // CASH and CARD print a fiscal receipt (the register records the payment mode);
+        // PROTOCOL / PO never do
+        boolean fiscal = "CASH".equals(type) || "CARD".equals(type);
+        payment.setFiscalStatus(fiscal ? FiscalStatus.PENDING : FiscalStatus.NONE);
         PaymentEntity saved = paymentRepository.save(payment);
-        switch (type) {
-            case "CASH" -> eventPublisher.publishEvent(new PaymentCommittedEvent(saved.getId()));
-            case "CARD" -> log.info(
-                    "softPOS charge request: payment={} amount={} — awaiting callback",
-                    saved.getId(), saved.getAmount());
-            default -> {
-                // PROTOCOL / PO close silently — no fiscal printer (as in the old project)
-            }
+        if (fiscal) {
+            eventPublisher.publishEvent(new PaymentCommittedEvent(saved.getId()));
         }
         return saved;
     }
 
-    /**
-     * softPOS result callback for a PENDING card payment (idempotent). Success closes the
-     * payment; failure releases its order lines back to unpaid and marks it FAILED.
-     */
-    public void softPosCallback(UUID paymentId, boolean success) {
-        PaymentEntity payment = paymentRepository.findById(paymentId)
-                .orElseThrow(() -> new ResponseStatusException(
-                        HttpStatus.NOT_FOUND, "Payment not found: " + paymentId));
-        if (!"PENDING".equals(payment.getStatus())) {
-            return;
-        }
-        if (success) {
-            payment.setStatus("SUCCESS");
-            payment.setFiscalStatus(FiscalStatus.PENDING); // card receipt is fiscalized once confirmed
-            paymentRepository.save(payment);
-            eventPublisher.publishEvent(new PaymentCommittedEvent(paymentId));
-            log.info("softPOS confirmed payment {}", paymentId);
-        } else {
-            payment.setStatus("FAILED");
-            paymentRepository.save(payment);
-            List<OrderItemEntity> items = orderItemRepository.findByPaymentId(paymentId);
-            items.forEach(i -> i.setPaymentId(null));
-            orderItemRepository.saveAll(items);
-            log.info("softPOS reported payment {} FAILED — {} line(s) released", paymentId, items.size());
-        }
-    }
 
     /** A sibling line under the same order (name/product copied), optionally already paid. */
     private OrderItemEntity copyLine(OrderItemEntity source, int quantity, BigDecimal price, UUID paymentId) {

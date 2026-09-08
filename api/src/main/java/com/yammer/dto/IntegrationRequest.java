@@ -9,9 +9,13 @@ import java.util.UUID;
 public record IntegrationRequest(
         @NotNull UUID locationId,
         @NotBlank String name,
+        /** TCP registers / printers: the LAN address. */
         String ip,
         @NotNull IntegrationType type,
+        /** Registers / printers only: TCP or MOBILE. */
         ConnectionType connection,
-        /** Bridge device id for USB integrations (ignored for TCP). */
-        String deviceId) {
+        /** MOBILE rows only: the bridge phone's device id. */
+        String deviceId,
+        /** Registers / printers with connection MOBILE: the MOBILE integration to attach to. */
+        UUID bridgeId) {
 }

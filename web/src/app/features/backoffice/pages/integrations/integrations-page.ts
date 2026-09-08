@@ -29,6 +29,7 @@ export class IntegrationsPage {
   readonly typeOptions: { value: IntegrationType; label: string }[] = [
     { value: 'CASH_REGISTER', label: 'Cash Register' },
     { value: 'PRINTER', label: 'Printer' },
+    { value: 'MOBILE', label: 'Mobile' },
   ];
   typeLabel(t: IntegrationType): string {
     return this.typeOptions.find((o) => o.value === t)?.label ?? '';
@@ -37,8 +38,43 @@ export class IntegrationsPage {
   // --- connection type (USB/TCP, custom combo, per row) ---
   readonly connectionOptions: { value: ConnectionType; label: string }[] = [
     { value: 'TCP', label: 'TCP' },
-    { value: 'USB', label: 'USB' },
+    { value: 'MOBILE', label: 'Mobile' },
   ];
+  connectionLabel(c: ConnectionType): string {
+    return this.connectionOptions.find((o) => o.value === c)?.label ?? c;
+  }
+
+  /** The location's MOBILE rows — what a register / printer can attach to. */
+  readonly mobiles = computed(() => this.items().filter((i) => i.type === 'MOBILE'));
+  mobileName(bridgeId: string | null): string {
+    return this.mobiles().find((m) => m.id === bridgeId)?.name ?? '';
+  }
+
+  // --- mobile combos (rows with connection Mobile): pick a MOBILE row of the location ---
+  readonly draftBridgeId = signal<string>('');
+  readonly editBridgeId = signal<string>('');
+  readonly draftMobileComboOpen = signal(false);
+  readonly editMobileComboOpen = signal(false);
+  toggleDraftMobileCombo(): void {
+    this.draftMobileComboOpen.update((o) => !o);
+  }
+  closeDraftMobileCombo(): void {
+    this.draftMobileComboOpen.set(false);
+  }
+  selectDraftMobile(id: string): void {
+    this.draftBridgeId.set(id);
+    this.draftMobileComboOpen.set(false);
+  }
+  toggleEditMobileCombo(): void {
+    this.editMobileComboOpen.update((o) => !o);
+  }
+  closeEditMobileCombo(): void {
+    this.editMobileComboOpen.set(false);
+  }
+  selectEditMobile(id: string): void {
+    this.editBridgeId.set(id);
+    this.editMobileComboOpen.set(false);
+  }
 
   /** Bridges currently connected to the backend — options for the USB device picker. */
   readonly bridgeDevices = signal<BridgeDevice[]>([]);
@@ -275,6 +311,8 @@ export class IntegrationsPage {
     this.draftTypeComboOpen.set(false);
     this.draftConnection.set('TCP');
     this.draftConnectionComboOpen.set(false);
+    this.draftBridgeId.set('');
+    this.draftMobileComboOpen.set(false);
     this.error.set(null);
     this.draft.set(true);
     this.loadBridgeDevices();
@@ -294,8 +332,10 @@ export class IntegrationsPage {
         name: this.draftName.value.trim(),
         ip: this.draftIp.value.trim() || null,
         type: this.draftType(),
-        connection: this.draftConnection(),
-        deviceId: this.draftConnection() === 'USB' ? this.draftDeviceId.value.trim() || null : null,
+        connection: this.draftType() === 'MOBILE' ? 'TCP' : this.draftConnection(),
+        deviceId: this.draftType() === 'MOBILE' ? this.draftDeviceId.value.trim() || null : null,
+        bridgeId:
+          this.draftType() !== 'MOBILE' && this.draftConnection() === 'MOBILE' ? this.draftBridgeId() || null : null,
       })
       .subscribe({
         next: (item) => {
@@ -317,6 +357,8 @@ export class IntegrationsPage {
     this.editTypeComboOpen.set(false);
     this.editConnection.set(item.connection ?? 'TCP');
     this.editConnectionComboOpen.set(false);
+    this.editBridgeId.set(item.bridgeId ?? '');
+    this.editMobileComboOpen.set(false);
     this.error.set(null);
     this.loadBridgeDevices();
   }
@@ -335,8 +377,10 @@ export class IntegrationsPage {
         name: this.editName.value.trim(),
         ip: this.editIp.value.trim() || null,
         type: this.editType(),
-        connection: this.editConnection(),
-        deviceId: this.editConnection() === 'USB' ? this.editDeviceId.value.trim() || null : null,
+        connection: this.editType() === 'MOBILE' ? 'TCP' : this.editConnection(),
+        deviceId: this.editType() === 'MOBILE' ? this.editDeviceId.value.trim() || null : null,
+        bridgeId:
+          this.editType() !== 'MOBILE' && this.editConnection() === 'MOBILE' ? this.editBridgeId() || null : null,
       })
       .subscribe({
         next: (updated) => {

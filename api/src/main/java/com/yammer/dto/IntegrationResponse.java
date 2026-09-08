@@ -12,9 +12,14 @@ public record IntegrationResponse(
         String ip,
         IntegrationType type,
         ConnectionType connection,
-        String deviceId) {
+        String deviceId,
+        UUID bridgeId,
+        /** Name of the MOBILE row a register / printer is attached to (null otherwise). */
+        String bridgeName,
+        /** MOBILE rows: whether that bridge phone currently holds a live session. */
+        Boolean online) {
 
-    public static IntegrationResponse from(IntegrationEntity entity) {
+    public static IntegrationResponse from(IntegrationEntity entity, String bridgeName, Boolean online) {
         return new IntegrationResponse(
                 entity.getId(),
                 entity.getLocationId(),
@@ -22,6 +27,9 @@ public record IntegrationResponse(
                 entity.getIp(),
                 entity.getType(),
                 entity.getConnection(),
-                entity.getDeviceId());
+                entity.getDeviceId(),
+                entity.getBridgeId(),
+                bridgeName,
+                online);
     }
 }

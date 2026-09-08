@@ -25,7 +25,7 @@ receipts. Ported from the old yammer project's `bridge-mobile`.
 ## Setup on the phone
 
 1. Install the APK, open it, set a **device name** (nickname shown in the backoffice
-   device picker), **Server URL** (default = the api's run.app URL), **API key**, baud
+   device picker), **Server URL** (default `wss://api.yammer.ro/ws/bridge`), **API key**, baud
    (115200) and till number; tap *Salveaza si (re)porneste* — the name is announced in the
    next HELLO.
 2. Plug the register in with an OTG cable, tap *Conecteaza USB*, accept the permission,
@@ -36,6 +36,7 @@ receipts. Ported from the old yammer project's `bridge-mobile`.
 
 ```bash
 # needs the Android SDK (local.properties: sdk.dir=…) and JDK 17+
+# optional: bridge.apiKey=… in local.properties bakes the key in as the app's default
 ./gradlew assembleDebug
 adb install app/build/outputs/apk/debug/app-debug.apk
 ```

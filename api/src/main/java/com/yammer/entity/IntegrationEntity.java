@@ -40,7 +40,11 @@ public class IntegrationEntity {
     @Column(nullable = false)
     private ConnectionType connection = ConnectionType.TCP;
 
-    /** Bridge device that owns this USB-attached register (from the bridge HELLO). */
+    /** MOBILE rows: the bridge phone's device id (announced in its HELLO frame). */
     @Column(name = "device_id")
     private String deviceId;
+
+    /** CASH_REGISTER / PRINTER rows with connection MOBILE: the MOBILE integration they hang off. */
+    @Column(name = "bridge_id")
+    private UUID bridgeId;
 }

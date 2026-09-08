@@ -159,16 +159,20 @@ public class BridgeService {
             paymentRepository.markFiscalFailedFromPending(paymentId);
             return null;
         }
-        boolean usb = reg.getConnection() == ConnectionType.USB;
+        boolean viaMobile = reg.getConnection() == ConnectionType.MOBILE;
+        // a register attached to a MOBILE row prints only through that phone's bridge session
+        String mobileDevice = !viaMobile || reg.getBridgeId() == null ? null
+                : integrationRepository.findById(reg.getBridgeId())
+                        .map(m -> Strings.trimToNull(m.getDeviceId())).orElse(null);
         String pinned = Strings.trimToNull(payment.getFiscalDevice());
-        String targetDevice = pinned != null ? pinned : usb ? Strings.trimToNull(reg.getDeviceId()) : null;
+        String targetDevice = pinned != null ? pinned : mobileDevice;
         String cashRegisterIp = Strings.trimToNull(reg.getIp());
-        if (usb && targetDevice == null) {
-            log.warn("USB cash register '{}' has no device id — payment {} marked FAILED.", reg.getName(), paymentId);
+        if (viaMobile && targetDevice == null) {
+            log.warn("Cash register '{}' is not attached to a mobile — payment {} marked FAILED.", reg.getName(), paymentId);
             paymentRepository.markFiscalFailedFromPending(paymentId);
             return null;
         }
-        if (!usb && cashRegisterIp == null) {
+        if (!viaMobile && cashRegisterIp == null) {
             log.warn("Cash register '{}' has no IP — payment {} marked FAILED.", reg.getName(), paymentId);
             paymentRepository.markFiscalFailedFromPending(paymentId);
             return null;

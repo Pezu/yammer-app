@@ -565,12 +565,7 @@ export class WaiterTableDetailPage {
         this.bill.set(bill);
         this.submitting.set(false);
         this.payOpen.set(false);
-        // card payments stay PENDING until the softPOS terminal confirms
-        this.toast.show(
-          this.paymentTypeById().get(paymentTypeId) === 'CARD'
-            ? this.t('pay.sentToTerminal')
-            : this.t('pay.recorded'),
-        );
+        this.toast.show(this.t('pay.recorded'));
       },
       error: () => {
         this.submitting.set(false);

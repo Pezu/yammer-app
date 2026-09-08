@@ -1,7 +1,7 @@
 package com.yammer.entity;
 
-/** How the bridge reaches the device: over the network or attached via USB. */
+/** How a register / printer is reached: over the LAN, or through a MOBILE bridge it is attached to. */
 public enum ConnectionType {
-    USB,
-    TCP
+    TCP,
+    MOBILE
 }

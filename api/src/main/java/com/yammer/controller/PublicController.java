@@ -143,17 +143,6 @@ public class PublicController {
                 .orElse(false);
     }
 
-    /**
-     * softPOS server-to-server result callback for a PENDING card payment: success
-     * closes it, failure releases its order lines back to unpaid. Idempotent.
-     */
-    @PostMapping("/softpos/callback")
-    public void softPosCallback(@RequestBody SoftPosCallback body) {
-        orderService.softPosCallback(body.paymentId(), body.success());
-    }
-
-    public record SoftPosCallback(UUID paymentId, boolean success) {
-    }
 
     /** Serves a menu-item image by its object key (restricted to the menu-items namespace). */
     @GetMapping("/menu-image")

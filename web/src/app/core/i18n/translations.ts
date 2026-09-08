@@ -70,7 +70,6 @@ export const EN = {
   'pay.customAmt': 'Custom RON',
   'pay.percent': 'Percent',
   'pay.totalToPay': 'Total to pay',
-  'pay.sentToTerminal': 'Sent to the card terminal — awaiting confirmation',
   'pay.recorded': 'Payment recorded',
   'pay.failed': 'Could not record the payment. Please try again.',
 
@@ -212,7 +211,6 @@ export const RO: Record<TKey, string> = {
   'pay.customAmt': 'Sumă RON',
   'pay.percent': 'Procent',
   'pay.totalToPay': 'Total de plată',
-  'pay.sentToTerminal': 'Trimis la terminalul de card — se așteaptă confirmarea',
   'pay.recorded': 'Plata a fost înregistrată',
   'pay.failed': 'Plata nu a putut fi înregistrată. Încearcă din nou.',
 

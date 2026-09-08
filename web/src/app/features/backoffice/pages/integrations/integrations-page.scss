@@ -35,3 +35,19 @@
 .id-col .mono {
   font-size: 0.78rem;
 }
+
+/* MOBILE rows: live-session indicator next to the device */
+.online-dot {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  margin-right: 0.45rem;
+  border-radius: 50%;
+  background: var(--border);
+  vertical-align: middle;
+
+  &.on {
+    background: #28a745;
+    box-shadow: 0 0 0 2px rgba(40, 167, 69, 0.25);
+  }
+}

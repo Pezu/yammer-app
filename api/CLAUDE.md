@@ -131,22 +131,22 @@ Run from `api/`.
   unit at the original price (`OrderService.mergeSettledSplits`, display-only, unit-tested).
   Closing the
   table invalidates every customer session with it (they hang off table_session).
-- **Payment lifecycle by type** (`OrderService.createPayment`): CASH → SUCCESS +
-  fiscal RECEIPT to the bridge; CARD → PENDING until `POST /public/softpos/callback`
-  `{paymentId, success}` marks SUCCESS (then fiscalized) or FAILED (failure releases the
-  payment's order lines back to unpaid); PROTOCOL / PO → SUCCESS, never fiscalized. The
-  payments report excludes FAILED rows.
+- **Payment lifecycle by type** (`OrderService.createPayment`): CASH and CARD → SUCCESS
+  at once + fiscal RECEIPT to the bridge (the register records cash vs card — as in old
+  yammer; V33 settled the card payments the removed softPOS step had left PENDING);
+  PROTOCOL / PO → SUCCESS, never fiscalized.
 - **On-prem bridge / fiscal receipts** (ported from old yammer; app in `bridge/mobile`):
-  bridges connect to `ws(s)://…/ws/bridge` with the `X-Bridge-Key` header (=
+  bridges connect to `wss://api.yammer.ro/ws/bridge` (custom-domain WebSocket upgrades
+  verified 2026-09-08) with the `X-Bridge-Key` header or `?key=` (URL-decoded) (=
   `bridge.api-key` / `BRIDGE_API_KEY` secret; blank accepted only under the `local`
   profile) and announce `{type:HELLO, deviceId, deviceName}` — `BridgeWsHandler` keeps one
   session per device id (`GET /bridge/devices` lists them for the Peripherals USB picker).
   `payment.fiscal_status` (V31: NONE / PENDING / SUCCESS / FAILED / UNKNOWN) is the fiscal
-  outbox: `PaymentCommittedEvent` (CASH at creation, CARD/ONLINE on confirmation, manual
+  outbox: `PaymentCommittedEvent` (CASH/CARD at creation, ONLINE on confirmation, manual
   retry) → `BridgeService` AFTER_COMMIT builds `{type:RECEIPT, requestId=payment id,
   fiscal:true, paymentMethod, cashRegister ip, lines[name, quantity, unitPrice, vat]}`
   (VAT from the product; tip as a VAT-0 line) and sends it ONCE to the point's cash
-  register: a USB register → only its bound `integration.device_id`, TCP → any one bridge;
+  register: a register attached to a MOBILE row → only that phone (its `device_id`), TCP → any one bridge;
   the first device that accepted it is pinned in `payment.fiscal_device`. No automatic
   retry ever. `RECEIPT_RESULT` (OK / ERROR / UNKNOWN) lands via guarded UPDATEs in
   `PaymentRepository` (SUCCESS terminal). `FiscalResultSweeper` fails PENDING payments
@@ -201,9 +201,12 @@ Run from `api/`.
   `GET|PUT /menu/menus/{id}/tree` (id-preserving reconcile save),
   `POST /menu/image` (GCS upload). `GET /public/menu-image?object=` serves item
   images publicly (`/public/**` is permitAll).
-- `/integrations` — printers + cash registers per location ("Peripherals" in the
-  UI): CRUD, writes ADMIN/SUPER, list for any authenticated user with optional
-  `?type=`. TCP (ip) or USB (bridge device_id) connections.
+- `/integrations` — "Peripherals" per location: CASH_REGISTER, PRINTER and **MOBILE** (a
+  bridge phone; `device_id` = the id its app announces, `online` = live session, V32).
+  Registers / printers are reached over TCP (`ip`) or `connection=MOBILE` + `bridge_id` →
+  a MOBILE row of the same location (the phone then owns the USB link to the device).
+  CRUD writes ADMIN/SUPER, list for any authenticated user with optional `?type=`.
+  Response carries `bridgeName` / `online` for the UI.
 - `/locations` — CRUD, writes ADMIN/SUPER; list for any authenticated user with
   `?clientId=` filter. `active` (V29) is toggled inline from the Locations page; the
   backoffice pages auto-select a location only when exactly one ACTIVE one exists. `GET /locations/{id}/qr` (ADMIN/SUPER) = printable PDF of
@@ -306,6 +309,8 @@ Same model as the old project:
 - `V31__Payment_fiscal.sql`: `payment.fiscal_status` (NONE default; existing rows were never
   fiscalized), `receipt_number`, `fiscal_sent_at`, `fiscal_device`, `fiscal_reprint_authorized`,
   partial index on PENDING.
+- `V32__Integration_mobile.sql`: `integration.bridge_id` (→ MOBILE row); connection USB → MOBILE.
+- `V33__Card_payments_fiscalized.sql`: PENDING card payments → SUCCESS + fiscal FAILED (re-issuable).
 - The old DB had 30 migrations; this baseline restarts at V1, so the API must run
   against a **fresh database volume**, not the old one.
 
