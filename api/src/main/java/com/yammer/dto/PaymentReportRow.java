@@ -13,5 +13,8 @@ public record PaymentReportRow(
         BigDecimal tip,
         BigDecimal total,
         String paymentType,
-        Instant createdAt) {
+        Instant createdAt,
+        /** NONE / PENDING / SUCCESS / FAILED / UNKNOWN — see FiscalStatus. */
+        String fiscalStatus,
+        String receiptNumber) {
 }

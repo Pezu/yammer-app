@@ -47,6 +47,7 @@
               <th class="num">Tip</th>
               <th class="num">Total</th>
               <th>Payment type</th>
+              <th>Fiscal</th>
             </tr>
           </thead>
           <tbody>
@@ -58,12 +59,29 @@
                 <td class="num">{{ row.tip | number: '1.2-2' }}</td>
                 <td class="num">{{ row.total | number: '1.2-2' }}</td>
                 <td>{{ row.paymentType }}</td>
+                <td class="fiscal-col">
+                  @if (row.fiscalStatus !== 'NONE') {
+                    <span class="fiscal" [class.ok]="row.fiscalStatus === 'SUCCESS'" [class.failed]="row.fiscalStatus === 'FAILED'" [class.unknown]="row.fiscalStatus === 'UNKNOWN'" [title]="row.receiptNumber ? 'Receipt ' + row.receiptNumber : ''">
+                      {{ row.fiscalStatus === 'SUCCESS' && row.receiptNumber ? '#' + row.receiptNumber : row.fiscalStatus }}
+                    </span>
+                    @if (row.fiscalStatus === 'FAILED') {
+                      <button type="button" class="fiscal-btn" [disabled]="busy().has(row.id)" (click)="retry(row.id)" title="Re-issue the fiscal receipt">Retry</button>
+                    }
+                    @if (row.fiscalStatus === 'UNKNOWN') {
+                      <!-- ambiguous print: never auto-retry — the operator checks the register -->
+                      <button type="button" class="fiscal-btn" [disabled]="busy().has(row.id)" (click)="resolveUnknown(row.id, true)" title="Verified on the register: it printed">Printed</button>
+                      <button type="button" class="fiscal-btn danger" [disabled]="busy().has(row.id)" (click)="resolveUnknown(row.id, false)" title="Verified on the register: it did not print">Not printed</button>
+                    }
+                  } @else {
+                    <span class="fiscal none">—</span>
+                  }
+                </td>
               </tr>
             }
 
             @if (!loading() && rows().length === 0) {
               <tr>
-                <td colspan="6" class="empty">No payments yet.</td>
+                <td colspan="7" class="empty">No payments yet.</td>
               </tr>
             }
           </tbody>
@@ -74,6 +92,7 @@
                 <td class="num">{{ totals().amount | number: '1.2-2' }}</td>
                 <td class="num">{{ totals().tip | number: '1.2-2' }}</td>
                 <td class="num">{{ totals().total | number: '1.2-2' }}</td>
+                <td></td>
                 <td></td>
               </tr>
             </tfoot>

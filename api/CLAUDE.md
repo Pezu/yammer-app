@@ -132,11 +132,29 @@ Run from `api/`.
   Closing the
   table invalidates every customer session with it (they hang off table_session).
 - **Payment lifecycle by type** (`OrderService.createPayment`): CASH → SUCCESS +
-  fiscal-print request to the bridge (LOGGED for now); CARD → PENDING until
-  `POST /public/softpos/callback` `{paymentId, success}` marks SUCCESS or FAILED
-  (failure releases the payment's order lines back to unpaid); PROTOCOL / PO →
-  SUCCESS with no fiscal printer (as in old yammer). The payments report
-  excludes FAILED rows.
+  fiscal RECEIPT to the bridge; CARD → PENDING until `POST /public/softpos/callback`
+  `{paymentId, success}` marks SUCCESS (then fiscalized) or FAILED (failure releases the
+  payment's order lines back to unpaid); PROTOCOL / PO → SUCCESS, never fiscalized. The
+  payments report excludes FAILED rows.
+- **On-prem bridge / fiscal receipts** (ported from old yammer; app in `bridge/mobile`):
+  bridges connect to `ws(s)://…/ws/bridge` with the `X-Bridge-Key` header (=
+  `bridge.api-key` / `BRIDGE_API_KEY` secret; blank accepted only under the `local`
+  profile) and announce `{type:HELLO, deviceId, deviceName}` — `BridgeWsHandler` keeps one
+  session per device id (`GET /bridge/devices` lists them for the Peripherals USB picker).
+  `payment.fiscal_status` (V31: NONE / PENDING / SUCCESS / FAILED / UNKNOWN) is the fiscal
+  outbox: `PaymentCommittedEvent` (CASH at creation, CARD/ONLINE on confirmation, manual
+  retry) → `BridgeService` AFTER_COMMIT builds `{type:RECEIPT, requestId=payment id,
+  fiscal:true, paymentMethod, cashRegister ip, lines[name, quantity, unitPrice, vat]}`
+  (VAT from the product; tip as a VAT-0 line) and sends it ONCE to the point's cash
+  register: a USB register → only its bound `integration.device_id`, TCP → any one bridge;
+  the first device that accepted it is pinned in `payment.fiscal_device`. No automatic
+  retry ever. `RECEIPT_RESULT` (OK / ERROR / UNKNOWN) lands via guarded UPDATEs in
+  `PaymentRepository` (SUCCESS terminal). `FiscalResultSweeper` fails PENDING payments
+  with no result after `bridge.fiscal-result-timeout-seconds` (180 s; the bridge's job
+  budget is 90 s — keep the invariant budget < deadline). Admin actions (Payments report):
+  `POST /payments/{id}/retry-fiscal` (FAILED only, 409 otherwise) and
+  `POST /payments/{id}/resolve-unknown {printed, receiptNumber?}` (UNKNOWN only; "not
+  printed" sets `fiscal_reprint_authorized` so the next RECEIPT carries `clearIntent`).
 - **Netopia online self-pay** (`OnlinePaymentService`, ported minus events): at
   an order point whose self_pay_type is ONLINE, a customer order parks the cart
   as an `online_payment` intent and returns the gateway `paymentUrl`; the order
@@ -160,8 +178,6 @@ Run from `api/`.
   `serviceBoard()`: assigned station, else all SERVICE points of the home location). The
   session registry is in-memory, so the api stays pinned to ONE Cloud Run instance
   (min=max=1, request timeout 3600 s = how long a socket lives before the client reconnects).
-- `GET /bridge/devices` — stub returning `[]` until the on-prem bridge (WebSocket)
-  subsystem is ported; the peripherals page polls it for the USB device picker.
 - **Assignment (new model, replaces the old per-event one)**: `order_point_assignment`
   (point↔user, V17). Self-service under `/order-points` (any authenticated user):
   `GET /assigned` (my points), `GET /assignable?locationId=` (board with
@@ -287,6 +303,9 @@ Same model as the old project:
 - `V29__Location_active.sql`: `location.active` (default true).
 - `V30__Order_draft_status.sql`: `orders.order_no` nullable; APPROVAL → DRAFT (number cleared);
   APPROVAL orders on already-closed sessions deleted (never accepted).
+- `V31__Payment_fiscal.sql`: `payment.fiscal_status` (NONE default; existing rows were never
+  fiscalized), `receipt_number`, `fiscal_sent_at`, `fiscal_device`, `fiscal_reprint_authorized`,
+  partial index on PENDING.
 - The old DB had 30 migrations; this baseline restarts at V1, so the API must run
   against a **fresh database volume**, not the old one.
 

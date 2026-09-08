@@ -3,7 +3,9 @@ package com.yammer.service;
 import com.yammer.dto.CustomerOrderRequest;
 import com.yammer.dto.OrderItemRequest;
 import com.yammer.dto.OrderPointBillResponse;
+import com.yammer.entity.FiscalStatus;
 import com.yammer.event.OrderChangedEvent;
+import com.yammer.event.PaymentCommittedEvent;
 import com.yammer.dto.OrderResponse;
 import com.yammer.dto.PayRequest;
 import com.yammer.dto.PlaceOrderRequest;
@@ -321,7 +323,9 @@ public class OrderService {
         payment.setStatus("SUCCESS");
         payment.setCreatedBy("Customer");
         payment.setCreatedAt(LocalDateTime.now());
+        payment.setFiscalStatus(FiscalStatus.PENDING); // a confirmed online payment is fiscalized like a card
         PaymentEntity savedPayment = paymentRepository.save(payment);
+        eventPublisher.publishEvent(new PaymentCommittedEvent(savedPayment.getId()));
 
         OrderEntity order = new OrderEntity();
         order.setOrderNo(orderRepository.maxOrderNoForClient(location.getClientId()) + 1);
@@ -603,7 +607,7 @@ public class OrderService {
 
     /**
      * Creates the Payment with the lifecycle of its type:
-     * CASH → SUCCESS + fiscal-print request to the bridge (logged until the bridge is ported);
+     * CASH → SUCCESS + fiscal RECEIPT pushed to the bridge (after commit);
      * CARD → PENDING until the softPOS callback confirms; PROTOCOL / PO → SUCCESS, no fiscal.
      */
     private PaymentEntity createPayment(
@@ -620,11 +624,11 @@ public class OrderService {
                 .map(PaymentTypeEntity::getType)
                 .orElse("");
         payment.setStatus("CARD".equals(type) ? "PENDING" : "SUCCESS");
+        // CASH is fiscalized right away; CARD once the terminal confirms; PROTOCOL / PO never
+        payment.setFiscalStatus("CASH".equals(type) ? FiscalStatus.PENDING : FiscalStatus.NONE);
         PaymentEntity saved = paymentRepository.save(payment);
         switch (type) {
-            case "CASH" -> log.info(
-                    "BRIDGE fiscal-print request: payment={} amount={} tip={} orderPoint={}",
-                    saved.getId(), saved.getAmount(), saved.getTip(), saved.getOrderPointId());
+            case "CASH" -> eventPublisher.publishEvent(new PaymentCommittedEvent(saved.getId()));
             case "CARD" -> log.info(
                     "softPOS charge request: payment={} amount={} — awaiting callback",
                     saved.getId(), saved.getAmount());
@@ -648,7 +652,9 @@ public class OrderService {
         }
         if (success) {
             payment.setStatus("SUCCESS");
+            payment.setFiscalStatus(FiscalStatus.PENDING); // card receipt is fiscalized once confirmed
             paymentRepository.save(payment);
+            eventPublisher.publishEvent(new PaymentCommittedEvent(paymentId));
             log.info("softPOS confirmed payment {}", paymentId);
         } else {
             payment.setStatus("FAILED");

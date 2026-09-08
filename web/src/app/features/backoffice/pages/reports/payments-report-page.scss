@@ -18,3 +18,54 @@
   font-weight: 700;
   border-top: 2px solid var(--border);
 }
+
+/* fiscal receipt state + actions */
+.fiscal-col {
+  white-space: nowrap;
+}
+.fiscal {
+  display: inline-block;
+  padding: 0.15rem 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  border-radius: 999px;
+  color: var(--muted);
+  background: var(--page-bg);
+
+  &.ok {
+    color: #1f7a3d;
+    background: rgba(40, 167, 69, 0.12);
+  }
+  &.failed {
+    color: var(--danger);
+    background: rgba(234, 77, 77, 0.12);
+  }
+  &.unknown {
+    color: #92610a;
+    background: rgba(245, 158, 11, 0.15);
+  }
+  &.none {
+    background: none;
+  }
+}
+.fiscal-btn {
+  margin-left: 0.4rem;
+  padding: 0.2rem 0.55rem;
+  font: inherit;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--primary);
+  background: #fff;
+  border: 1px solid rgba(52, 84, 209, 0.45);
+  border-radius: 6px;
+  cursor: pointer;
+
+  &.danger {
+    color: var(--danger);
+    border-color: rgba(234, 77, 77, 0.45);
+  }
+  &:disabled {
+    opacity: 0.5;
+    cursor: default;
+  }
+}

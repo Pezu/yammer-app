@@ -2,6 +2,8 @@ package com.yammer.entity;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
@@ -49,4 +51,33 @@ public class PaymentEntity {
 
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
+
+    // ─── fiscal receipt (the on-prem bridge) ─────────────────────────────────
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "fiscal_status", nullable = false)
+    private FiscalStatus fiscalStatus = FiscalStatus.NONE;
+
+    @Column(name = "receipt_number")
+    private String receiptNumber;
+
+    /** When the fiscal RECEIPT was last pushed to the bridge (the sweeper's deadline start). */
+    @Column(name = "fiscal_sent_at")
+    private LocalDateTime fiscalSentAt;
+
+    /**
+     * Bridge device that first handled this payment's fiscal receipt. Once set, every
+     * re-dispatch is routed to this device only — a different bridge has no de-dup record
+     * of the receipt and could print it a second time.
+     */
+    @Column(name = "fiscal_device")
+    private String fiscalDevice;
+
+    /**
+     * Operator verified an UNKNOWN receipt as NOT printed. The next RECEIPT frame carries
+     * {@code clearIntent} so the bridge drops its print-intent and actually re-prints.
+     * Cleared again on SUCCESS.
+     */
+    @Column(name = "fiscal_reprint_authorized", nullable = false)
+    private boolean fiscalReprintAuthorized = false;
 }

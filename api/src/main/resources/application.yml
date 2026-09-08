@@ -56,6 +56,15 @@ netopia:
   language: ${NETOPIA_LANGUAGE:ro}
   currency: ${NETOPIA_CURRENCY:RON}
 
+# On-prem bridge (fiscal cash registers over WebSocket /ws/bridge, X-Bridge-Key header).
+# Blank api-key is accepted ONLY under the local profile (dev); elsewhere the handshake is refused.
+bridge:
+  api-key: ${BRIDGE_API_KEY:}
+  # How long a fiscal receipt may stay PENDING before the sweeper presumes the result lost
+  # and marks it FAILED for manual re-issue. Must STRICTLY exceed the bridge's per-job budget
+  # (90 s) so a payment the sweeper fails is provably no longer printing.
+  fiscal-result-timeout-seconds: ${BRIDGE_FISCAL_RESULT_TIMEOUT_SECONDS:180}
+
 # Google Cloud Storage for media (client logos, future menu-item images).
 # endpoint blank -> real GCS via Application Default Credentials (GCP/Cloud Run).
 # For local dev use the `local` profile, which points at the fake-gcs-server emulator.

@@ -118,7 +118,10 @@ web/src/app/
 │           │                         #   editable detail: unpaid qty steppers, delete when unpaid;
 │           │                         #   ported from old yammer minus events — filter-combo.ts is the
 │           │                         #   small in-table dropdown it uses)
-│           │                         # + Payments report (table/waiter/amount/tip/total/type + totals row)
+│           │                         # + Payments report (table/waiter/amount/tip/total/type + totals row
+│           │                         #   + Fiscal column: receipt no. / PENDING / FAILED→Retry / UNKNOWN→
+│           │                         #   Printed | Not printed, backed by /payments/{id}/retry-fiscal and
+│           │                         #   /resolve-unknown)
 │           │                         #   + Open tables report (open sessions: table/opened by/
 │           │                         #   opened at/outstanding amount + totals row)
 │           ├── order-point-types/    # catalog CRUD (SUPER-only; cloned from roles)

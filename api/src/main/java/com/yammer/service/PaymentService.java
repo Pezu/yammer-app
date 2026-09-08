@@ -10,6 +10,12 @@ import com.yammer.repository.PaymentRepository;
 import com.yammer.repository.PaymentTypeRepository;
 import com.yammer.repository.UserRepository;
 import com.yammer.security.AccessGuard;
+import com.yammer.entity.FiscalStatus;
+import com.yammer.event.PaymentCommittedEvent;
+import java.time.LocalDateTime;
+import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.server.ResponseStatusException;
 import java.math.BigDecimal;
 import java.time.ZoneId;
 import java.util.List;
@@ -31,6 +37,7 @@ public class PaymentService {
     private final PaymentTypeRepository paymentTypeRepository;
     private final UserRepository userRepository;
     private final AccessGuard accessGuard;
+    private final ApplicationEventPublisher eventPublisher;
 
     /**
      * The location's payments, newest first, with table/waiter/payment-type names resolved.
@@ -78,7 +85,48 @@ public class PaymentService {
                         p.getPaymentTypeId() == null
                                 ? "—"
                                 : typeNames.getOrDefault(p.getPaymentTypeId(), "?"),
-                        p.getCreatedAt().atZone(ZoneId.systemDefault()).toInstant()))
+                        p.getCreatedAt().atZone(ZoneId.systemDefault()).toInstant(),
+                        p.getFiscalStatus().name(),
+                        p.getReceiptNumber()))
                 .toList();
+    }
+
+    /**
+     * Manually re-issue a FAILED fiscal receipt. The re-arm is one guarded UPDATE: a result
+     * committing concurrently (FAILED → SUCCESS) makes it match 0 rows instead of clobbering
+     * the SUCCESS. The stamped fiscalSentAt restarts the sweeper's deadline from now.
+     */
+    public void retryFiscal(UUID paymentId) {
+        PaymentEntity payment = paymentRepository.findById(paymentId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Payment not found: " + paymentId));
+        accessGuard.requireAccessibleOrderPoint(payment.getOrderPointId());
+        if (payment.getFiscalStatus() == FiscalStatus.NONE) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "This payment is not fiscalized");
+        }
+        int rearmed = paymentRepository.rearmFailedFiscal(paymentId, LocalDateTime.now());
+        if (rearmed == 0) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "Only failed receipts can be re-issued (current status: " + payment.getFiscalStatus() + ")");
+        }
+        eventPublisher.publishEvent(new PaymentCommittedEvent(paymentId)); // one send after commit
+    }
+
+    /**
+     * Operator verdict on an UNKNOWN fiscal receipt after checking the register: printed
+     * (optionally with the receipt number) or not printed (re-enables retry + authorizes the
+     * bridge to clear its print-intent).
+     */
+    public void resolveUnknownFiscal(UUID paymentId, boolean printed, String receiptNumber) {
+        PaymentEntity payment = paymentRepository.findById(paymentId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Payment not found: " + paymentId));
+        accessGuard.requireAccessibleOrderPoint(payment.getOrderPointId());
+        String number = receiptNumber == null || receiptNumber.isBlank() ? null : receiptNumber.trim();
+        int updated = printed
+                ? paymentRepository.resolveUnknownAsSuccess(paymentId, number)
+                : paymentRepository.resolveUnknownAsFailed(paymentId);
+        if (updated == 0) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "Only UNKNOWN receipts can be resolved (current status: " + payment.getFiscalStatus() + ")");
+        }
     }
 }

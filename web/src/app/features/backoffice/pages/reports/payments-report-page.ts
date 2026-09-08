@@ -75,6 +75,44 @@ export class PaymentsReportPage {
     this.locationFilter.set('');
   }
 
+  /** Payments with a fiscal action in flight (retry / resolve). */
+  readonly busy = signal<Set<string>>(new Set());
+
+  /** Re-issue a FAILED receipt; reload after the bridge round-trip so the new status shows. */
+  retry(paymentId: string): void {
+    if (this.busy().has(paymentId)) return;
+    this.busy.update((s) => new Set(s).add(paymentId));
+    this.reportService.retryFiscal(paymentId).subscribe({
+      next: () => setTimeout(() => this.clearBusy(paymentId, true), 3000),
+      error: () => this.clearBusy(paymentId, false),
+    });
+  }
+
+  /** Operator verdict on an UNKNOWN receipt, after checking the register. */
+  resolveUnknown(paymentId: string, printed: boolean): void {
+    if (this.busy().has(paymentId)) return;
+    let receiptNumber: string | null = null;
+    if (printed) {
+      receiptNumber = window.prompt('Receipt number from the register (optional):')?.trim() || null;
+    }
+    this.busy.update((s) => new Set(s).add(paymentId));
+    this.reportService.resolveUnknownFiscal(paymentId, printed, receiptNumber).subscribe({
+      next: () => this.clearBusy(paymentId, true),
+      error: () => this.clearBusy(paymentId, false),
+    });
+  }
+
+  private clearBusy(paymentId: string, reload: boolean): void {
+    this.busy.update((s) => {
+      const next = new Set(s);
+      next.delete(paymentId);
+      return next;
+    });
+    const locationId = this.locationFilter();
+    if (reload && locationId) this.load(locationId);
+    if (!reload) this.error.set('Fiscal action failed.');
+  }
+
   load(locationId: string): void {
     this.loading.set(true);
     this.error.set(null);
