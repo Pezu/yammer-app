@@ -160,15 +160,12 @@ public class BridgeService {
             return null;
         }
         boolean viaMobile = reg.getConnection() == ConnectionType.MOBILE;
-        // a register attached to a MOBILE row prints only through that phone's bridge session
-        String mobileDevice = !viaMobile || reg.getBridgeId() == null ? null
-                : integrationRepository.findById(reg.getBridgeId())
-                        .map(m -> Strings.trimToNull(m.getDeviceId())).orElse(null);
+        // a register attached to a phone prints only through that phone's bridge session
         String pinned = Strings.trimToNull(payment.getFiscalDevice());
-        String targetDevice = pinned != null ? pinned : mobileDevice;
+        String targetDevice = pinned != null ? pinned : viaMobile ? Strings.trimToNull(reg.getDeviceId()) : null;
         String cashRegisterIp = Strings.trimToNull(reg.getIp());
         if (viaMobile && targetDevice == null) {
-            log.warn("Cash register '{}' is not attached to a mobile — payment {} marked FAILED.", reg.getName(), paymentId);
+            log.warn("Cash register '{}' has no phone attached — payment {} marked FAILED.", reg.getName(), paymentId);
             paymentRepository.markFiscalFailedFromPending(paymentId);
             return null;
         }

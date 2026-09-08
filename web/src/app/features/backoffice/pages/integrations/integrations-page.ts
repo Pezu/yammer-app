@@ -29,7 +29,6 @@ export class IntegrationsPage {
   readonly typeOptions: { value: IntegrationType; label: string }[] = [
     { value: 'CASH_REGISTER', label: 'Cash Register' },
     { value: 'PRINTER', label: 'Printer' },
-    { value: 'MOBILE', label: 'Mobile' },
   ];
   typeLabel(t: IntegrationType): string {
     return this.typeOptions.find((o) => o.value === t)?.label ?? '';
@@ -44,39 +43,7 @@ export class IntegrationsPage {
     return this.connectionOptions.find((o) => o.value === c)?.label ?? c;
   }
 
-  /** The location's MOBILE rows — what a register / printer can attach to. */
-  readonly mobiles = computed(() => this.items().filter((i) => i.type === 'MOBILE'));
-  mobileName(bridgeId: string | null): string {
-    return this.mobiles().find((m) => m.id === bridgeId)?.name ?? '';
-  }
-
-  // --- mobile combos (rows with connection Mobile): pick a MOBILE row of the location ---
-  readonly draftBridgeId = signal<string>('');
-  readonly editBridgeId = signal<string>('');
-  readonly draftMobileComboOpen = signal(false);
-  readonly editMobileComboOpen = signal(false);
-  toggleDraftMobileCombo(): void {
-    this.draftMobileComboOpen.update((o) => !o);
-  }
-  closeDraftMobileCombo(): void {
-    this.draftMobileComboOpen.set(false);
-  }
-  selectDraftMobile(id: string): void {
-    this.draftBridgeId.set(id);
-    this.draftMobileComboOpen.set(false);
-  }
-  toggleEditMobileCombo(): void {
-    this.editMobileComboOpen.update((o) => !o);
-  }
-  closeEditMobileCombo(): void {
-    this.editMobileComboOpen.set(false);
-  }
-  selectEditMobile(id: string): void {
-    this.editBridgeId.set(id);
-    this.editMobileComboOpen.set(false);
-  }
-
-  /** Bridges currently connected to the backend — options for the USB device picker. */
+  /** Phones currently connected to the backend — options for the Mobile device picker. */
   readonly bridgeDevices = signal<BridgeDevice[]>([]);
   private loadBridgeDevices(): void {
     this.integrationService.devices().subscribe({
@@ -84,13 +51,18 @@ export class IntegrationsPage {
       error: () => this.bridgeDevices.set([]),
     });
   }
-  deviceLabel(deviceId: string | null): string {
+  /** Live name if the phone is connected, else the name remembered at selection, else the short id. */
+  deviceLabel(deviceId: string | null, storedName?: string | null): string {
     if (!deviceId) {
       return '';
     }
     const known = this.bridgeDevices().find((d) => d.deviceId === deviceId);
     const shortId = deviceId.length > 12 ? deviceId.slice(0, 8) + '…' : deviceId;
-    return known?.deviceName ? `${known.deviceName} (${shortId})` : shortId;
+    const name = known?.deviceName || storedName;
+    return name ? `${name} (${shortId})` : shortId;
+  }
+  private liveDeviceName(deviceId: string): string | null {
+    return this.bridgeDevices().find((d) => d.deviceId === deviceId)?.deviceName || null;
   }
 
   // --- device combos (USB rows): pick a connected bridge by name, store its id ---
@@ -311,8 +283,6 @@ export class IntegrationsPage {
     this.draftTypeComboOpen.set(false);
     this.draftConnection.set('TCP');
     this.draftConnectionComboOpen.set(false);
-    this.draftBridgeId.set('');
-    this.draftMobileComboOpen.set(false);
     this.error.set(null);
     this.draft.set(true);
     this.loadBridgeDevices();
@@ -332,10 +302,10 @@ export class IntegrationsPage {
         name: this.draftName.value.trim(),
         ip: this.draftIp.value.trim() || null,
         type: this.draftType(),
-        connection: this.draftType() === 'MOBILE' ? 'TCP' : this.draftConnection(),
-        deviceId: this.draftType() === 'MOBILE' ? this.draftDeviceId.value.trim() || null : null,
-        bridgeId:
-          this.draftType() !== 'MOBILE' && this.draftConnection() === 'MOBILE' ? this.draftBridgeId() || null : null,
+        connection: this.draftConnection(),
+        deviceId: this.draftConnection() === 'MOBILE' ? this.draftDeviceId.value.trim() || null : null,
+        deviceName:
+          this.draftConnection() === 'MOBILE' ? this.liveDeviceName(this.draftDeviceId.value.trim()) : null,
       })
       .subscribe({
         next: (item) => {
@@ -357,8 +327,6 @@ export class IntegrationsPage {
     this.editTypeComboOpen.set(false);
     this.editConnection.set(item.connection ?? 'TCP');
     this.editConnectionComboOpen.set(false);
-    this.editBridgeId.set(item.bridgeId ?? '');
-    this.editMobileComboOpen.set(false);
     this.error.set(null);
     this.loadBridgeDevices();
   }
@@ -377,10 +345,12 @@ export class IntegrationsPage {
         name: this.editName.value.trim(),
         ip: this.editIp.value.trim() || null,
         type: this.editType(),
-        connection: this.editType() === 'MOBILE' ? 'TCP' : this.editConnection(),
-        deviceId: this.editType() === 'MOBILE' ? this.editDeviceId.value.trim() || null : null,
-        bridgeId:
-          this.editType() !== 'MOBILE' && this.editConnection() === 'MOBILE' ? this.editBridgeId() || null : null,
+        connection: this.editConnection(),
+        deviceId: this.editConnection() === 'MOBILE' ? this.editDeviceId.value.trim() || null : null,
+        deviceName:
+          this.editConnection() === 'MOBILE'
+            ? this.liveDeviceName(this.editDeviceId.value.trim()) ?? item.deviceName
+            : null,
       })
       .subscribe({
         next: (updated) => {

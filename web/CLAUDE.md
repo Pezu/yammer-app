@@ -110,9 +110,9 @@ web/src/app/
 │           ├── recipes/              # product recipes — fractional composition of other products
 │           ├── menu/                 # menu tree editor; leaves PICK catalog products (no inline
 │           │                         #   price/VAT/image on product nodes — those live on Products)
-│           ├── integrations/         # "Peripherals" — cash registers, printers and MOBILE rows (a bridge
-│           │                         #   phone picked from the connected bridges, with an online dot);
-│           │                         #   a register/printer is TCP (ip) or Mobile (attached to a MOBILE row)
+│           ├── integrations/         # "Peripherals" — cash registers / printers, each TCP (ip) or Mobile:
+│           │                         #   pick the connected phone it is attached to (name remembered for
+│           │                         #   when it is offline; online dot). The phone is pure routing.
 │           ├── order-points/         # list + batch "add multiple" modal (type/count/self-pay/…)
 │           ├── self-pay-types/       # catalog CRUD (SUPER-only; ONLINE/CHECK — how a customer
 │           │                         #   self-pays at an order point; cloned from payment-types)

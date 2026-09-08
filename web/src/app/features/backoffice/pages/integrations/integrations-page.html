@@ -75,7 +75,7 @@
             <tr>
               <th class="id-col">ID</th>
               <th>Name</th>
-              <th class="ip-col">IP / device</th>
+              <th class="ip-col">IP / phone</th>
               <th class="type-col">Type</th>
               <th class="type-col">Connection</th>
               <th class="actions-col">Actions</th>
@@ -89,10 +89,10 @@
                   <input type="text" class="input" placeholder="Name" [formControl]="draftName" (keyup.enter)="saveCreate()" (keyup.escape)="cancelCreate()" autofocus />
                 </td>
                 <td class="ip-col">
-                  @if (draftType() === 'MOBILE') {
+                  @if (draftConnection() === 'MOBILE') {
                     <div class="client-combo type-combo">
                       <button type="button" class="combo-trigger" [class.placeholder]="!draftDeviceId.value" (click)="toggleDraftDeviceCombo()">
-                        <span>{{ draftDeviceId.value ? deviceLabel(draftDeviceId.value) : 'Select device…' }}</span>
+                        <span>{{ draftDeviceId.value ? deviceLabel(draftDeviceId.value) : 'Select phone…' }}</span>
                         <svg class="caret" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
                       </button>
                       @if (draftDeviceComboOpen()) {
@@ -103,25 +103,6 @@
                               <li><button type="button" class="combo-option" [class.active]="d.deviceId === draftDeviceId.value" (click)="selectDraftDevice(d.deviceId)">{{ d.deviceName || d.deviceId }}</button></li>
                             } @empty {
                               <li class="combo-empty">No bridge connected — open the app on the phone</li>
-                            }
-                          </ul>
-                        </div>
-                      }
-                    </div>
-                  } @else if (draftConnection() === 'MOBILE') {
-                    <div class="client-combo type-combo">
-                      <button type="button" class="combo-trigger" [class.placeholder]="!draftBridgeId()" (click)="toggleDraftMobileCombo()">
-                        <span>{{ draftBridgeId() ? mobileName(draftBridgeId()) : 'Select mobile…' }}</span>
-                        <svg class="caret" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
-                      </button>
-                      @if (draftMobileComboOpen()) {
-                        <div class="combo-backdrop" (click)="closeDraftMobileCombo()"></div>
-                        <div class="combo-menu">
-                          <ul class="combo-list">
-                            @for (m of mobiles(); track m.id) {
-                              <li><button type="button" class="combo-option" [class.active]="m.id === draftBridgeId()" (click)="selectDraftMobile(m.id)">{{ m.name }}</button></li>
-                            } @empty {
-                              <li class="combo-empty">No mobile yet — add one (type Mobile) first</li>
                             }
                           </ul>
                         </div>
@@ -150,9 +131,6 @@
                   </div>
                 </td>
                 <td class="type-col">
-                  @if (draftType() === 'MOBILE') {
-                    <span class="muted">—</span>
-                  } @else {
                   <div class="client-combo type-combo">
                     <button type="button" class="combo-trigger" (click)="toggleDraftConnectionCombo()">
                       <span>{{ connectionLabel(draftConnection()) }}</span>
@@ -169,7 +147,6 @@
                       </div>
                     }
                   </div>
-                  }
                 </td>
                 <td class="actions-col">
                   <div class="actions">
@@ -196,10 +173,10 @@
                 </td>
                 <td class="ip-col">
                   @if (editingId() === item.id) {
-                    @if (editType() === 'MOBILE') {
+                    @if (editConnection() === 'MOBILE') {
                       <div class="client-combo type-combo">
                         <button type="button" class="combo-trigger" [class.placeholder]="!editDeviceId.value" (click)="toggleEditDeviceCombo()">
-                          <span>{{ editDeviceId.value ? deviceLabel(editDeviceId.value) : 'Select device…' }}</span>
+                          <span>{{ editDeviceId.value ? deviceLabel(editDeviceId.value, item.deviceName) : 'Select phone…' }}</span>
                           <svg class="caret" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
                         </button>
                         @if (editDeviceComboOpen()) {
@@ -215,33 +192,12 @@
                           </div>
                         }
                       </div>
-                    } @else if (editConnection() === 'MOBILE') {
-                      <div class="client-combo type-combo">
-                      <button type="button" class="combo-trigger" [class.placeholder]="!editBridgeId()" (click)="toggleEditMobileCombo()">
-                        <span>{{ editBridgeId() ? mobileName(editBridgeId()) : 'Select mobile…' }}</span>
-                        <svg class="caret" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
-                      </button>
-                      @if (editMobileComboOpen()) {
-                        <div class="combo-backdrop" (click)="closeEditMobileCombo()"></div>
-                        <div class="combo-menu">
-                          <ul class="combo-list">
-                            @for (m of mobiles(); track m.id) {
-                              <li><button type="button" class="combo-option" [class.active]="m.id === editBridgeId()" (click)="selectEditMobile(m.id)">{{ m.name }}</button></li>
-                            } @empty {
-                              <li class="combo-empty">No mobile yet — add one (type Mobile) first</li>
-                            }
-                          </ul>
-                        </div>
-                      }
-                    </div>
                     } @else {
                       <input type="text" class="input" placeholder="IP address" [formControl]="editIp" (keyup.enter)="saveEdit(item)" (keyup.escape)="cancelEdit()" />
                     }
-                  } @else if (item.type === 'MOBILE') {
-                    <span class="online-dot" [class.on]="item.online" [title]="item.online ? 'Connected' : 'Offline'"></span>
-                    <span class="mono" [title]="item.deviceId ?? ''">{{ deviceLabel(item.deviceId) }}</span>
-                  } @else if (item.connection === 'MOBILE') {
-                    <span [title]="item.bridgeId ?? ''">{{ item.bridgeName || mobileName(item.bridgeId) || '—' }}</span>
+                  } @else if (item.connection === 'MOBILE' && item.deviceId) {
+                    <span class="online-dot" [class.on]="item.online" [title]="item.online ? 'Phone connected' : 'Phone offline'"></span>
+                    <span class="mono" [title]="item.deviceId">{{ deviceLabel(item.deviceId, item.deviceName) }}</span>
                   } @else if (item.ip) {
                     <span class="mono">{{ item.ip }}</span>
                   } @else {
@@ -271,9 +227,7 @@
                   }
                 </td>
                 <td class="type-col">
-                  @if (editingId() === item.id && editType() === 'MOBILE') {
-                    <span class="muted">—</span>
-                  } @else if (editingId() === item.id) {
+                  @if (editingId() === item.id) {
                     <div class="client-combo type-combo">
                       <button type="button" class="combo-trigger" (click)="toggleEditConnectionCombo()">
                         <span>{{ connectionLabel(editConnection()) }}</span>
@@ -290,8 +244,6 @@
                         </div>
                       }
                     </div>
-                  } @else if (item.type === 'MOBILE') {
-                    <span class="muted">—</span>
                   } @else {
                     {{ connectionLabel(item.connection) }}
                   }

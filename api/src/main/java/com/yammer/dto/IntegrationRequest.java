@@ -9,13 +9,13 @@ import java.util.UUID;
 public record IntegrationRequest(
         @NotNull UUID locationId,
         @NotBlank String name,
-        /** TCP registers / printers: the LAN address. */
+        /** TCP: the device's LAN address. */
         String ip,
         @NotNull IntegrationType type,
-        /** Registers / printers only: TCP or MOBILE. */
+        /** TCP or MOBILE (attached to a bridge phone). */
         ConnectionType connection,
-        /** MOBILE rows only: the bridge phone's device id. */
+        /** MOBILE: the phone's device id (from the connected-bridges list). */
         String deviceId,
-        /** Registers / printers with connection MOBILE: the MOBILE integration to attach to. */
-        UUID bridgeId) {
+        /** MOBILE: the phone's name, remembered for display while it is offline. */
+        String deviceName) {
 }

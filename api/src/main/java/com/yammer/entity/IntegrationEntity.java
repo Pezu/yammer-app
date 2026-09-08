@@ -40,11 +40,11 @@ public class IntegrationEntity {
     @Column(nullable = false)
     private ConnectionType connection = ConnectionType.TCP;
 
-    /** MOBILE rows: the bridge phone's device id (announced in its HELLO frame). */
+    /** Connection MOBILE: the bridge phone this device is attached to (id from its HELLO frame). */
     @Column(name = "device_id")
     private String deviceId;
 
-    /** CASH_REGISTER / PRINTER rows with connection MOBILE: the MOBILE integration they hang off. */
-    @Column(name = "bridge_id")
-    private UUID bridgeId;
+    /** The phone's name at selection time — shown while the phone is offline. */
+    @Column(name = "device_name")
+    private String deviceName;
 }

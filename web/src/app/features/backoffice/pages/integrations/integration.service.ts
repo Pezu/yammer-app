@@ -3,9 +3,8 @@ import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { environment } from '../../../../../environments/environment';
 
-/** MOBILE = a bridge phone; registers and printers attach to one. */
-export type IntegrationType = 'CASH_REGISTER' | 'PRINTER' | 'MOBILE';
-/** How a register / printer is reached: over the LAN, or through a MOBILE bridge. */
+export type IntegrationType = 'CASH_REGISTER' | 'PRINTER';
+/** How a register / printer is reached: over the LAN, or through a bridge phone it is attached to. */
 export type ConnectionType = 'MOBILE' | 'TCP';
 
 export interface Integration {
@@ -15,12 +14,11 @@ export interface Integration {
   ip: string | null;
   type: IntegrationType;
   connection: ConnectionType;
-  /** MOBILE rows: the bridge phone's device id. */
+  /** MOBILE: the attached phone's device id. */
   deviceId: string | null;
-  /** Registers / printers with connection MOBILE: the MOBILE row they attach to. */
-  bridgeId: string | null;
-  bridgeName: string | null;
-  /** MOBILE rows: whether the phone currently holds a live bridge session. */
+  /** The phone's name when it was picked — shown while it is offline. */
+  deviceName: string | null;
+  /** MOBILE: whether the phone currently holds a live bridge session. */
   online: boolean | null;
 }
 
@@ -31,7 +29,7 @@ export interface IntegrationInput {
   type: IntegrationType;
   connection: ConnectionType;
   deviceId: string | null;
-  bridgeId: string | null;
+  deviceName: string | null;
 }
 
 /** A bridge (desktop or phone) currently connected to the backend. */
@@ -66,7 +64,7 @@ export class IntegrationService {
     return this.http.delete<void>(`${this.baseUrl}/${id}`);
   }
 
-  /** Bridge devices currently connected — options for the USB device picker. */
+  /** Bridge phones currently connected — options for the Mobile device picker. */
   devices(): Observable<BridgeDevice[]> {
     return this.http.get<BridgeDevice[]>(`${environment.apiUrl}/bridge/devices`);
   }
