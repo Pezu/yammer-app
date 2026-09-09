@@ -144,12 +144,14 @@ class MainActivity : AppCompatActivity() {
         val apiKey = findViewById<EditText>(R.id.apiKey)
         val baudRate = findViewById<EditText>(R.id.baudRate)
         val tillNumber = findViewById<EditText>(R.id.tillNumber)
+        val exemptGroup = findViewById<EditText>(R.id.exemptGroup)
 
         nickname.setText(prefs.nickname)
         serverUrl.setText(prefs.serverUrl)
         apiKey.setText(prefs.apiKey)
         baudRate.setText(prefs.baudRate.toString())
         tillNumber.setText(prefs.tillNumber)
+        exemptGroup.setText(prefs.exemptTaxGroup.toString())
 
         findViewById<Button>(R.id.saveRestart).setOnClickListener {
             prefs.nickname = nickname.text.toString()
@@ -157,6 +159,7 @@ class MainActivity : AppCompatActivity() {
             prefs.apiKey = apiKey.text.toString()
             prefs.baudRate = baudRate.text.toString().toIntOrNull() ?: 115_200
             prefs.tillNumber = tillNumber.text.toString().ifBlank { "1" }
+            prefs.exemptTaxGroup = exemptGroup.text.toString().toIntOrNull()?.coerceIn(1, 8) ?: 6
             BridgeState.log("Setari salvate — repornesc serviciul.")
             stopService(Intent(this, BridgeForegroundService::class.java))
             startForegroundService(Intent(this, BridgeForegroundService::class.java))
@@ -216,8 +219,15 @@ class MainActivity : AppCompatActivity() {
         thread(name = "usb-test") {
             try {
                 usb.open(prefs.baudRate).use { conn ->
-                    DatecsProtocol(conn.input, conn.output).cancelFiscalCheck()
+                    val fp = DatecsProtocol(conn.input, conn.output)
+                    fp.cancelFiscalCheck()
                     BridgeState.log("✓ Test casa OK — dispozitivul raspunde pe USB.")
+                    // Read-only: shows which code carries which rate, so the mapping can be checked.
+                    try {
+                        BridgeState.log("Cote TVA casa (cmd 50): ${fp.readTaxRates().replace("\t", " | ")}")
+                    } catch (ex: Exception) {
+                        BridgeState.log("Cote TVA casa: necitite (${ex.message})")
+                    }
                 }
             } catch (ex: Exception) {
                 BridgeState.log("✗ Test casa esuat: ${ex.message}")

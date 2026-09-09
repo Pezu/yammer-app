@@ -85,7 +85,7 @@ object DatecsErrorMapper {
         )
         -111033 -> MappedError(
             "DATECS_INVALID_TAX_GROUP",
-            "Grup TVA invalid transmis casei de marcat. Valori acceptate: 1(A/21%), 2(B/11%), 3(C/0%)."
+            "Grup TVA invalid transmis casei de marcat. Coduri: 1-5 (A-E), 6 (scutit TVA), 7 (alte taxe)."
         )
         -111060, -111061 -> MappedError(
             "DATECS_FISCAL_MEMORY_FULL",

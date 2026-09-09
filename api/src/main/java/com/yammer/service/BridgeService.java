@@ -203,7 +203,10 @@ public class BridgeService {
             m.put("name", "Tips");
             m.put("quantity", 1);
             m.put("unitPrice", tip);
+            // Tips are outside the VAT scope: the register's EXEMPT group ("scutit de TVA"),
+            // not the 0 % group. `vat` stays for older bridges that only know percentages.
             m.put("vat", BigDecimal.ZERO);
+            m.put("exempt", true);
             lines.add(m);
         }
         String method = payment.getPaymentTypeId() == null ? "CASH"

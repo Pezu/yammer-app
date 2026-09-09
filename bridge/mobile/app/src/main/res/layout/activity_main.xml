@@ -101,6 +101,14 @@
                             android:layout_height="wrap_content"
                             android:hint="Nr. casa (till)"
                             android:inputType="number" />
+
+                        <EditText
+                            android:id="@+id/exemptGroup"
+                            android:layout_width="0dp"
+                            android:layout_weight="1"
+                            android:layout_height="wrap_content"
+                            android:hint="Cod TVA scutit"
+                            android:inputType="number" />
                     </LinearLayout>
 
                     <Button

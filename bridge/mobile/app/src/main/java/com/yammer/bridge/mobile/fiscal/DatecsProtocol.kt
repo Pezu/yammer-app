@@ -68,7 +68,7 @@ class DatecsProtocol(
         return allReceipt
     }
 
-    /** Cmd 49 — add an item. taxGroup: 1=A(21%), 2=B(11%), 3=C(0%). */
+    /** Cmd 49 — add an item. taxGroup: 1..5 = A..E, 6 = exempt ("scutit"), 7 = "alte taxe". */
     fun sell(name: String, taxGroup: Int, price: Double, qty: Double) {
         val data = name + "\t" + taxGroup + "\t" +
             "%.2f".format(price) + "\t" +
@@ -76,6 +76,13 @@ class DatecsProtocol(
         val resp = send(49, data)
         checkOk(49, resp)
         Log.i(TAG, "Articol adaugat: '$name' taxGrp=$taxGroup pret=${"%.2f".format(price)} qty=${"%.3f".format(qty)}")
+    }
+
+    /** Cmd 50 — the active VAT rates, raw (tab-separated, one value per tax code). Read-only. */
+    fun readTaxRates(): String {
+        val resp = send(50, "")
+        checkOk(50, resp)
+        return resp.trim()
     }
 
     /** Cmd 54 — print fiscal text (e.g. thank-you note). */

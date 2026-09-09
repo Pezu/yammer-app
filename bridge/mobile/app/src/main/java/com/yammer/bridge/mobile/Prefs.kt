@@ -58,6 +58,14 @@ class Prefs(context: Context) {
         get() = sp.getString("tillNumber", "1")!!
         set(v) = sp.edit().putString("tillNumber", v.trim()).apply()
 
+    /**
+     * DATECS tax code of the EXEMPT group ("scutit de TVA"). The RO firmware numbers the
+     * codes 1..7: 1..5 = the programmable rates A..E, 6 = exempt, 7 = "alte taxe".
+     */
+    var exemptTaxGroup: Int
+        get() = sp.getInt("exemptTaxGroup", 6)
+        set(v) = sp.edit().putInt("exemptTaxGroup", v).apply()
+
     var serialNumber: String
         get() = sp.getString("serialNumber", "")!!
         set(v) = sp.edit().putString("serialNumber", v.trim()).apply()

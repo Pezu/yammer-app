@@ -28,6 +28,8 @@ data class ReceiptRequest(
         val quantity: Double,
         val unitPrice: BigDecimal,
         val vat: BigDecimal?,
+        /** Outside the VAT scope (tips): the register's exempt group, not the 0 % group. */
+        val exempt: Boolean = false,
     )
 
     companion object {
@@ -44,6 +46,7 @@ data class ReceiptRequest(
                     quantity = it.optDouble("quantity", 0.0),
                     unitPrice = it.optBigDecimal("unitPrice") ?: BigDecimal.ZERO,
                     vat = it.optBigDecimal("vat"),
+                    exempt = it.optBoolean("exempt", false),
                 )
             },
         )

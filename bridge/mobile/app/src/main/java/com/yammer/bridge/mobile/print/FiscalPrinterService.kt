@@ -159,7 +159,7 @@ class FiscalPrinterService(
 
         // 3. Lines (cmd 49).
         for (line in request.lines) {
-            fp.sell(line.name, resolveVatGroup(line.vat), line.unitPrice.toDouble(), line.quantity)
+            fp.sell(line.name, resolveTaxGroup(line), line.unitPrice.toDouble(), line.quantity)
         }
 
         // 4. Fiscal footer text (cmd 54).
@@ -206,8 +206,10 @@ class FiscalPrinterService(
     private fun formatTill(till: String): String =
         till.trim().toLongOrNull()?.let { "%04d".format(it) } ?: (till + "0000").substring(0, 4)
 
-    private fun resolveVatGroup(vat: BigDecimal?): Int {
-        if (vat == null) return 1
+    /** Exempt lines (tips) → the register's "scutit" code; everything else by VAT percentage. */
+    private fun resolveTaxGroup(line: ReceiptRequest.Line): Int {
+        if (line.exempt) return prefs.exemptTaxGroup
+        val vat = line.vat ?: return 1
         return VAT_TO_TAX_GROUP[vat.setScale(0, RoundingMode.HALF_UP).toInt()] ?: 1
     }
 
@@ -231,7 +233,7 @@ class FiscalPrinterService(
         private const val JOB_BUDGET_MS = 90_000L
         private val DATE_FMT = DateTimeFormatter.BASIC_ISO_DATE
 
-        /** VAT% → DATECS fiscal group: 1=A (21%), 2=B (11%), 3=C (0%). */
+        /** VAT% → DATECS tax code: 1=A (21%), 2=B (11%), 3=C (0%). Exempt lines use Prefs.exemptTaxGroup (6). */
         private val VAT_TO_TAX_GROUP = mapOf(21 to 1, 11 to 2, 0 to 3)
 
         private val PAYMENT_TO_PAYMODE = mapOf(
