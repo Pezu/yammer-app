@@ -8,6 +8,7 @@ import com.google.cloud.storage.BucketInfo;
 import com.google.cloud.storage.Storage;
 import jakarta.annotation.PostConstruct;
 import java.io.IOException;
+import java.net.URLConnection;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
@@ -29,6 +30,8 @@ public class StorageService {
     private static final Set<String> ALLOWED_TYPES =
             Set.of("image/png", "image/jpeg", "image/webp", "image/gif", "image/svg+xml");
     private static final long MAX_BYTES = 5L * 1024 * 1024;
+    /** Object-key prefix for artwork bundled in the jar rather than stored in the bucket. */
+    private static final String CLASSPATH_PREFIX = "classpath:";
 
     private final Storage storage;
 
@@ -87,6 +90,9 @@ public class StorageService {
         if (object == null || object.isBlank()) {
             return Optional.empty();
         }
+        if (object.startsWith(CLASSPATH_PREFIX)) {
+            return getBundled(object.substring(CLASSPATH_PREFIX.length()));
+        }
         // storage.get returning non-null already confirms existence — no extra exists() RPC needed.
         Blob blob = storage.get(BlobId.of(bucket, object));
         if (blob == null) {
@@ -98,13 +104,27 @@ public class StorageService {
 
     /** Deletes an object (no-op if null/absent). */
     public void delete(String object) {
-        if (object == null || object.isBlank()) {
-            return;
+        if (object == null || object.isBlank() || object.startsWith(CLASSPATH_PREFIX)) {
+            return; // bundled artwork lives in the jar — nothing to delete
         }
         try {
             storage.delete(BlobId.of(bucket, object));
         } catch (Exception e) {
             log.warn("Failed to delete object '{}': {}", object, e.getMessage());
+        }
+    }
+
+    /** Artwork shipped inside the jar (seeded QR templates), addressed as {@code classpath:<path>}. */
+    private Optional<StoredObject> getBundled(String path) {
+        try (var in = getClass().getClassLoader().getResourceAsStream(path)) {
+            if (in == null) {
+                return Optional.empty();
+            }
+            String type = URLConnection.guessContentTypeFromName(path);
+            return Optional.of(new StoredObject(in.readAllBytes(), type != null ? type : "application/octet-stream"));
+        } catch (IOException e) {
+            log.warn("Failed to read bundled object '{}': {}", path, e.getMessage());
+            return Optional.empty();
         }
     }
 

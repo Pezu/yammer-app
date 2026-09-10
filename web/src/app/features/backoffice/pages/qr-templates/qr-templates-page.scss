@@ -1,0 +1,143 @@
+@use '../../../../shared/styles/crud-table';
+
+:host {
+  display: block;
+}
+
+.hint {
+  margin: 0 0 1rem;
+  color: var(--muted);
+  font-size: 0.85rem;
+  max-width: 70ch;
+}
+
+.frame-col {
+  width: 1%;
+  white-space: nowrap;
+}
+
+.frame-cell {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.frame-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+/* the frame image with the QR box and the name overlaid where they will print */
+.frame-preview {
+  position: relative;
+  width: 120px;
+  line-height: 0;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+  background: #fff;
+}
+
+.frame-image {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.frame-qr {
+  position: absolute;
+  aspect-ratio: 1;
+  background:
+    repeating-linear-gradient(0deg, #000 0 12%, transparent 12% 24%),
+    repeating-linear-gradient(90deg, #000 0 12%, #fff 12% 24%);
+  outline: 1px solid rgba(255, 0, 0, 0.6);
+}
+
+.frame-label {
+  position: absolute;
+  left: 0;
+  right: 0;
+  text-align: center;
+  line-height: 0;
+  font-weight: 800;
+  font-family: Helvetica, Arial, sans-serif;
+  pointer-events: none;
+}
+
+.frame-placeholder {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 120px;
+  height: 120px;
+  color: var(--muted);
+  border: 1px dashed var(--border);
+  border-radius: 6px;
+}
+
+.frame-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  color: var(--muted);
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  cursor: pointer;
+
+  &:hover {
+    background: var(--page-bg);
+    color: var(--text);
+  }
+
+  &.busy {
+    opacity: 0.5;
+    pointer-events: none;
+  }
+}
+
+.icon-btn.sm {
+  width: 28px;
+  height: 28px;
+}
+
+.geom-col {
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.geom-inputs {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.input.num {
+  width: 4.5rem;
+}
+
+.color {
+  width: 32px;
+  height: 30px;
+  padding: 0 2px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: #fff;
+  cursor: pointer;
+}
+
+.swatch {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  vertical-align: middle;
+}
+
+.muted {
+  color: var(--muted);
+}

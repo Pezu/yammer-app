@@ -8,12 +8,15 @@ export interface Location {
   name: string;
   clientId: string;
   active: boolean;
+  /** Frame the location's QR sheets are printed on (Catalog → QR Templates), or null for the plain grid. */
+  qrTemplateId: string | null;
 }
 
 export interface LocationInput {
   name: string;
   clientId: string | null;
   active: boolean;
+  qrTemplateId: string | null;
 }
 
 /**

@@ -30,4 +30,8 @@ public class LocationEntity {
     /** Inactive locations stay listed but are never auto-selected in the backoffice. */
     @Column(nullable = false)
     private boolean active = true;
+
+    /** Frame the location's QR sheets are printed on, or null for the plain grid. */
+    @Column(name = "qr_template_id")
+    private UUID qrTemplateId;
 }

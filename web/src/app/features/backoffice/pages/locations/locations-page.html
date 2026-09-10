@@ -50,6 +50,7 @@
             <tr>
               <th>Name</th>
               <th class="active-col">Active</th>
+              <th class="template-col">QR frame</th>
               <th class="actions-col">Actions</th>
             </tr>
           </thead>
@@ -61,6 +62,14 @@
                 </td>
                 <td class="active-col">
                   <input type="checkbox" class="checkbox" #da [checked]="draftActive()" (change)="draftActive.set(da.checked)" aria-label="Active" />
+                </td>
+                <td class="template-col">
+                  <select class="input" #dt [value]="draftTemplateId()" (change)="draftTemplateId.set(dt.value)" aria-label="QR frame">
+                    <option value="">No frame (plain grid)</option>
+                    @for (t of qrTemplates(); track t.id) {
+                      <option [value]="t.id">{{ t.name }}</option>
+                    }
+                  </select>
                 </td>
                 <td class="actions-col">
                   <div class="actions">
@@ -91,6 +100,18 @@
                     <input type="checkbox" class="checkbox" #ra [checked]="location.active" (change)="toggleActive(location, ra.checked)" [attr.aria-label]="'Active: ' + location.name" />
                   }
                 </td>
+                <td class="template-col">
+                  @if (editingId() === location.id) {
+                    <select class="input" #et [value]="editTemplateId()" (change)="editTemplateId.set(et.value)" aria-label="QR frame">
+                      <option value="">No frame (plain grid)</option>
+                      @for (t of qrTemplates(); track t.id) {
+                        <option [value]="t.id">{{ t.name }}</option>
+                      }
+                    </select>
+                  } @else {
+                    {{ qrTemplateName(location.qrTemplateId) }}
+                  }
+                </td>
                 <td class="actions-col">
                   <div class="actions">
                     @if (editingId() === location.id) {
@@ -118,7 +139,7 @@
 
             @if (!draft() && !loading() && visibleLocations().length === 0) {
               <tr>
-                <td colspan="3" class="empty">No locations yet — use the + button to add one.</td>
+                <td colspan="4" class="empty">No locations yet — use the + button to add one.</td>
               </tr>
             }
           </tbody>

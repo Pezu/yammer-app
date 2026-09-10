@@ -137,6 +137,14 @@ export const routes: Routes = [
           ),
       },
       {
+        path: 'qr-templates',
+        canActivate: [superGuard],
+        loadComponent: () =>
+          import('./features/backoffice/pages/qr-templates/qr-templates-page').then(
+            (m) => m.QrTemplatesPage,
+          ),
+      },
+      {
         path: 'roles',
         canActivate: [superGuard],
         loadComponent: () =>

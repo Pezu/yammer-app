@@ -8,5 +8,7 @@ public record LocationRequest(
         // Required for SUPER (who choose the client); ignored for others (forced to own client).
         UUID clientId,
         // null = true on create / unchanged on update.
-        Boolean active) {
+        Boolean active,
+        // QR frame for the location's printed QR sheets; null = none (plain grid).
+        UUID qrTemplateId) {
 }

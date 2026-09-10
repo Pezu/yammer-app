@@ -39,6 +39,7 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/").permitAll()
                         // Client logos are public images so <img> can load them without a token.
                         .requestMatchers(HttpMethod.GET, "/clients/*/logo").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/qr-templates/*/image").permitAll()
                         // Customer-facing endpoints (menu-item images today; more as they're ported).
                         .requestMatchers("/public/**").permitAll()
                         .requestMatchers("/ws/**").permitAll() // handshake auth = ?token= (WsAuthHandshakeInterceptor)

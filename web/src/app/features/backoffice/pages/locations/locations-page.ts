@@ -3,6 +3,7 @@ import { FormControl, ReactiveFormsModule, Validators } from '@angular/forms';
 import { HttpErrorResponse } from '@angular/common/http';
 import { Location, LocationService } from './location.service';
 import { Client, ClientService } from '../clients/client.service';
+import { QrTemplate, QrTemplateService } from '../qr-templates/qr-template.service';
 import { AuthService } from '../../../../core/auth.service';
 import { ConfirmDialog } from '../../../../shared/confirm-dialog/confirm-dialog';
 
@@ -15,10 +16,14 @@ import { ConfirmDialog } from '../../../../shared/confirm-dialog/confirm-dialog'
 export class LocationsPage {
   private readonly locationService = inject(LocationService);
   private readonly clientService = inject(ClientService);
+  private readonly qrTemplateService = inject(QrTemplateService);
   private readonly auth = inject(AuthService);
 
   readonly locations = signal<Location[]>([]);
   readonly clients = signal<Client[]>([]);
+  /** QR frames from the catalog — a location picks one for its printed QR sheets. */
+  readonly qrTemplates = signal<QrTemplate[]>([]);
+  private readonly qrTemplateById = computed(() => new Map(this.qrTemplates().map((t) => [t.id, t.name])));
   readonly loading = signal(false);
   readonly error = signal<string | null>(null);
 
@@ -28,8 +33,10 @@ export class LocationsPage {
 
   readonly draftName = new FormControl('', { nonNullable: true, validators: [Validators.required] });
   readonly draftActive = signal(true);
+  readonly draftTemplateId = signal<string>('');
   readonly editName = new FormControl('', { nonNullable: true, validators: [Validators.required] });
   readonly editActive = signal(true);
+  readonly editTemplateId = signal<string>('');
 
   // --- access model (same as Users) ---
   readonly isSuper = this.auth.isSuper;
@@ -59,6 +66,7 @@ export class LocationsPage {
 
   constructor() {
     this.load();
+    this.qrTemplateService.list().subscribe({ next: (templates) => this.qrTemplates.set(templates) });
     this.clientService.list().subscribe({
       next: (clients) => {
         this.clients.set(clients);
@@ -106,6 +114,7 @@ export class LocationsPage {
     this.editingId.set(null);
     this.draftName.reset();
     this.draftActive.set(true);
+    this.draftTemplateId.set('');
     this.error.set(null);
     this.draft.set(true);
   }
@@ -120,7 +129,12 @@ export class LocationsPage {
     }
     const clientId = (this.isSuper() ? this.clientFilter() : this.ownClientId()) || null;
     this.locationService
-      .create({ name: this.draftName.value.trim(), clientId, active: this.draftActive() })
+      .create({
+        name: this.draftName.value.trim(),
+        clientId,
+        active: this.draftActive(),
+        qrTemplateId: this.draftTemplateId() || null,
+      })
       .subscribe({
       next: (location) => {
         this.locations.update((list) => this.sorted([...list, location]));
@@ -137,6 +151,7 @@ export class LocationsPage {
     this.editingId.set(location.id);
     this.editName.setValue(location.name);
     this.editActive.set(location.active);
+    this.editTemplateId.set(location.qrTemplateId ?? '');
     this.error.set(null);
   }
 
@@ -150,7 +165,12 @@ export class LocationsPage {
     }
     const clientId = (this.isSuper() ? location.clientId : this.ownClientId()) || null;
     this.locationService
-      .update(location.id, { name: this.editName.value.trim(), clientId, active: this.editActive() })
+      .update(location.id, {
+        name: this.editName.value.trim(),
+        clientId,
+        active: this.editActive(),
+        qrTemplateId: this.editTemplateId() || null,
+      })
       .subscribe({
         next: (updated) => {
           this.locations.update((list) => this.sorted(list.map((l) => (l.id === updated.id ? updated : l))));
@@ -168,13 +188,19 @@ export class LocationsPage {
     const clientId = (this.isSuper() ? location.clientId : this.ownClientId()) || null;
     // optimistic update; revert on failure
     this.locations.update((list) => list.map((l) => (l.id === location.id ? { ...l, active } : l)));
-    this.locationService.update(location.id, { name: location.name, clientId, active }).subscribe({
+    this.locationService
+      .update(location.id, { name: location.name, clientId, active, qrTemplateId: location.qrTemplateId })
+      .subscribe({
       next: (updated) => this.locations.update((list) => list.map((l) => (l.id === updated.id ? updated : l))),
       error: (err: HttpErrorResponse) => {
         this.locations.update((list) => list.map((l) => (l.id === location.id ? { ...l, active: !active } : l)));
         this.error.set(this.message(err, 'update'));
       },
     });
+  }
+
+  qrTemplateName(id: string | null): string {
+    return (id && this.qrTemplateById().get(id)) || '—';
   }
 
   // --- QR export ---

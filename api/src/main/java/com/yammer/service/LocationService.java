@@ -5,6 +5,7 @@ import com.yammer.dto.LocationResponse;
 import com.yammer.entity.LocationEntity;
 import com.yammer.repository.ClientRepository;
 import com.yammer.repository.LocationRepository;
+import com.yammer.repository.QrTemplateRepository;
 import com.yammer.security.AccessGuard;
 import com.yammer.security.CurrentUserProvider;
 import com.yammer.security.UserPrincipal;
@@ -23,6 +24,7 @@ public class LocationService {
 
     private final LocationRepository locationRepository;
     private final ClientRepository clientRepository;
+    private final QrTemplateRepository qrTemplateRepository;
     private final CurrentUserProvider currentUser;
     private final AccessGuard accessGuard;
 
@@ -55,6 +57,7 @@ public class LocationService {
         entity.setName(request.name().trim());
         entity.setClientId(resolveClient(me, request.clientId()));
         entity.setActive(request.active() == null || request.active());
+        entity.setQrTemplateId(resolveQrTemplate(request.qrTemplateId()));
         return LocationResponse.from(locationRepository.save(entity));
     }
 
@@ -66,12 +69,24 @@ public class LocationService {
         if (request.active() != null) {
             entity.setActive(request.active());
         }
+        entity.setQrTemplateId(resolveQrTemplate(request.qrTemplateId()));
         return LocationResponse.from(locationRepository.save(entity));
     }
 
     public void delete(UUID id) {
         LocationEntity entity = accessGuard.requireAccessibleLocation(id);
         locationRepository.delete(entity);
+    }
+
+    /** Null clears the frame; otherwise the template must exist. */
+    private UUID resolveQrTemplate(UUID requested) {
+        if (requested == null) {
+            return null;
+        }
+        if (!qrTemplateRepository.existsById(requested)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Unknown QR template: " + requested);
+        }
+        return requested;
     }
 
     /** A non-SUPER caller is forced to their own client; SUPER picks any existing client. */
