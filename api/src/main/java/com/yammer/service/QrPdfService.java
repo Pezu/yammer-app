@@ -46,6 +46,7 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -60,10 +61,12 @@ import org.springframework.web.server.ResponseStatusException;
  * single sheet labelled "T1" whose QR opens the lowest slot — guests scan the table, not a
  * seat. Other points (B1, …) are one sheet each.
  *
- * <p>When the location has a QR template, every sheet is rendered as one framed card: the
- * template's background image with the QR code and the label placed where the template says
- * (two per A4 page, ready to cut). Without a template the old plain 3-column grid is
- * produced. ZXing renders the QR images (via {@link QrCodeService}), iText lays out the PDF.
+ * <p>Every sheet is one framed card — the QR template's image with the QR code (in the
+ * template's colour, transparent background) and the label placed where the template says —
+ * tiled three per row under the location name, exactly like the plain grid. The location's
+ * own template wins; otherwise the catalog's first template is used; the plain black-on-white
+ * grid only remains for a catalog with no frames at all. ZXing renders the QR images (via
+ * {@link QrCodeService}), iText lays out the PDF.
  */
 @Service
 @RequiredArgsConstructor
@@ -72,10 +75,11 @@ public class QrPdfService {
     /** The point types customers can sit and order at. */
     private static final Set<String> CUSTOMER_TYPES = Set.of("TABLE", "BAR");
 
-    /** Framed-card layout: A4 portrait filled left-to-right, top-to-bottom with cards this wide (~10.6 cm: two per page). */
-    private static final float CARD_WIDTH = 300f;
-    private static final float PAGE_MARGIN = 40f;
-    private static final float CARD_GAP = 25f;
+    /** Framed-card layout: A4 portrait, the location name on top, then three cards per row. */
+    private static final int COLUMNS = 3;
+    private static final float PAGE_MARGIN = 36f;
+    private static final float CARD_GAP = 12f;
+    private static final float TITLE_HEIGHT = 34f;
 
     private final OrderPointRepository orderPointRepository;
     private final OrderPointTypeRepository orderPointTypeRepository;
@@ -110,13 +114,25 @@ public class QrPdfService {
                 .toList();
 
         List<Sheet> sheets = sheetsOf(orderPoints);
-        QrTemplateEntity template = location.getQrTemplateId() == null
-                ? null
-                : qrTemplateRepository.findById(location.getQrTemplateId()).orElse(null);
-        if (template != null && template.getImageObject() != null) {
-            return framedPdf(template, sheets);
+        QrTemplateEntity template = templateFor(location);
+        if (template != null) {
+            return framedPdf(location, template, sheets);
         }
         return plainGridPdf(location, sheets);
+    }
+
+    /** The location's frame, else the catalog's first frame with an image, else null. */
+    private QrTemplateEntity templateFor(LocationEntity location) {
+        if (location.getQrTemplateId() != null) {
+            QrTemplateEntity own = qrTemplateRepository.findById(location.getQrTemplateId()).orElse(null);
+            if (own != null && own.getImageObject() != null) {
+                return own;
+            }
+        }
+        return qrTemplateRepository.findAll(Sort.by("name")).stream()
+                .filter(t -> t.getImageObject() != null)
+                .findFirst()
+                .orElse(null);
     }
 
     /** One printed sheet: the label guests read and the order point its QR opens. */
@@ -142,9 +158,11 @@ public class QrPdfService {
 
     // ---- framed cards (QR template) ----
 
-    private byte[] framedPdf(QrTemplateEntity template, List<Sheet> sheets) {
+    private byte[] framedPdf(LocationEntity location, QrTemplateEntity template, List<Sheet> sheets) {
         ImageData frame = ImageDataFactory.create(qrTemplateService.getImage(template).data());
-        float cardHeight = CARD_WIDTH * frame.getHeight() / frame.getWidth();
+        Rectangle page = PageSize.A4;
+        float cardWidth = (page.getWidth() - 2 * PAGE_MARGIN - (COLUMNS - 1) * CARD_GAP) / COLUMNS;
+        float cardHeight = cardWidth * frame.getHeight() / frame.getWidth();
         PdfFont font;
         try {
             font = PdfFontFactory.createFont(StandardFonts.HELVETICA_BOLD);
@@ -152,18 +170,15 @@ public class QrPdfService {
             throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "PDF font unavailable", e);
         }
         DeviceRgb labelColor = rgb(template.getLabelColor());
+        int qrArgb = 0xFF000000 | rgbInt(template.getQrColor());
 
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         PdfDocument pdf = new PdfDocument(new PdfWriter(baos));
         try {
             PdfImageXObject frameObject = new PdfImageXObject(frame); // embedded once, drawn per card
-            Rectangle page = PageSize.A4;
-            int columns = Math.max(1, (int) ((page.getWidth() - 2 * PAGE_MARGIN + CARD_GAP) / (CARD_WIDTH + CARD_GAP)));
-            int rows = Math.max(1, (int) ((page.getHeight() - 2 * PAGE_MARGIN + CARD_GAP) / (cardHeight + CARD_GAP)));
-            float gridWidth = columns * CARD_WIDTH + (columns - 1) * CARD_GAP;
-            float gridLeft = (page.getWidth() - gridWidth) / 2;
-            float gridTop = page.getHeight() - PAGE_MARGIN;
-            int perPage = columns * rows;
+            float gridTop = page.getHeight() - PAGE_MARGIN - TITLE_HEIGHT;
+            int rows = Math.max(1, (int) ((gridTop - PAGE_MARGIN + CARD_GAP) / (cardHeight + CARD_GAP)));
+            int perPage = COLUMNS * rows;
             PdfCanvas canvas = null;
 
             for (int i = 0; i < sheets.size(); i++) {
@@ -171,10 +186,12 @@ public class QrPdfService {
                 if (slot == 0) {
                     PdfPage p = pdf.addNewPage(PageSize.A4);
                     canvas = new PdfCanvas(p);
+                    drawTitle(canvas, font, location.getName(), page);
                 }
-                float left = gridLeft + (slot % columns) * (CARD_WIDTH + CARD_GAP);
-                float bottom = gridTop - (slot / columns + 1) * cardHeight - (slot / columns) * CARD_GAP;
-                drawCard(canvas, template, frameObject, font, labelColor, sheets.get(i), left, bottom, cardHeight);
+                float left = PAGE_MARGIN + (slot % COLUMNS) * (cardWidth + CARD_GAP);
+                float bottom = gridTop - (slot / COLUMNS + 1) * cardHeight - (slot / COLUMNS) * CARD_GAP;
+                drawCard(canvas, template, frameObject, font, labelColor, qrArgb, sheets.get(i),
+                        left, bottom, cardWidth, cardHeight);
             }
             if (sheets.isEmpty()) {
                 pdf.addNewPage(PageSize.A4); // an empty PDF is invalid — leave one blank page
@@ -185,17 +202,30 @@ public class QrPdfService {
         return baos.toByteArray();
     }
 
+    /** The location name, centred at the top of a page (same as the plain grid's heading). */
+    private void drawTitle(PdfCanvas canvas, PdfFont font, String title, Rectangle page) {
+        float size = 18f;
+        float width = font.getWidth(title, size);
+        canvas.beginText()
+                .setFontAndSize(font, size)
+                .setFillColor(ColorConstants.BLACK)
+                .moveText((page.getWidth() - width) / 2, page.getHeight() - PAGE_MARGIN - size)
+                .showText(title)
+                .endText();
+    }
+
     /** One framed card: background, QR in its slot, the sheet label centred at its baseline. */
     private void drawCard(PdfCanvas canvas, QrTemplateEntity t, PdfImageXObject frame, PdfFont font,
-                          DeviceRgb labelColor, Sheet sheet, float left, float bottom, float height) {
-        float width = CARD_WIDTH;
+                          DeviceRgb labelColor, int qrArgb, Sheet sheet,
+                          float left, float bottom, float width, float height) {
         canvas.addXObjectFittedIntoRectangle(frame, new Rectangle(left, bottom, width, height));
 
         String url = baseUrl + "/customer/order-point/" + sheet.target().getId();
         float qrSize = t.getQrSize().floatValue() * width;
         float qrLeft = left + t.getQrX().floatValue() * width;
         float qrBottom = bottom + height - t.getQrY().floatValue() * height - qrSize;
-        ImageData qr = ImageDataFactory.create(qrCodeService.png(url, 600));
+        // Modules in the template's colour on a transparent background: the frame shows through.
+        ImageData qr = ImageDataFactory.create(qrCodeService.png(url, 600, qrArgb, 0x00000000));
         canvas.addImageFittedIntoRectangle(qr, new Rectangle(qrLeft, qrBottom, qrSize, qrSize), false);
 
         String name = sheet.label();
@@ -216,11 +246,16 @@ public class QrPdfService {
     }
 
     private static DeviceRgb rgb(String hex) {
+        int v = rgbInt(hex);
+        return new DeviceRgb((v >> 16) & 0xFF, (v >> 8) & 0xFF, v & 0xFF);
+    }
+
+    /** {@code #RRGGBB} → 0xRRGGBB; white when malformed. */
+    private static int rgbInt(String hex) {
         try {
-            int v = Integer.parseInt(hex.substring(1), 16);
-            return new DeviceRgb((v >> 16) & 0xFF, (v >> 8) & 0xFF, v & 0xFF);
+            return Integer.parseInt(hex.substring(1), 16) & 0xFFFFFF;
         } catch (RuntimeException e) {
-            return new DeviceRgb(255, 255, 255);
+            return 0xFFFFFF;
         }
     }
 

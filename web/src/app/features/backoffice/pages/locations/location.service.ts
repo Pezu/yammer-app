@@ -8,7 +8,7 @@ export interface Location {
   name: string;
   clientId: string;
   active: boolean;
-  /** Frame the location's QR sheets are printed on (Catalog → QR Templates), or null for the plain grid. */
+  /** Frame the location's QR sheets are printed on (Catalog → QR Templates), or null for the catalog's first frame. */
   qrTemplateId: string | null;
 }
 

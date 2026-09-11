@@ -45,12 +45,14 @@
   display: block;
 }
 
+/* a mock QR drawn in currentColor (the template's QR colour) over a transparent background */
 .frame-qr {
   position: absolute;
   aspect-ratio: 1;
+  color: #000;
   background:
-    repeating-linear-gradient(0deg, #000 0 12%, transparent 12% 24%),
-    repeating-linear-gradient(90deg, #000 0 12%, #fff 12% 24%);
+    repeating-linear-gradient(0deg, currentColor 0 12%, transparent 12% 24%),
+    repeating-linear-gradient(90deg, currentColor 0 12%, transparent 12% 24%);
   outline: 1px solid rgba(255, 0, 0, 0.6);
 }
 

@@ -9,6 +9,6 @@ public record LocationRequest(
         UUID clientId,
         // null = true on create / unchanged on update.
         Boolean active,
-        // QR frame for the location's printed QR sheets; null = none (plain grid).
+        // QR frame for the location's printed QR cards; null = the catalog's first frame.
         UUID qrTemplateId) {
 }

@@ -14,9 +14,9 @@
   }
 
   <p class="hint">
-    A template is the frame each order point's QR sheet is printed on: a background image, where the QR code goes and
-    where the order point's name goes. Positions and sizes are percentages of the image. Pick the template per
-    location (Configuration → Locations), then export the QR PDF from there.
+    A template is the frame each table's QR card is printed on: a background image, where the QR code goes (and its
+    colour) and where the table name goes. Positions and sizes are percentages of the image. The QR export on
+    Configuration → Locations tiles one card per table with the location's frame, or the first frame here.
   </p>
 
   <div class="card">
@@ -26,7 +26,7 @@
           <tr>
             <th class="frame-col">Frame</th>
             <th>Name</th>
-            <th class="geom-col">QR box (x · y · size %)</th>
+            <th class="geom-col">QR (x · y · size % · colour)</th>
             <th class="geom-col">Name (y · size % · colour)</th>
             <th class="actions-col">Actions</th>
           </tr>
@@ -69,7 +69,7 @@
                     @let p = previewOf(template);
                     <div class="frame-preview" title="Preview — QR box and name as they will print">
                       <img class="frame-image" [src]="imageUrl(template)" alt="frame" />
-                      <div class="frame-qr" [style.left.%]="p.qrX * 100" [style.top.%]="p.qrY * 100" [style.width.%]="p.qrSize * 100"></div>
+                      <div class="frame-qr" [style.left.%]="p.qrX * 100" [style.top.%]="p.qrY * 100" [style.width.%]="p.qrSize * 100" [style.color]="p.qrColor"></div>
                       <div class="frame-label" [style.top.%]="p.labelY * 100" [style.font-size.%]="p.labelSize * 100 * 1.6" [style.color]="p.labelColor">T1</div>
                     </div>
                   } @else {
@@ -103,6 +103,7 @@
                     <input type="number" class="input num" formControlName="qrX" min="0" max="100" step="0.1" title="QR left edge, % of width" aria-label="QR x" />
                     <input type="number" class="input num" formControlName="qrY" min="0" max="100" step="0.1" title="QR top edge, % of height" aria-label="QR y" />
                     <input type="number" class="input num" formControlName="qrSize" min="1" max="100" step="0.1" title="QR side, % of width" aria-label="QR size" />
+                    <input type="color" class="color" formControlName="qrColor" title="QR colour" aria-label="QR colour" />
                   </div>
                 </td>
                 <td class="geom-col">
@@ -114,7 +115,10 @@
                 </td>
               } @else {
                 <td>{{ template.name }}</td>
-                <td class="geom-col">{{ template.qrX * 100 | number: '1.0-1' }} · {{ template.qrY * 100 | number: '1.0-1' }} · {{ template.qrSize * 100 | number: '1.0-1' }}</td>
+                <td class="geom-col">
+                  {{ template.qrX * 100 | number: '1.0-1' }} · {{ template.qrY * 100 | number: '1.0-1' }} · {{ template.qrSize * 100 | number: '1.0-1' }} ·
+                  <span class="swatch" [style.background]="template.qrColor" [title]="template.qrColor"></span>
+                </td>
                 <td class="geom-col">
                   {{ template.labelY * 100 | number: '1.0-1' }} · {{ template.labelSize * 100 | number: '1.0-1' }} ·
                   <span class="swatch" [style.background]="template.labelColor" [title]="template.labelColor"></span>

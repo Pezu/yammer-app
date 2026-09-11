@@ -44,7 +44,7 @@ class QrPdfServiceTest {
     }
 
     @Test
-    void framedPdfRendersTwoCardsPerPage() throws Exception {
+    void framedPdfTilesCardsThreePerRow() throws Exception {
         UUID locationId = UUID.randomUUID();
         UUID tableType = UUID.randomUUID();
         UUID templateId = UUID.randomUUID();
@@ -66,12 +66,13 @@ class QrPdfServiceTest {
         template.setId(templateId);
         template.setName("Rendezvous");
         template.setImageObject("classpath:qr-templates/rendezvous.png");
-        template.setQrX(new BigDecimal("0.2634"));
-        template.setQrY(new BigDecimal("0.2179"));
-        template.setQrSize(new BigDecimal("0.4732"));
-        template.setLabelY(new BigDecimal("0.7714"));
-        template.setLabelSize(new BigDecimal("0.0786"));
-        template.setLabelColor("#080814");
+        template.setQrX(new BigDecimal("0.1911"));
+        template.setQrY(new BigDecimal("0.1911"));
+        template.setQrSize(new BigDecimal("0.6214"));
+        template.setLabelY(new BigDecimal("0.9073"));
+        template.setLabelSize(new BigDecimal("0.0625"));
+        template.setLabelColor("#FFD200");
+        template.setQrColor("#FFFFFF");
 
         byte[] frame;
         try (InputStream in = getClass().getClassLoader().getResourceAsStream("qr-templates/rendezvous.png")) {
@@ -86,6 +87,7 @@ class QrPdfServiceTest {
         when(pointsRepo.findByLocationIdOrderByName(locationId)).thenReturn(points);
         QrTemplateRepository templates = mock(QrTemplateRepository.class);
         when(templates.findById(templateId)).thenReturn(Optional.of(template));
+        when(templates.findAll(any(org.springframework.data.domain.Sort.class))).thenReturn(List.of(template));
         QrTemplateService templateService = mock(QrTemplateService.class);
         when(templateService.getImage(any(QrTemplateEntity.class))).thenReturn(new StoredObject(frame, "image/png"));
 
@@ -95,9 +97,13 @@ class QrPdfServiceTest {
 
         byte[] pdf = service.generateOrderPointsQrPdf(locationId);
 
-        assertTrue(pdf.length > 100_000, "PDF should embed the frame image");
+        assertTrue(pdf.length > 50_000, "PDF should embed the frame image");
+
+        location.setQrTemplateId(null); // no frame picked → the catalog's first frame is used
+        byte[] fallback = service.generateOrderPointsQrPdf(locationId);
+        assertTrue(fallback.length > 50_000, "fallback PDF should embed the frame image too");
         try (PdfDocument doc = new PdfDocument(new PdfReader(new ByteArrayInputStream(pdf)))) {
-            assertEquals(2, doc.getNumberOfPages()); // 4 sheets (T1, T2, T3, T10), two per page
+            assertEquals(1, doc.getNumberOfPages()); // 4 sheets (T1, T2, T3, T10) on one 3-column page
         }
         Path out = Path.of("target", "qr-framed-sample.pdf");
         Files.createDirectories(out.getParent());

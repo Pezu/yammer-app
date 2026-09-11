@@ -46,6 +46,10 @@ public class QrTemplateEntity {
     @Column(name = "qr_size", nullable = false)
     private BigDecimal qrSize = new BigDecimal("0.4");
 
+    /** Colour of the QR modules, {@code #RRGGBB} (the background stays transparent). */
+    @Column(name = "qr_color", nullable = false)
+    private String qrColor = "#000000";
+
     /** Baseline of the order point's name (centred horizontally). */
     @Column(name = "label_y", nullable = false)
     private BigDecimal labelY = new BigDecimal("0.9");

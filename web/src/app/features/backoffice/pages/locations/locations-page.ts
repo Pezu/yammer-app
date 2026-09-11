@@ -200,7 +200,7 @@ export class LocationsPage {
   }
 
   qrTemplateName(id: string | null): string {
-    return (id && this.qrTemplateById().get(id)) || '—';
+    return (id && this.qrTemplateById().get(id)) || 'Default';
   }
 
   // --- QR export ---

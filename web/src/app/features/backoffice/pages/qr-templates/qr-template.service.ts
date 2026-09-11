@@ -15,6 +15,8 @@ export interface QrTemplate {
   qrX: number;
   qrY: number;
   qrSize: number;
+  /** Colour of the QR modules (#RRGGBB); the background stays transparent. */
+  qrColor: string;
   labelY: number;
   labelSize: number;
   labelColor: string;
@@ -26,6 +28,7 @@ export interface QrTemplateInput {
   qrX?: number;
   qrY?: number;
   qrSize?: number;
+  qrColor?: string;
   labelY?: number;
   labelSize?: number;
   labelColor?: string;

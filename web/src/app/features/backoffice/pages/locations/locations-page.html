@@ -65,7 +65,7 @@
                 </td>
                 <td class="template-col">
                   <select class="input" #dt [value]="draftTemplateId()" (change)="draftTemplateId.set(dt.value)" aria-label="QR frame">
-                    <option value="">No frame (plain grid)</option>
+                    <option value="">Default frame</option>
                     @for (t of qrTemplates(); track t.id) {
                       <option [value]="t.id">{{ t.name }}</option>
                     }
@@ -103,7 +103,7 @@
                 <td class="template-col">
                   @if (editingId() === location.id) {
                     <select class="input" #et [value]="editTemplateId()" (change)="editTemplateId.set(et.value)" aria-label="QR frame">
-                      <option value="">No frame (plain grid)</option>
+                      <option value="">Default frame</option>
                       @for (t of qrTemplates(); track t.id) {
                         <option [value]="t.id">{{ t.name }}</option>
                       }

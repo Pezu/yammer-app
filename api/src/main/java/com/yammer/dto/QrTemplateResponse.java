@@ -11,12 +11,13 @@ public record QrTemplateResponse(
         BigDecimal qrX,
         BigDecimal qrY,
         BigDecimal qrSize,
+        String qrColor,
         BigDecimal labelY,
         BigDecimal labelSize,
         String labelColor) {
 
     public static QrTemplateResponse from(QrTemplateEntity e) {
         return new QrTemplateResponse(e.getId(), e.getName(), e.getImageObject() != null,
-                e.getQrX(), e.getQrY(), e.getQrSize(), e.getLabelY(), e.getLabelSize(), e.getLabelColor());
+                e.getQrX(), e.getQrY(), e.getQrSize(), e.getQrColor(), e.getLabelY(), e.getLabelSize(), e.getLabelColor());
     }
 }
