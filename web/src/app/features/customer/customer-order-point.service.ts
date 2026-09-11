@@ -11,6 +11,8 @@ export interface MenuNode {
   price: number | null;
   vatTypeId: string | null;
   imageObject: string | null;
+  /** Catalog product description (size, ingredients); null for categories. */
+  description: string | null;
   children: MenuNode[];
 }
 

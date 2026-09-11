@@ -185,6 +185,9 @@ import { ComboBox } from '../../shared/combo-box';
           }
           <div class="item-body">
             <span class="item-name" [innerHTML]="node.name"></span>
+            @if (node.description) {
+              <span class="item-desc">{{ node.description }}</span>
+            }
           </div>
           <div class="item-side">
             @if (node.price != null) {
@@ -548,6 +551,11 @@ import { ComboBox } from '../../shared/combo-box';
       font-weight: 600;
       line-height: 1.25;
       color: var(--text);
+    }
+    .item-desc {
+      font-size: 12px;
+      line-height: 1.3;
+      color: var(--muted);
     }
     .item-price {
       font-size: 12px;

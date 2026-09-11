@@ -167,5 +167,5 @@ Pushing to `main` runs `.github/workflows/deploy.yml`: `web/**` changes build
 `web/Dockerfile` (npm ci + `ng build`, served by nginx on 8080 with `web/nginx.conf`)
 and deploy Cloud Run service **`yammer-web`** (europe-west1, scale to zero). nginx
 proxies `/api/` to the api service's run.app URL and strips the prefix (same as the
-dev proxy), so the SPA never needs the custom api host. Custom domains (Cloud Run
-domain mappings, DNS in Cloud DNS): `yammer.ro` (main), `rendezvous-app.ro`, `servioapp.ro`.
+dev proxy), so the SPA never needs the custom api host. Custom domain (Cloud Run
+domain mapping, DNS in Cloud DNS): `yammer.ro`.

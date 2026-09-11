@@ -332,9 +332,8 @@ Runtime wiring (all set by the workflow — change it there, not in the console)
   Password = Secret Manager `yammer-db-password`.
 - Secrets: `jwt-secret`, `netopia-api-key`, `netopia-pos-signature` (sandbox).
 - Media: GCS bucket `yammer-order-app-uploads` (runtime = default compute SA).
-- `APP_URL` (QR-login links + Netopia notify) is a workflow env: `https://yammer.ro`,
-  the main domain (rendezvous-app.ro / servioapp.ro are secondary aliases).
-- Public URL: `https://yammer-api-926521730520.europe-west1.run.app`; custom hosts
-  `api.yammer.ro` (main), `api.rendezvous-app.ro`, `api.servioapp.ro` (Cloud Run domain mappings).
+- `APP_URL` (QR-login links + Netopia notify) is a workflow env: `https://yammer.ro`.
+- Public URL: `https://yammer-api-926521730520.europe-west1.run.app`; custom host
+  `api.yammer.ro` (Cloud Run domain mapping).
 - The old prod DB (schema V30) is NOT migrated — this deploy starts from an empty database.
   A dump of it lives at `~/Projects/yammer-old/db-dumps/`.

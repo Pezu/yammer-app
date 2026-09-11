@@ -184,6 +184,7 @@ public class MenuService {
                             e.getPrice(),
                             product != null ? product.getVatTypeId() : null,
                             product != null ? product.getImageObject() : e.getImageObject(),
+                            product != null ? product.getDescription() : null,
                             toNodes(byParent.get(e.getId()), byParent, products));
                 })
                 .toList();

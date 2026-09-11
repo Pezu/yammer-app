@@ -6,7 +6,7 @@ import java.util.UUID;
 
 /**
  * One node of a menu tree, used both ways. On read, {@code id} is populated and product
- * nodes are enriched (name/price/vatTypeId/imageObject come from the referenced catalog
+ * nodes are enriched (name/vatTypeId/imageObject/description come from the referenced catalog
  * product). On write (save-the-tree) a known {@code id} updates that node in place while
  * a null/unknown id inserts a new one — node ids stay stable across edits. A category has
  * {@code orderable=false} (name + own image); a product node has {@code orderable=true}
@@ -20,5 +20,7 @@ public record MenuItemNode(
         BigDecimal price,
         UUID vatTypeId,
         String imageObject,
+        // Product description (read-only, from the catalog product); null for categories.
+        String description,
         List<MenuItemNode> children) {
 }
