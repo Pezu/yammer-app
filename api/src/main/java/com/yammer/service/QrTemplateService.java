@@ -58,6 +58,8 @@ public class QrTemplateService {
         if (request.qrY() != null) entity.setQrY(request.qrY());
         if (request.qrSize() != null) entity.setQrSize(request.qrSize());
         if (request.qrColor() != null) entity.setQrColor(request.qrColor().toUpperCase());
+        if (request.title() != null) entity.setTitle(request.title().isBlank() ? null : request.title().trim());
+        if (request.titleY() != null) entity.setTitleY(request.titleY());
         if (request.labelY() != null) entity.setLabelY(request.labelY());
         if (request.labelSize() != null) entity.setLabelSize(request.labelSize());
         if (request.labelColor() != null) entity.setLabelColor(request.labelColor().toUpperCase());

@@ -17,6 +17,9 @@ export interface QrTemplate {
   qrSize: number;
   /** Colour of the QR modules (#RRGGBB); the background stays transparent. */
   qrColor: string;
+  /** Optional title printed on every card (venue name), same size/colour as the name. */
+  title: string | null;
+  titleY: number;
   labelY: number;
   labelSize: number;
   labelColor: string;
@@ -29,6 +32,8 @@ export interface QrTemplateInput {
   qrY?: number;
   qrSize?: number;
   qrColor?: string;
+  title?: string;
+  titleY?: number;
   labelY?: number;
   labelSize?: number;
   labelColor?: string;

@@ -73,6 +73,8 @@ class QrPdfServiceTest {
         template.setLabelSize(new BigDecimal("0.0625"));
         template.setLabelColor("#FFD200");
         template.setQrColor("#FFFFFF");
+        template.setTitle("Rendezvous");
+        template.setTitleY(new BigDecimal("0.1386"));
 
         byte[] frame;
         try (InputStream in = getClass().getClassLoader().getResourceAsStream("qr-templates/rendezvous.png")) {

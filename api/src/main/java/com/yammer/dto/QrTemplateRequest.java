@@ -13,6 +13,9 @@ public record QrTemplateRequest(
         @DecimalMin("0") @DecimalMax("1") BigDecimal qrY,
         @DecimalMin("0.01") @DecimalMax("1") BigDecimal qrSize,
         @Pattern(regexp = "#[0-9a-fA-F]{6}") String qrColor,
+        // Title text; null keeps the current value, blank clears it.
+        String title,
+        @DecimalMin("0") @DecimalMax("1") BigDecimal titleY,
         @DecimalMin("0") @DecimalMax("1") BigDecimal labelY,
         @DecimalMin("0.005") @DecimalMax("1") BigDecimal labelSize,
         @Pattern(regexp = "#[0-9a-fA-F]{6}") String labelColor) {

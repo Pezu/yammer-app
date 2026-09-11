@@ -15,7 +15,7 @@
 
   <p class="hint">
     A template is the frame each table's QR card is printed on: a background image, where the QR code goes (and its
-    colour) and where the table name goes. Positions and sizes are percentages of the image. The QR export on
+    colour), where the table name goes, and an optional title such as the venue name. Positions and sizes are percentages of the image. The QR export on
     Configuration → Locations tiles one card per table with the location's frame, or the first frame here.
   </p>
 
@@ -28,6 +28,7 @@
             <th>Name</th>
             <th class="geom-col">QR (x · y · size % · colour)</th>
             <th class="geom-col">Name (y · size % · colour)</th>
+            <th class="geom-col">Title (text · y %)</th>
             <th class="actions-col">Actions</th>
           </tr>
         </thead>
@@ -48,6 +49,7 @@
               </td>
               <td class="geom-col muted">defaults</td>
               <td class="geom-col muted">defaults</td>
+              <td class="geom-col muted">none</td>
               <td class="actions-col">
                 <div class="actions">
                   <button type="button" class="icon-btn save" (click)="saveCreate()" title="Save" aria-label="Save">
@@ -71,6 +73,9 @@
                       <img class="frame-image" [src]="imageUrl(template)" alt="frame" />
                       <div class="frame-qr" [style.left.%]="p.qrX * 100" [style.top.%]="p.qrY * 100" [style.width.%]="p.qrSize * 100" [style.color]="p.qrColor"></div>
                       <div class="frame-label" [style.top.%]="p.labelY * 100" [style.font-size.%]="p.labelSize * 100 * 1.6" [style.color]="p.labelColor">T1</div>
+                      @if (p.title) {
+                        <div class="frame-label" [style.top.%]="p.titleY * 100" [style.font-size.%]="p.labelSize * 100 * 1.6" [style.color]="p.labelColor">{{ p.title }}</div>
+                      }
                     </div>
                   } @else {
                     <span class="frame-placeholder">—</span>
@@ -113,6 +118,12 @@
                     <input type="color" class="color" formControlName="labelColor" title="Name colour" aria-label="Name colour" />
                   </div>
                 </td>
+                <td class="geom-col">
+                  <div class="geom-inputs" [formGroup]="editGeometry">
+                    <input type="text" class="input title" formControlName="title" placeholder="No title" title="Title printed on every card" aria-label="Title" />
+                    <input type="number" class="input num" formControlName="titleY" min="0" max="100" step="0.1" title="Title baseline, % of height" aria-label="Title y" />
+                  </div>
+                </td>
               } @else {
                 <td>{{ template.name }}</td>
                 <td class="geom-col">
@@ -122,6 +133,13 @@
                 <td class="geom-col">
                   {{ template.labelY * 100 | number: '1.0-1' }} · {{ template.labelSize * 100 | number: '1.0-1' }} ·
                   <span class="swatch" [style.background]="template.labelColor" [title]="template.labelColor"></span>
+                </td>
+                <td class="geom-col">
+                  @if (template.title) {
+                    {{ template.title }} · {{ template.titleY * 100 | number: '1.0-1' }}
+                  } @else {
+                    <span class="muted">none</span>
+                  }
                 </td>
               }
               <td class="actions-col">
@@ -148,7 +166,7 @@
 
           @if (!draft() && !loading() && templates().length === 0) {
             <tr>
-              <td colspan="5" class="empty">No QR templates yet — use the + button to add one.</td>
+              <td colspan="6" class="empty">No QR templates yet — use the + button to add one.</td>
             </tr>
           }
         </tbody>

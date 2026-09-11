@@ -50,6 +50,14 @@ public class QrTemplateEntity {
     @Column(name = "qr_color", nullable = false)
     private String qrColor = "#000000";
 
+    /** Optional title printed on every card (venue name), same size/colour as the label; null = none. */
+    @Column(name = "title")
+    private String title;
+
+    /** Baseline of the title (centred horizontally). */
+    @Column(name = "title_y", nullable = false)
+    private BigDecimal titleY = new BigDecimal("0.1");
+
     /** Baseline of the order point's name (centred horizontally). */
     @Column(name = "label_y", nullable = false)
     private BigDecimal labelY = new BigDecimal("0.9");

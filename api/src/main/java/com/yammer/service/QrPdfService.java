@@ -62,7 +62,8 @@ import org.springframework.web.server.ResponseStatusException;
  * seat. Other points (B1, …) are one sheet each.
  *
  * <p>Every sheet is one framed card — the QR template's image with the QR code (in the
- * template's colour, transparent background) and the label placed where the template says —
+ * template's colour, transparent background), the label and the optional title placed where the
+ * template says —
  * tiled three per row under the location name, exactly like the plain grid. The location's
  * own template wins; otherwise the catalog's first template is used; the plain black-on-white
  * grid only remains for a catalog with no frames at all. ZXing renders the QR images (via
@@ -228,20 +229,29 @@ public class QrPdfService {
         ImageData qr = ImageDataFactory.create(qrCodeService.png(url, 600, qrArgb, 0x00000000));
         canvas.addImageFittedIntoRectangle(qr, new Rectangle(qrLeft, qrBottom, qrSize, qrSize), false);
 
-        String name = sheet.label();
         float fontSize = t.getLabelSize().floatValue() * width;
+        centredText(canvas, font, labelColor, sheet.label(), fontSize, left, width,
+                bottom + height - t.getLabelY().floatValue() * height);
+        if (t.getTitle() != null && !t.getTitle().isBlank()) {
+            centredText(canvas, font, labelColor, t.getTitle(), fontSize, left, width,
+                    bottom + height - t.getTitleY().floatValue() * height);
+        }
+    }
+
+    /** Text centred in the card at the given baseline; long text shrinks to fit the card. */
+    private static void centredText(PdfCanvas canvas, PdfFont font, DeviceRgb color, String text,
+                                    float fontSize, float left, float width, float baseline) {
         float maxWidth = width * 0.9f;
-        float textWidth = font.getWidth(name, fontSize);
-        if (textWidth > maxWidth) { // long names shrink to fit the card
+        float textWidth = font.getWidth(text, fontSize);
+        if (textWidth > maxWidth) {
             fontSize *= maxWidth / textWidth;
             textWidth = maxWidth;
         }
-        float baseline = bottom + height - t.getLabelY().floatValue() * height;
         canvas.beginText()
                 .setFontAndSize(font, fontSize)
-                .setFillColor(labelColor)
+                .setFillColor(color)
                 .moveText(left + (width - textWidth) / 2, baseline)
-                .showText(name)
+                .showText(text)
                 .endText();
     }
 
