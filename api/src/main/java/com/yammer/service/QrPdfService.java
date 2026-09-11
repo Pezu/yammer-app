@@ -53,8 +53,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 /**
- * Builds a printable PDF of QR codes — one per customer-facing order point (TABLE/BAR)
- * of a location. Each QR encodes the customer ordering URL
+ * Builds a printable PDF of QR codes — one per table of a location. Each QR encodes the customer ordering URL
  * {@code <app.base-url>/customer/order-point/{opId}}.
  *
  * <p>A table's split slots (T1.1, T1.2, …) are one physical table, so they collapse into a
@@ -73,8 +72,8 @@ import org.springframework.web.server.ResponseStatusException;
 @RequiredArgsConstructor
 public class QrPdfService {
 
-    /** The point types customers can sit and order at. */
-    private static final Set<String> CUSTOMER_TYPES = Set.of("TABLE", "BAR");
+    /** Only tables get a QR card (bars are staffed, so they never print one). */
+    private static final Set<String> PRINTED_TYPES = Set.of("TABLE");
 
     /** Framed-card layout: A4 portrait, the location name on top, then three cards per row. */
     private static final int COLUMNS = 3;
@@ -110,7 +109,7 @@ public class QrPdfService {
                 .collect(Collectors.toMap(OrderPointTypeEntity::getId, OrderPointTypeEntity::getType));
         List<OrderPointEntity> orderPoints = orderPointRepository.findByLocationIdOrderByName(locationId)
                 .stream()
-                .filter(op -> CUSTOMER_TYPES.contains(typeById.getOrDefault(op.getTypeId(), "")))
+                .filter(op -> PRINTED_TYPES.contains(typeById.getOrDefault(op.getTypeId(), "")))
                 .sorted((a, b) -> OrderPointService.compareNames(a.getName(), b.getName()))
                 .toList();
 
@@ -165,8 +164,10 @@ public class QrPdfService {
         float cardWidth = (page.getWidth() - 2 * PAGE_MARGIN - (COLUMNS - 1) * CARD_GAP) / COLUMNS;
         float cardHeight = cardWidth * frame.getHeight() / frame.getWidth();
         PdfFont font;
+        PdfFont titleFont;
         try {
             font = PdfFontFactory.createFont(StandardFonts.HELVETICA_BOLD);
+            titleFont = PdfFontFactory.createFont(StandardFonts.HELVETICA); // lighter than the table name
         } catch (IOException e) {
             throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "PDF font unavailable", e);
         }
@@ -191,7 +192,7 @@ public class QrPdfService {
                 }
                 float left = PAGE_MARGIN + (slot % COLUMNS) * (cardWidth + CARD_GAP);
                 float bottom = gridTop - (slot / COLUMNS + 1) * cardHeight - (slot / COLUMNS) * CARD_GAP;
-                drawCard(canvas, template, frameObject, font, labelColor, qrArgb, sheets.get(i),
+                drawCard(canvas, template, frameObject, font, titleFont, labelColor, qrArgb, sheets.get(i),
                         left, bottom, cardWidth, cardHeight);
             }
             if (sheets.isEmpty()) {
@@ -217,7 +218,7 @@ public class QrPdfService {
 
     /** One framed card: background, QR in its slot, the sheet label centred at its baseline. */
     private void drawCard(PdfCanvas canvas, QrTemplateEntity t, PdfImageXObject frame, PdfFont font,
-                          DeviceRgb labelColor, int qrArgb, Sheet sheet,
+                          PdfFont titleFont, DeviceRgb labelColor, int qrArgb, Sheet sheet,
                           float left, float bottom, float width, float height) {
         canvas.addXObjectFittedIntoRectangle(frame, new Rectangle(left, bottom, width, height));
 
@@ -233,7 +234,7 @@ public class QrPdfService {
         centredText(canvas, font, labelColor, sheet.label(), fontSize, left, width,
                 bottom + height - t.getLabelY().floatValue() * height);
         if (t.getTitle() != null && !t.getTitle().isBlank()) {
-            centredText(canvas, font, labelColor, t.getTitle(), fontSize, left, width,
+            centredText(canvas, titleFont, labelColor, t.getTitle(), fontSize, left, width,
                     bottom + height - t.getTitleY().floatValue() * height);
         }
     }

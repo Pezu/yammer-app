@@ -58,9 +58,14 @@ class QrPdfServiceTest {
         type.setId(tableType);
         type.setType("TABLE");
 
+        UUID barType = UUID.randomUUID();
+        OrderPointTypeEntity bar = new OrderPointTypeEntity();
+        bar.setId(barType);
+        bar.setType("BAR");
+
         List<OrderPointEntity> points = List.of(
                 point("T1.1", tableType), point("T1.2", tableType), point("T2.1", tableType),
-                point("T3.1", tableType), point("T10.1", tableType));
+                point("T3.1", tableType), point("T10.1", tableType), point("B1", barType)); // bars never print
 
         QrTemplateEntity template = new QrTemplateEntity();
         template.setId(templateId);
@@ -84,7 +89,7 @@ class QrPdfServiceTest {
         AccessGuard guard = mock(AccessGuard.class);
         when(guard.requireAccessibleLocation(locationId)).thenReturn(location);
         OrderPointTypeRepository types = mock(OrderPointTypeRepository.class);
-        when(types.findAll()).thenReturn(List.of(type));
+        when(types.findAll()).thenReturn(List.of(type, bar));
         OrderPointRepository pointsRepo = mock(OrderPointRepository.class);
         when(pointsRepo.findByLocationIdOrderByName(locationId)).thenReturn(points);
         QrTemplateRepository templates = mock(QrTemplateRepository.class);
