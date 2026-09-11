@@ -183,26 +183,30 @@ import { ComboBox } from '../../shared/combo-box';
           } @else {
             <div class="item-img placeholder"></div>
           }
-          <div class="item-body">
-            <span class="item-name" [innerHTML]="node.name"></span>
-          </div>
-          <div class="item-side">
-            @if (node.price != null) {
-              <span class="item-price">{{ price(node.price) }} RON</span>
-            }
-            @if (canOrder()) {
-              <div class="qty">
-                @if (qty(node.id) > 0) {
-                  <button type="button" class="qty-btn" aria-label="Remove one" (click)="dec(node.id)">−</button>
-                  <span class="qty-val">{{ qty(node.id) }}</span>
-                }
-                <button type="button" class="qty-btn" aria-label="Add one" (click)="inc(node)">+</button>
+          <div class="item-main">
+            <div class="item-top">
+              <div class="item-body">
+                <span class="item-name" [innerHTML]="node.name"></span>
               </div>
+              <div class="item-side">
+                @if (node.price != null) {
+                  <span class="item-price">{{ price(node.price) }} RON</span>
+                }
+                @if (canOrder()) {
+                  <div class="qty">
+                    @if (qty(node.id) > 0) {
+                      <button type="button" class="qty-btn" aria-label="Remove one" (click)="dec(node.id)">−</button>
+                      <span class="qty-val">{{ qty(node.id) }}</span>
+                    }
+                    <button type="button" class="qty-btn" aria-label="Add one" (click)="inc(node)">+</button>
+                  </div>
+                }
+              </div>
+            </div>
+            @if (node.description) {
+              <p class="item-desc">{{ node.description }}</p>
             }
           </div>
-          @if (node.description) {
-            <p class="item-desc">{{ node.description }}</p>
-          }
         </div>
       } @else {
         <section class="menu-cat" [id]="'cat-' + node.id">
@@ -520,7 +524,6 @@ import { ComboBox } from '../../shared/combo-box';
     }
     .item-card {
       display: flex;
-      flex-wrap: wrap;
       align-items: stretch;
       gap: 12px;
       min-height: 92px;
@@ -540,6 +543,20 @@ import { ComboBox } from '../../shared/combo-box';
       background: var(--page-bg);
       border: 1px dashed var(--border);
     }
+    /* everything right of the image: name + price/qty on top, description at the bottom */
+    .item-main {
+      flex: 1;
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .item-top {
+      display: flex;
+      align-items: stretch;
+      gap: 12px;
+      flex: 1;
+    }
     .item-body {
       flex: 1;
       min-width: 0;
@@ -553,10 +570,9 @@ import { ComboBox } from '../../shared/combo-box';
       line-height: 1.25;
       color: var(--text);
     }
-    /* full-width last row of the card; wraps freely so long descriptions stay readable */
+    /* last row right of the image; wraps freely so long descriptions stay readable */
     .item-desc {
-      flex-basis: 100%;
-      margin: -4px 0 0;
+      margin: 0;
       font-size: 12px;
       line-height: 1.35;
       color: var(--muted);
