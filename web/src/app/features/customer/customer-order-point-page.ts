@@ -1,5 +1,5 @@
 import { Component, OnDestroy, computed, effect, inject, signal } from '@angular/core';
-import { DecimalPipe, NgTemplateOutlet } from '@angular/common';
+import { NgTemplateOutlet, formatNumber } from '@angular/common';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { HttpErrorResponse } from '@angular/common/http';
 import {
@@ -25,7 +25,7 @@ import { ComboBox } from '../../shared/combo-box';
  */
 @Component({
   selector: 'app-customer-order-point-page',
-  imports: [DecimalPipe, NgTemplateOutlet, TransparentImageDirective, RouterLink, SiteFooter, ComboBox],
+  imports: [NgTemplateOutlet, TransparentImageDirective, RouterLink, SiteFooter, ComboBox],
   template: `
     <header class="topbar">
       <div class="brand">
@@ -103,7 +103,7 @@ import { ComboBox } from '../../shared/combo-box';
                 </ul>
                 <div class="bill-total">
                   <span>{{ t('cust.totalDue') }}</span>
-                  <span>{{ b.unpaidTotal | number: '1.2-2' }} RON</span>
+                  <span>{{ price(b.unpaidTotal) }} RON</span>
                 </div>
               }
               @if (paidLines().length > 0) {
@@ -138,7 +138,7 @@ import { ComboBox } from '../../shared/combo-box';
         <footer class="cart-bar">
           <div class="cart-info">
             <span class="cart-count">{{ cartCount() === 1 ? t('cust.itemOne') : t('cust.itemMany', { n: cartCount() }) }}</span>
-            <span class="cart-total">{{ cartTotal() | number: '1.2-2' }}</span>
+            <span class="cart-total">{{ price(cartTotal()) }}</span>
           </div>
           <button type="button" class="order-btn" [disabled]="placing()" (click)="placeOrder()">
             {{ placing() ? t('cust.sending') : t('cust.placeOrder') }}
@@ -160,11 +160,11 @@ import { ComboBox } from '../../shared/combo-box';
           @if (line.originalPrice != null) {
             <span class="bl-partial" [title]="t('cust.partial')">
               <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2"></circle><path d="M12 3a9 9 0 0 1 0 18z" fill="currentColor"></path></svg>
-              {{ line.price | number: '1.2-2' }} / {{ line.originalPrice | number: '1.2-2' }}
+              {{ price(line.price) }} / {{ price(line.originalPrice) }}
             </span>
           }
         </span>
-        <span class="bl-price">{{ (line.price ?? 0) * line.quantity | number: '1.2-2' }}</span>
+        <span class="bl-price">{{ price((line.price ?? 0) * line.quantity) }}</span>
       </li>
     </ng-template>
 
@@ -185,13 +185,10 @@ import { ComboBox } from '../../shared/combo-box';
           }
           <div class="item-body">
             <span class="item-name" [innerHTML]="node.name"></span>
-            @if (node.description) {
-              <span class="item-desc">{{ node.description }}</span>
-            }
           </div>
           <div class="item-side">
             @if (node.price != null) {
-              <span class="item-price">{{ node.price | number: '1.2-2' }} RON</span>
+              <span class="item-price">{{ price(node.price) }} RON</span>
             }
             @if (canOrder()) {
               <div class="qty">
@@ -203,6 +200,9 @@ import { ComboBox } from '../../shared/combo-box';
               </div>
             }
           </div>
+          @if (node.description) {
+            <p class="item-desc">{{ node.description }}</p>
+          }
         </div>
       } @else {
         <section class="menu-cat" [id]="'cat-' + node.id">
@@ -520,6 +520,7 @@ import { ComboBox } from '../../shared/combo-box';
     }
     .item-card {
       display: flex;
+      flex-wrap: wrap;
       align-items: stretch;
       gap: 12px;
       min-height: 92px;
@@ -547,15 +548,20 @@ import { ComboBox } from '../../shared/combo-box';
       gap: 2px;
     }
     .item-name {
-      font-size: 14px;
+      font-size: 13px;
       font-weight: 600;
       line-height: 1.25;
       color: var(--text);
     }
+    /* full-width last row of the card; wraps freely so long descriptions stay readable */
     .item-desc {
+      flex-basis: 100%;
+      margin: -4px 0 0;
       font-size: 12px;
-      line-height: 1.3;
+      line-height: 1.35;
       color: var(--muted);
+      white-space: normal;
+      overflow-wrap: anywhere;
     }
     .item-price {
       font-size: 12px;
@@ -910,6 +916,12 @@ export class CustomerOrderPointPage implements OnDestroy {
       clearInterval(this.approvalPoll);
       this.approvalPoll = undefined;
     }
+  }
+
+  /** Money without a pointless ".00": 42 → "42", 42.5 → "42.50", 1500 → "1,500". */
+  price(value: number | null | undefined): string {
+    const v = value ?? 0;
+    return formatNumber(v, 'en-US', Number.isInteger(v) ? '1.0-0' : '1.2-2');
   }
 
   imageUrl(object: string): string {
