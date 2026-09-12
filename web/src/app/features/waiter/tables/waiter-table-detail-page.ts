@@ -76,13 +76,15 @@ export class WaiterTableDetailPage {
     () => (this.bill()?.unpaidTotal ?? 0) > 0 && this.payOptions().length > 0,
   );
 
-  /** Everything settled → the table can be closed (the ONLY way a session ends). */
+  /** Everything settled on a tab → it can be closed (the ONLY way a session ends). A bar
+   *  (keep open off) is paid order by order and never shows the button. */
   readonly closing = signal(false);
   readonly canClose = computed(
     () =>
       !this.loading() &&
       !this.error() &&
       (this.bill()?.sessionOpen ?? false) &&
+      this.bill()!.keepOpen !== false &&
       this.bill()!.lines.every((l) => l.paid),
   );
 
@@ -172,26 +174,6 @@ export class WaiterTableDetailPage {
     { id: 'paid', name: this.t('detail.view.paid') },
   ]);
 
-  /** Customer self-ordering at this table — set by the assigned waiter. */
-  readonly selfOrderModeOptions = computed(() => [
-    { id: 'ALLOW', name: this.t('detail.mode.allowed') },
-    { id: 'CONFIRM', name: this.t('detail.mode.confirm') },
-    { id: 'DISALLOW', name: this.t('detail.mode.disabled') },
-  ]);
-
-  setSelfOrderMode(mode: string): void {
-    const bill = this.bill();
-    if (!bill || bill.selfOrderMode === mode) return;
-    const previous = bill.selfOrderMode;
-    this.bill.set({ ...bill, selfOrderMode: mode as OrderPointBill['selfOrderMode'] });
-    this.service.setSelfOrderMode(this.id, mode).subscribe({
-      error: () => {
-        const current = this.bill();
-        if (current) this.bill.set({ ...current, selfOrderMode: previous });
-        this.toast.show(this.t('detail.modeFailed'));
-      },
-    });
-  }
   readonly shownLines = computed(() =>
     this.view() === 'unpaid' ? this.unpaidLines() : this.paidLines(),
   );

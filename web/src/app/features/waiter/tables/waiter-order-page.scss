@@ -521,7 +521,7 @@
   color: var(--muted);
 }
 
-/* pay-as-you-order sheet (bars): bottom sheet with the total, a tip and one button per payment type */
+/* pay-as-you-order sheet — same look as the table pay sheet (full-amount view only) */
 .pay-overlay {
   position: fixed;
   inset: 0;
@@ -563,44 +563,120 @@
   border: none;
   border-radius: 8px;
   cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+
+  &:active {
+    background: var(--page-bg);
+  }
 }
 
 .pay-body {
-  padding: 1rem 1rem 1.25rem;
+  position: relative;
+  padding: 1rem;
+  max-height: 72dvh;
+  overflow-y: auto;
 }
 
-.sum-row {
+.amount-row {
   display: flex;
+  align-items: baseline;
   justify-content: space-between;
-  padding: 0.35rem 0;
-  font-size: 0.95rem;
+  margin-bottom: 0.25rem;
 
-  &.total {
-    margin-top: 0.4rem;
-    padding-top: 0.6rem;
-    border-top: 1px solid var(--border);
-    font-weight: 800;
+  .lbl {
+    font-size: 0.9rem;
+    color: var(--muted);
   }
+
+  .amount-fixed {
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: var(--text);
+  }
+}
+
+.section-label {
+  margin: 0.75rem 0 0.35rem;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted);
 }
 
 .tip-row {
   display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.tip-chip {
+  padding: 0.4rem 0.7rem;
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text);
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+
+  &.active {
+    color: var(--primary);
+    border-color: var(--primary);
+    background: rgba(52, 84, 209, 0.06);
+  }
+}
+
+.tip-input-row {
+  display: flex;
   align-items: center;
   gap: 0.5rem;
-  padding: 0.35rem 0;
-  font-size: 0.95rem;
-
-  span:first-child {
-    flex: 1;
-  }
+  margin-top: 0.5rem;
 
   input {
-    width: 6rem;
-    padding: 0.45rem 0.6rem;
+    flex: 1;
+    padding: 0.5rem 0.7rem;
     font: inherit;
-    text-align: right;
+    font-size: 0.95rem;
+    color: var(--text);
     border: 1px solid var(--border);
     border-radius: 8px;
+
+    &:focus {
+      outline: none;
+      border-color: var(--primary);
+    }
+  }
+
+  .suffix {
+    flex: none;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--muted);
+  }
+}
+
+.sum-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.3rem 0;
+  font-size: 0.85rem;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+
+  &:first-of-type {
+    margin-top: 0.75rem;
+    border-top: 1px solid var(--border);
+    padding-top: 0.6rem;
+  }
+
+  &.total {
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--text);
   }
 }
 
@@ -611,16 +687,22 @@
 
   .method {
     flex: 1;
-    padding: 0.9rem 0.5rem;
+    padding: 0.8rem 0.5rem;
     font: inherit;
-    font-size: 0.95rem;
+    font-size: 0.9rem;
     font-weight: 700;
-    color: #fff;
-    background: var(--primary);
-    border: none;
+    color: var(--text);
+    background: #fff;
+    border: 1px solid var(--border);
     border-radius: 10px;
     cursor: pointer;
     -webkit-tap-highlight-color: transparent;
+
+    &:active:not(:disabled) {
+      background: rgba(52, 84, 209, 0.1);
+      border-color: var(--primary);
+      color: var(--primary);
+    }
 
     &:disabled {
       opacity: 0.5;

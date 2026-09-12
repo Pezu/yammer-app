@@ -86,6 +86,21 @@
   }
 }
 
+/* close the settled tab — next to Order in the footer */
+.close {
+  color: var(--text);
+  background: #fff;
+  border: 1.5px solid var(--border);
+
+  &:active {
+    background: var(--page-bg);
+  }
+
+  &:disabled {
+    opacity: 0.6;
+  }
+}
+
 .table-body {
   flex: 1;
   padding: 1rem;
@@ -101,25 +116,6 @@
   color: var(--danger);
 }
 
-/* the only way a session ends: close the settled table */
-.close-table {
-  display: block;
-  width: 100%;
-  margin-top: 1.25rem;
-  padding: 0.8rem 1rem;
-  border: none;
-  border-radius: 10px;
-  background: var(--primary);
-  color: #fff;
-  font-size: 1rem;
-  font-weight: 600;
-  cursor: pointer;
-
-  &:disabled {
-    opacity: 0.6;
-    cursor: default;
-  }
-}
 
 /* customer self-order mode setter */
 /* customer self-order mode — sits in the header between the table name and the actions */

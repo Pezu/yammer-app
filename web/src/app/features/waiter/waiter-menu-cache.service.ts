@@ -29,7 +29,8 @@ export class WaiterMenuCacheService {
   /** The order point's menu — from the cache, or fetched once and cached. */
   menu(orderPointId: string): Observable<OrderPointMenu> {
     const cached = this.store.menus[orderPointId];
-    if (cached) {
+    // entries written before the point flags (keepOpen) existed are refetched once
+    if (cached && cached.keepOpen !== undefined) {
       return of(cached);
     }
     return this.api.menu(orderPointId).pipe(

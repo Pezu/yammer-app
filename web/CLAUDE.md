@@ -89,8 +89,8 @@ web/src/app/
 │   │                                 #   Assigning OPENS the table session (unassign is refused
 │   │                                 #   with a 409 message while the session is open — only
 │   │                                 #   Close table frees it). Tapping a tile → /waiter/tables/:id = the
-│   │                                 #   session's combined bill; header = name · self-order combo
-│   │                                 #   (Allowed/Confirm/Disabled); sticky footer = Pay (only while something is due) + Order, half width each; Unpaid/Paid view combo
+│   │                                 #   session's combined bill; header = back + name; sticky footer = Pay (only while
+│   │                                 #   something is due) + Close table (tabs only, once all is paid) + Order; Unpaid/Paid view combo
 │   │                                 #   (default Unpaid), the pay sheet, and — once everything
 │   │                                 #   is paid — the "Close table" button, the ONLY way to end
 │   │                                 #   the session (frees the table, back to the tiles).
@@ -150,8 +150,8 @@ web/src/app/
 - The footer's legal links route to `/legal/:doc`, which is not ported yet and
   currently redirects to `/login` via the wildcard route.
 - Login lands users on a role-based home (`ROLE_HOME` in `login.ts`); ADMIN and
-  SUPER go to `/backoffice` (default child: `users`), and the backend only lets
-  ADMIN/SUPER log in. The Clients and Roles menu entries and routes are SUPER-only
+  SUPER go to `/backoffice` (default child: `users`); WAITER → `/waiter` (default child:
+  `tables`), SERVICE → `/service`. Any role can log in with a password. The Clients and Roles menu entries and routes are SUPER-only
   (`superGuard` + `@if (isSuper())` in the sidebar).
 - **Waiter + customer UI text goes through `t('key')`** (inject `I18nService`, expose
   `readonly t = this.i18n.t`); add every new string to BOTH dictionaries in

@@ -32,10 +32,6 @@ export const EN = {
   'tables.splitFailed': 'Could not split the table.',
 
   'detail.table': 'Table',
-  'detail.selfOrderTitle': 'Customer self-ordering at this table',
-  'detail.mode.allowed': 'Allowed',
-  'detail.mode.confirm': 'Confirm',
-  'detail.mode.disabled': 'Disabled',
   'detail.order': 'Order',
   'detail.pay': 'Pay',
   'detail.noOrders': 'No orders yet — tap "Order" to place the first one.',
@@ -53,7 +49,6 @@ export const EN = {
   'detail.proformaSent': 'Proforma sent to printer.',
   'detail.proformaFailed': 'Failed to print proforma.',
   'detail.loadFailed': 'Could not load the table.',
-  'detail.modeFailed': 'Could not change the self-order mode',
 
   'pay.title': 'Pay {name}',
   'pay.full': 'Full bill',
@@ -184,10 +179,6 @@ export const RO: Record<TKey, string> = {
   'tables.splitFailed': 'Masa nu a putut fi împărțită.',
 
   'detail.table': 'Masă',
-  'detail.selfOrderTitle': 'Autocomanda clienților la această masă',
-  'detail.mode.allowed': 'Permis',
-  'detail.mode.confirm': 'Confirmare',
-  'detail.mode.disabled': 'Dezactivat',
   'detail.order': 'Comandă',
   'detail.pay': 'Plătește',
   'detail.noOrders': 'Nicio comandă încă — apasă „Comandă” pentru prima.',
@@ -205,7 +196,6 @@ export const RO: Record<TKey, string> = {
   'detail.proformaSent': 'Nota a fost trimisă la imprimantă.',
   'detail.proformaFailed': 'Nota nu a putut fi tipărită.',
   'detail.loadFailed': 'Masa nu a putut fi încărcată.',
-  'detail.modeFailed': 'Modul de autocomandă nu a putut fi schimbat',
 
   'pay.title': 'Plată {name}',
   'pay.full': 'Toată nota',

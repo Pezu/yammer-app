@@ -14,6 +14,13 @@ import {
   PaymentType,
   PaymentTypeService,
 } from '../../backoffice/pages/payment-types/payment-type.service';
+import { OrderPointService } from '../../backoffice/pages/order-points/order-point.service';
+
+type TipMode = 'none' | 'p10' | 'p12' | 'p15' | 'customPct' | 'customAmt';
+
+function round2(v: number): number {
+  return Math.round(v * 100) / 100;
+}
 import { ToastService } from '../../../core/toast.service';
 import { I18nService } from '../../../core/i18n.service';
 
@@ -38,13 +45,43 @@ export class WaiterOrderPage {
   private readonly menuCache = inject(WaiterMenuCacheService);
   private readonly toast = inject(ToastService);
   private readonly paymentTypeService = inject(PaymentTypeService);
+  private readonly orderPointService = inject(OrderPointService);
   readonly t = inject(I18nService).t;
 
   // --- pay as you order (keepOpen = false, e.g. bars): the payment is chosen before placing ---
 
   private readonly paymentTypes = signal<PaymentType[]>([]);
   readonly payOpen = signal(false);
-  readonly payTip = signal<number | null>(null);
+  // tip as in the table pay sheet: presets + custom % / custom RON
+  readonly tipMode = signal<TipMode>('none');
+  readonly tipCustomPercent = signal<number | null>(null);
+  readonly tipCustomAmount = signal<number | null>(null);
+  readonly computedTip = computed(() => {
+    const base = this.total() || 0;
+    let tip = 0;
+    switch (this.tipMode()) {
+      case 'p10':
+        tip = base * 0.1;
+        break;
+      case 'p12':
+        tip = base * 0.12;
+        break;
+      case 'p15':
+        tip = base * 0.15;
+        break;
+      case 'customPct': {
+        const p = this.tipCustomPercent();
+        if (p != null && !isNaN(p)) tip = base * (p / 100);
+        break;
+      }
+      case 'customAmt': {
+        const a = this.tipCustomAmount();
+        if (a != null && !isNaN(a)) tip = a;
+        break;
+      }
+    }
+    return Math.max(0, round2(tip));
+  });
   /** The point's accepted payment types, as buttons. */
   readonly payOptions = computed(() => {
     const byId = new Map(this.paymentTypes().map((p) => [p.id, p.type]));
@@ -52,7 +89,11 @@ export class WaiterOrderPage {
   });
   /** Older cached menus carry no flag: treat them as tabs (the safe default). */
   readonly payNow = computed(() => this.menu()?.keepOpen === false);
-  readonly payTotal = computed(() => Math.round((this.total() + (this.payTip() ?? 0)) * 100) / 100);
+  readonly payTotal = computed(() => round2(this.total() + this.computedTip()));
+
+  setTip(mode: TipMode): void {
+    this.tipMode.set(mode);
+  }
 
   private readonly id = this.route.snapshot.paramMap.get('id') ?? '';
   private readonly stateName = (history.state?.name as string) ?? '';
@@ -159,6 +200,24 @@ export class WaiterOrderPage {
     });
   }
 
+  /**
+   * The point's own settings (keep open, payment types) are edited in the backoffice and must
+   * not be as stale as the cached menu: overlay them from the live assigned-tables list.
+   */
+  private refreshPointFlags(): void {
+    this.orderPointService.assigned().subscribe({
+      next: (points) => {
+        const p = points.find((x) => x.id === this.id);
+        if (p) {
+          this.menu.update((m) => (m ? { ...m, keepOpen: p.keepOpen, paymentTypeIds: p.paymentTypeIds } : m));
+        }
+      },
+      error: () => {
+        /* keep the cached flags */
+      },
+    });
+  }
+
   /** Load the order point's menu through the cache, keeping the selected menu if it still exists. */
   private load(): void {
     this.loading.set(true);
@@ -166,6 +225,7 @@ export class WaiterOrderPage {
     this.menuCache.menu(this.id).subscribe({
       next: (m) => {
         this.menu.set(m);
+        this.refreshPointFlags();
         const previous = this.selectedMenuId();
         const selected =
           previous && m.menus.some((o) => o.id === previous) ? previous : m.menuId;
@@ -297,7 +357,9 @@ export class WaiterOrderPage {
         this.placeError.set(this.t('order.noPaymentTypes'));
         return;
       }
-      this.payTip.set(null);
+      this.tipMode.set('none');
+      this.tipCustomPercent.set(null);
+      this.tipCustomAmount.set(null);
       this.placeError.set(null);
       this.payOpen.set(true);
       return;
@@ -312,7 +374,7 @@ export class WaiterOrderPage {
   /** Pay-now sheet: the chosen payment type places AND settles the order in one request. */
   payAndPlace(paymentTypeId: string): void {
     this.payOpen.set(false);
-    this.submitOrder({ paymentTypeId, tip: this.payTip() ?? 0 });
+    this.submitOrder({ paymentTypeId, tip: this.computedTip() });
   }
 
   private submitOrder(pay?: { paymentTypeId: string; tip: number }): void {

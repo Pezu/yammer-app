@@ -3,17 +3,6 @@
     <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
     <span class="title">{{ name() || t('detail.table') }}</span>
   </button>
-  @if (bill(); as b) {
-    @if (b.sessionOpen) {
-      <div class="mode-combo" [title]="t('detail.selfOrderTitle')">
-        <app-combo-box
-          [options]="selfOrderModeOptions()"
-          [value]="b.selfOrderMode"
-          (valueChange)="setSelfOrderMode($event)"
-        />
-      </div>
-    }
-  }
 </header>
 
 <section class="table-body">
@@ -70,11 +59,6 @@
       </div>
     }
   }
-  @if (canClose()) {
-    <button type="button" class="close-table" (click)="closeTable()" [disabled]="closing()">
-      {{ closing() ? t('detail.closing') : t('detail.closeTable') }}
-    </button>
-  }
 </section>
 
 @if (!loading() && !error()) {
@@ -82,6 +66,11 @@
     @if (canPay()) {
       <button type="button" class="pay" (click)="openPay()">
         {{ t('detail.pay') }} · {{ bill()!.unpaidTotal | number: '1.2-2' }} RON
+      </button>
+    }
+    @if (canClose()) {
+      <button type="button" class="close" (click)="closeTable()" [disabled]="closing()">
+        {{ closing() ? t('detail.closing') : t('detail.closeTable') }}
       </button>
     }
     <button type="button" class="new-order" (click)="newOrder()">

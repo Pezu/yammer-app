@@ -182,6 +182,7 @@ export const routes: Routes = [
             (m) => m.WaiterApprovalsPage,
           ),
       },
+      { path: '', redirectTo: 'tables', pathMatch: 'full' },
     ],
   },
   { path: '', redirectTo: 'login', pathMatch: 'full' },

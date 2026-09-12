@@ -1,4 +1,4 @@
-import { Component, computed, inject, signal } from '@angular/core';
+import { Component, OnDestroy, computed, inject, signal } from '@angular/core';
 import { Router, RouterOutlet } from '@angular/router';
 import { AuthService } from '../../core/auth.service';
 import { ToastService } from '../../core/toast.service';
@@ -6,6 +6,7 @@ import { WaiterMenuCacheService } from './waiter-menu-cache.service';
 import { AppLogo } from '../../shared/logo.component';
 import { I18nService, LANG_OPTIONS, isLang } from '../../core/i18n.service';
 import { ComboBox } from '../../shared/combo-box';
+import { ApprovalService } from './approvals/approval.service';
 
 /** Waiter shell — topbar with the hamburger menu; pages render in the outlet below. */
 @Component({
@@ -14,6 +15,11 @@ import { ComboBox } from '../../shared/combo-box';
   template: `
     <header class="topbar">
       <app-logo [height]="30" />
+      @if (pendingCount() > 0) {
+        <button type="button" class="approvals-badge" (click)="goToApprovals()" [title]="t('menu.approvals')" [attr.aria-label]="t('menu.approvals')">
+          {{ pendingCount() }}
+        </button>
+      }
       <div class="user">
         <span class="uname">{{ displayName() }}</span>
         <button type="button" class="burger" (click)="toggleMenu()" aria-label="Menu">
@@ -82,6 +88,22 @@ import { ComboBox } from '../../shared/combo-box';
         gap: 0.75rem;
         min-width: 0;
       }
+      .approvals-badge {
+        margin-left: 0.6rem;
+        min-width: 26px;
+        height: 26px;
+        padding: 0 0.5rem;
+        font: inherit;
+        font-size: 0.8rem;
+        font-weight: 800;
+        color: #fff;
+        background: var(--danger);
+        border: none;
+        border-radius: 999px;
+        cursor: pointer;
+        -webkit-tap-highlight-color: transparent;
+      }
+
       .uname {
         max-width: 40vw;
         overflow: hidden;
@@ -176,7 +198,7 @@ import { ComboBox } from '../../shared/combo-box';
     `,
   ],
 })
-export class WaiterPage {
+export class WaiterPage implements OnDestroy {
   private readonly auth = inject(AuthService);
   private readonly router = inject(Router);
   private readonly menuCache = inject(WaiterMenuCacheService);
@@ -186,12 +208,32 @@ export class WaiterPage {
   readonly langOptions = LANG_OPTIONS;
 
   constructor() {
+    this.refreshPending();
     // waiters default to Romanian; a change is remembered on this device
     this.i18n.init('waiter');
   }
 
   setLang(lang: string): void {
     if (isLang(lang)) this.i18n.setLang(lang);
+  }
+
+  // --- approvals badge: customers waiting to join + orders waiting for confirmation ---
+
+  private readonly approvals = inject(ApprovalService);
+  readonly pendingCount = signal(0);
+  private readonly approvalsPoll = setInterval(() => this.refreshPending(), 15_000);
+
+  private refreshPending(): void {
+    this.approvals.list().subscribe({
+      next: (a) => this.pendingCount.set((a.customers?.length ?? 0) + (a.orders?.length ?? 0)),
+      error: () => {
+        /* keep the last count */
+      },
+    });
+  }
+
+  ngOnDestroy(): void {
+    clearInterval(this.approvalsPoll);
   }
 
   /** The user's display name; falls back to the username for accounts without one. */
