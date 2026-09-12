@@ -290,30 +290,84 @@ public class BridgeService {
      * like the old project. Best-effort: the bridge's result is only logged. Throws 409 when the
      * table has no printer, the printer has no IP, or no bridge that can reach it is connected.
      */
-    public void sendProforma(OrderPointEntity op, OrderPointBillResponse bill, String waiter, String company) {
-        IntegrationEntity printer = op.getPrinterId() == null ? null
-                : integrationRepository.findById(op.getPrinterId()).orElse(null);
-        if (printer == null) {
-            throw refuseProforma(op, "No printer configured for " + op.getName());
-        }
+    /** Where a thermal job goes: the phone of a "Mobile" printer (USB, no IP) or any bridge for a TCP printer. */
+    private record PrinterRoute(String targetDevice, String printerIp) {
+    }
+
+    private PrinterRoute routeToPrinter(IntegrationEntity printer, String what) {
         // A "Mobile" printer hangs off that phone's USB: the job carries no IP and the bridge
         // writes to its USB printer. A TCP printer needs its IP; any connected bridge can reach it.
         boolean viaMobile = printer.getConnection() == ConnectionType.MOBILE;
         String targetDevice = viaMobile ? Strings.trimToNull(printer.getDeviceId()) : null;
         String printerIp = viaMobile ? null : Strings.trimToNull(printer.getIp());
         if (viaMobile && targetDevice == null) {
-            throw refuseProforma(op, "Printer '" + printer.getName() + "' has no phone attached");
+            throw refuse(what, "Printer '" + printer.getName() + "' has no phone attached");
         }
         if (!viaMobile && printerIp == null) {
-            throw refuseProforma(op, "Printer '" + printer.getName() + "' has no IP address");
+            throw refuse(what, "Printer '" + printer.getName() + "' has no IP address");
         }
         boolean online = targetDevice != null ? handler.isDeviceConnected(targetDevice) : handler.isConnected();
         if (!online) {
-            throw refuseProforma(op, viaMobile
+            throw refuse(what, viaMobile
                     ? "Phone '" + Strings.trimToNull(printer.getDeviceName()) + "' of printer '"
                             + printer.getName() + "' is not connected"
                     : "No bridge connected for printer '" + printer.getName() + "'");
         }
+        return new PrinterRoute(targetDevice, printerIp);
+    }
+
+    private String sendToPrinter(PrinterRoute route, Map<String, Object> msg, String what) {
+        String frame;
+        try {
+            frame = mapper.writeValueAsString(msg);
+        } catch (Exception e) {
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Could not build the " + what, e);
+        }
+        String sent = route.targetDevice() != null
+                ? (handler.sendTo(route.targetDevice(), frame) ? route.targetDevice() : null)
+                : handler.sendToAnyReturningDevice(frame);
+        if (sent == null) {
+            throw refuse(what, "Bridge dropped the " + what + " — try again");
+        }
+        return sent;
+    }
+
+    /**
+     * The end-of-day "final report" on a thermal printer: one slip per waiter with card/cash
+     * takings and tips (the old app's WAITER_REPORT frame). Best-effort, result only logged.
+     */
+    public void sendWaiterReport(IntegrationEntity printer, String title,
+                                 List<com.yammer.dto.DashboardResponse.FinalRow> rows) {
+        PrinterRoute route = routeToPrinter(printer, "final report");
+        List<Map<String, Object>> out = new ArrayList<>(rows.size());
+        for (com.yammer.dto.DashboardResponse.FinalRow r : rows) {
+            Map<String, Object> m = new LinkedHashMap<>();
+            m.put("userName", r.waiter());
+            m.put("paidCard", r.paidCard());
+            m.put("paidCash", r.paidCash());
+            m.put("tipCard", r.tipCard());
+            m.put("tipCash", r.tipCash());
+            out.add(m);
+        }
+        Map<String, Object> msg = new LinkedHashMap<>();
+        msg.put("type", "WAITER_REPORT");
+        msg.put("requestId", "report-" + UUID.randomUUID());
+        msg.put("printerIp", route.printerIp());
+        msg.put("eventName", title);
+        msg.put("rows", out);
+        String sent = sendToPrinter(route, msg, "final report");
+        log.info("Sent final report '{}' ({} waiter(s)) to device '{}' via printer {}.",
+                title, rows.size(), sent, route.printerIp() == null ? "USB" : route.printerIp());
+    }
+
+    public void sendProforma(OrderPointEntity op, OrderPointBillResponse bill, String waiter, String company) {
+        IntegrationEntity printer = op.getPrinterId() == null ? null
+                : integrationRepository.findById(op.getPrinterId()).orElse(null);
+        if (printer == null) {
+            throw refuseProforma(op, "No printer configured for " + op.getName());
+        }
+        PrinterRoute route = routeToPrinter(printer, "proforma for " + op.getName());
+        String printerIp = route.printerIp();
 
         List<Map<String, Object>> lines = new ArrayList<>();
         for (OrderPointBillResponse.OrderPointBillLine line : bill.lines()) {
@@ -338,24 +392,17 @@ public class BridgeService {
         msg.put("orderNos", List.of());
         msg.put("lines", lines);
         msg.put("total", bill.unpaidTotal());
-        String frame;
-        try {
-            frame = mapper.writeValueAsString(msg);
-        } catch (Exception e) {
-            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Could not build the proforma", e);
-        }
-        String sent = targetDevice != null
-                ? (handler.sendTo(targetDevice, frame) ? targetDevice : null)
-                : handler.sendToAnyReturningDevice(frame);
-        if (sent == null) {
-            throw refuseProforma(op, "Bridge dropped the proforma — try again");
-        }
+        String sent = sendToPrinter(route, msg, "proforma for " + op.getName());
         log.info("Sent PROFORMA for {} ({} lines, {} RON) to device '{}' via printer {}.",
                 op.getName(), lines.size(), bill.unpaidTotal(), sent, printerIp == null ? "USB" : printerIp);
     }
 
     private static ResponseStatusException refuseProforma(OrderPointEntity op, String reason) {
-        log.warn("Proforma for {} refused: {}", op.getName(), reason);
+        return refuse("proforma for " + op.getName(), reason);
+    }
+
+    private static ResponseStatusException refuse(String what, String reason) {
+        log.warn("Thermal print ({}) refused: {}", what, reason);
         return new ResponseStatusException(HttpStatus.CONFLICT, reason);
     }
 
@@ -396,12 +443,12 @@ public class BridgeService {
             if (requestId == null) {
                 return;
             }
-            if (requestId.startsWith("proforma-")) { // thermal print job: best-effort, just log
+            if (requestId.startsWith("proforma-") || requestId.startsWith("report-")) { // thermal job: best-effort, just log
                 String status = node.path("status").asText("");
                 if ("OK".equalsIgnoreCase(status)) {
-                    log.info("Proforma {} printed.", requestId);
+                    log.info("Thermal job {} printed.", requestId);
                 } else {
-                    log.warn("Proforma {} not printed: {} {}", requestId, node.path("errorCode").asText(""),
+                    log.warn("Thermal job {} not printed: {} {}", requestId, node.path("errorCode").asText(""),
                             node.path("errorMessage").asText(""));
                 }
                 return;

@@ -94,6 +94,11 @@ export const routes: Routes = [
           ),
       },
       {
+        path: 'reports/dashboard',
+        loadComponent: () =>
+          import('./features/backoffice/pages/reports/dashboard-page').then((m) => m.DashboardPage),
+      },
+      {
         path: 'reports/orders',
         loadComponent: () =>
           import('./features/backoffice/pages/reports/orders-report-page').then(

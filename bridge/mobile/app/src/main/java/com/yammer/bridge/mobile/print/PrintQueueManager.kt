@@ -1,6 +1,7 @@
 package com.yammer.bridge.mobile.print
 
 import com.yammer.bridge.mobile.dto.InfoReceiptRequest
+import com.yammer.bridge.mobile.dto.WaiterReportRequest
 import com.yammer.bridge.mobile.dto.ReceiptRequest
 import com.yammer.bridge.mobile.dto.ReceiptResult
 import java.util.concurrent.CompletableFuture
@@ -37,6 +38,9 @@ class PrintQueueManager(
 
     fun submitInfo(request: InfoReceiptRequest): CompletableFuture<ReceiptResult> =
         CompletableFuture.supplyAsync({ thermalService.print(request) }, executorFor(request.printerIp))
+
+    fun submitReport(request: WaiterReportRequest): CompletableFuture<ReceiptResult> =
+        CompletableFuture.supplyAsync({ thermalService.printWaiterReport(request) }, executorFor(request.printerIp))
 
     private fun executorFor(deviceKey: String?): ExecutorService {
         val key = deviceKey?.trim().takeUnless { it.isNullOrEmpty() } ?: NO_DEVICE_KEY

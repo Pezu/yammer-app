@@ -19,6 +19,17 @@ public interface PaymentRepository extends JpaRepository<PaymentEntity, UUID> {
             """)
     List<PaymentEntity> findByLocationId(@Param("locationId") UUID locationId);
 
+    /** Payments taken at one location's points in [from, to). */
+    @Query("""
+            select p from PaymentEntity p, OrderPointEntity op
+            where p.orderPointId = op.id and op.locationId = :locationId
+              and p.createdAt >= :from and p.createdAt < :to
+            order by p.createdAt asc
+            """)
+    List<PaymentEntity> findByLocationIdAndCreatedAtBetween(
+            @Param("locationId") UUID locationId, @Param("from") java.time.LocalDateTime from,
+            @Param("to") java.time.LocalDateTime to);
+
     // ─── fiscal status transitions ──────────────────────────────────────────────
     // All guarded, atomic UPDATEs: SUCCESS is terminal (a printed receipt cannot
     // un-print), an ERROR result only applies while the attempt is in flight, and a

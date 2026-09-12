@@ -106,6 +106,42 @@ data class InfoReceiptRequest(
 }
 
 /** Result of a print job, sent back to the backend as a `RECEIPT_RESULT` frame. */
+/**
+ * End-of-day "final report": one slip per waiter (card/cash takings + tips), the printer
+ * cutting after each slip. Separate frame type — the proforma is untouched.
+ */
+data class WaiterReportRequest(
+    val requestId: String,
+    val printerIp: String?,
+    val eventName: String?,
+    val rows: List<Row>,
+) {
+    data class Row(
+        val userName: String,
+        val paidCard: BigDecimal?,
+        val paidCash: BigDecimal?,
+        val tipCard: BigDecimal?,
+        val tipCash: BigDecimal?,
+    )
+
+    companion object {
+        fun fromJson(o: JSONObject): WaiterReportRequest = WaiterReportRequest(
+            requestId = o.getString("requestId"),
+            printerIp = o.optStringOrNull("printerIp"),
+            eventName = o.optStringOrNull("eventName"),
+            rows = o.optJSONArray("rows").mapObjects {
+                Row(
+                    userName = it.optString("userName", ""),
+                    paidCard = it.optBigDecimal("paidCard"),
+                    paidCash = it.optBigDecimal("paidCash"),
+                    tipCard = it.optBigDecimal("tipCard"),
+                    tipCash = it.optBigDecimal("tipCash"),
+                )
+            },
+        )
+    }
+}
+
 data class ReceiptResult(
     val status: String,
     val requestId: String,

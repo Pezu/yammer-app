@@ -4,6 +4,7 @@ import android.util.Log
 import com.yammer.bridge.mobile.dto.InfoReceiptRequest
 import com.yammer.bridge.mobile.dto.ReceiptRequest
 import com.yammer.bridge.mobile.dto.ReceiptResult
+import com.yammer.bridge.mobile.dto.WaiterReportRequest
 import com.yammer.bridge.mobile.usb.UsbThermalPrinterManager
 import java.io.Closeable
 import java.io.IOException
@@ -94,6 +95,60 @@ class EscPosThermalService(private val usbPrinter: UsbThermalPrinterManager) {
             }
         } catch (ex: Exception) {
             Log.e(TAG, "Info print failed requestId=${payload.requestId} printer=$host: ${ex.message}", ex)
+            ReceiptResult.error(payload.requestId, null, "PRINT_ERROR", ex.message)
+        }
+    }
+
+    /** Final report: one slip per waiter (takings by card/cash + tips), cut after each. */
+    fun printWaiterReport(payload: WaiterReportRequest): ReceiptResult {
+        val host = payload.printerIp
+        Log.i(TAG, "Waiter report print: requestId=${payload.requestId} printer=${host ?: "USB"} users=${payload.rows.size}")
+        if (payload.rows.isEmpty()) {
+            return ReceiptResult.error(payload.requestId, null, "EMPTY_REPORT", "Raportul nu are randuri")
+        }
+        return try {
+            openSink(host).use { sink ->
+                val out = sink.out
+                for (row in payload.rows) {
+                    out.write(INIT)
+                    out.write(ALIGN_CENTER)
+                    if (!payload.eventName.isNullOrBlank()) {
+                        out.write(BOLD_ON)
+                        writeLine(out, payload.eventName)
+                        out.write(BOLD_OFF)
+                    }
+                    writeLine(out, "RAPORT INCASARI")
+                    writeLine(out, sep())
+                    out.write(BOLD_ON)
+                    out.write(DOUBLE_ON)
+                    writeLine(out, row.userName)
+                    out.write(DOUBLE_OFF)
+                    out.write(BOLD_OFF)
+                    writeLine(out, sep())
+
+                    out.write(ALIGN_LEFT)
+                    out.write(TALL_ON)
+                    writeLine(out, twoCols("Incasat card", money(row.paidCard)))
+                    writeLine(out, twoCols("Incasat numerar", money(row.paidCash)))
+                    writeLine(out, twoCols("Tips card", money(row.tipCard)))
+                    writeLine(out, twoCols("Tips numerar", money(row.tipCash)))
+                    out.write(DOUBLE_OFF)
+                    writeLine(out, sep())
+                    out.write(BOLD_ON)
+                    val total = (row.paidCard ?: BigDecimal.ZERO) + (row.paidCash ?: BigDecimal.ZERO) +
+                        (row.tipCard ?: BigDecimal.ZERO) + (row.tipCash ?: BigDecimal.ZERO)
+                    writeLine(out, twoCols("TOTAL", money(total)))
+                    out.write(BOLD_OFF)
+
+                    out.write(FEED_LINES)
+                    out.write(FEED_AND_CUT) // one cut per waiter — each slip is its own page
+                }
+                sink.finish()
+                Log.i(TAG, "Waiter report OK: requestId=${payload.requestId}")
+                ReceiptResult(status = ReceiptResult.OK, requestId = payload.requestId, issuedAt = LocalDateTime.now())
+            }
+        } catch (ex: Exception) {
+            Log.e(TAG, "Waiter report failed requestId=${payload.requestId}: ${ex.message}", ex)
             ReceiptResult.error(payload.requestId, null, "PRINT_ERROR", ex.message)
         }
     }

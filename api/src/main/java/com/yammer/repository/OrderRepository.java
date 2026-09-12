@@ -25,6 +25,17 @@ public interface OrderRepository extends JpaRepository<OrderEntity, UUID> {
     List<OrderEntity> findByOrderPointIdInAndStatusInOrderByCreatedAtDesc(
             Collection<UUID> orderPointIds, Collection<String> statuses);
 
+    /** Orders placed at one location's points in [from, to). */
+    @Query("""
+            select o from OrderEntity o, OrderPointEntity op
+            where o.orderPointId = op.id and op.locationId = :locationId
+              and o.createdAt >= :from and o.createdAt < :to
+            order by o.createdAt asc
+            """)
+    List<OrderEntity> findByLocationIdAndCreatedAtBetween(
+            @Param("locationId") UUID locationId, @Param("from") java.time.LocalDateTime from,
+            @Param("to") java.time.LocalDateTime to);
+
     /** Highest order number issued for a client's locations (0 when none yet). */
     @Query("""
             select coalesce(max(o.orderNo), 0)

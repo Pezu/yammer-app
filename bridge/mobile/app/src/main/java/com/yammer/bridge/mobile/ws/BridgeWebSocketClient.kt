@@ -6,6 +6,7 @@ import com.yammer.bridge.mobile.Prefs
 import com.yammer.bridge.mobile.dto.InfoReceiptRequest
 import com.yammer.bridge.mobile.dto.ReceiptRequest
 import com.yammer.bridge.mobile.dto.ReceiptResult
+import com.yammer.bridge.mobile.dto.WaiterReportRequest
 import com.yammer.bridge.mobile.print.PrintQueueManager
 import com.yammer.bridge.mobile.store.FailedOrderStore
 import java.math.BigDecimal
@@ -126,6 +127,7 @@ class BridgeWebSocketClient(
             when (node.optString("type")) {
                 TYPE_RECEIPT -> handleReceipt(node)
                 TYPE_INFO -> handleInfo(node)
+                TYPE_REPORT -> handleReport(node)
                 else -> Log.d(TAG, "Ignoring message of type '${node.optString("type")}'")
             }
         } catch (ex: Exception) {
@@ -262,6 +264,24 @@ class BridgeWebSocketClient(
             }
     }
 
+    private fun handleReport(node: JSONObject) {
+        val request = WaiterReportRequest.fromJson(node)
+        BridgeState.log("Raport final primit: ${request.requestId} (${request.rows.size} ospatari)")
+        queue.submitReport(request)
+            .thenAccept { result ->
+                if (ReceiptResult.OK.equals(result.status, ignoreCase = true)) {
+                    BridgeState.log("✓ Raport final tiparit: ${request.rows.size} bon(uri).")
+                } else {
+                    BridgeState.log("✗ Raport final esuat: ${result.errorCode}: ${result.errorMessage}")
+                }
+                sendResult(result)
+            }
+            .exceptionally { ex ->
+                Log.e(TAG, "Async report print failed requestId=${request.requestId}: ${ex.message}", ex)
+                null
+            }
+    }
+
     // ─── outbound result ─────────────────────────────────────────────────────
 
     private fun sendResult(result: ReceiptResult) {
@@ -296,6 +316,7 @@ class BridgeWebSocketClient(
         private const val HEADER_API_KEY = "X-Bridge-Key"
         private const val TYPE_RECEIPT = "RECEIPT"
         private const val TYPE_INFO = "INFO_RECEIPT"
+        private const val TYPE_REPORT = "WAITER_REPORT"
         private const val TYPE_RESULT = "RECEIPT_RESULT"
         private const val RECONNECT_DELAY_S = 3L
         private const val MAX_UNSENT = 200
