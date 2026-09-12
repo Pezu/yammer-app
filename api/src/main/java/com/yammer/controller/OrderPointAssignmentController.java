@@ -47,6 +47,13 @@ public class OrderPointAssignmentController {
         assignmentService.assign(id);
     }
 
+    /** Split a table into the next free slot (T12.1 → T12.2); assigned to the caller when they work the table. */
+    @PostMapping("/{id}/split")
+    @ResponseStatus(HttpStatus.CREATED)
+    public OrderPointResponse split(@PathVariable UUID id) {
+        return assignmentService.split(id);
+    }
+
     @DeleteMapping("/{id}/assign")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void unassign(@PathVariable UUID id) {

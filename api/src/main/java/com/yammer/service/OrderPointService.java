@@ -16,6 +16,7 @@ import com.yammer.repository.OrderPointRepository;
 import com.yammer.repository.OrderPointTypeRepository;
 import com.yammer.repository.PaymentTypeRepository;
 import com.yammer.repository.SelfPayTypeRepository;
+import com.yammer.repository.TableSessionRepository;
 import com.yammer.security.AccessGuard;
 import java.util.ArrayList;
 import java.util.List;
@@ -45,6 +46,7 @@ public class OrderPointService {
     private final ProductRepository productRepository;
     private final MenuService menuService;
     private final AccessGuard accessGuard;
+    private final TableSessionRepository tableSessionRepository;
 
     /** The order point plus its menu tree (for the waiter ordering screen). */
     @Transactional(readOnly = true)
@@ -166,9 +168,59 @@ public class OrderPointService {
         return OrderPointResponse.from(orderPointRepository.save(entity));
     }
 
+    /** Delete an order point. Refused (409) while it has an open table session — its orders would go with it. */
     public void delete(UUID id) {
         OrderPointEntity entity = accessGuard.requireAccessibleOrderPoint(id);
+        if (tableSessionRepository.findByOrderPointIdAndClosedAtIsNull(id).isPresent()) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "Order point has an open session — close the table first");
+        }
         orderPointRepository.delete(entity);
+    }
+
+    /** A table slot: prefix (T12) and split index (T12.3 → 3). */
+    private static final Pattern SPLIT_NAME = Pattern.compile("^([A-Za-z]+\\d+)\\.(\\d+)$");
+
+    /**
+     * Split a table: create the next free sibling slot (T12.1 → T12.2, T12.3, …) with the
+     * same configuration (type, menu, service point, printer, cash register, payment types,
+     * self-pay type, self-order mode, multi-user flag). Nothing moves — the source keeps its
+     * session, orders and bill; the new slot starts empty. Only TABLE points named
+     * {@code T{n}.{m}} can be split (same scheme as the old project's M{n}.{m}).
+     */
+    public OrderPointEntity splitEntity(OrderPointEntity source) {
+        String typeName = orderPointTypeRepository.findById(source.getTypeId())
+                .map(OrderPointTypeEntity::getType).orElse("");
+        if (!"TABLE".equalsIgnoreCase(typeName)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Only tables can be split");
+        }
+        Matcher m = SPLIT_NAME.matcher(source.getName());
+        if (!m.matches()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "Table name does not match the T{n}.{m} pattern: " + source.getName());
+        }
+        String prefix = m.group(1) + ".";
+        int maxSlot = orderPointRepository.findByLocationIdOrderByName(source.getLocationId()).stream()
+                .map(op -> SPLIT_NAME.matcher(op.getName()))
+                .filter(Matcher::matches)
+                .filter(x -> (x.group(1) + ".").equalsIgnoreCase(prefix))
+                .mapToInt(x -> Integer.parseInt(x.group(2)))
+                .max()
+                .orElse(0);
+
+        OrderPointEntity slot = new OrderPointEntity();
+        slot.setLocationId(source.getLocationId());
+        slot.setName(prefix + (maxSlot + 1));
+        slot.setTypeId(source.getTypeId());
+        slot.setSelfPayTypeId(source.getSelfPayTypeId());
+        slot.setSelfOrderMode(source.getSelfOrderMode());
+        slot.setAllowMultipleUsers(source.isAllowMultipleUsers());
+        slot.setPaymentTypeIds(new ArrayList<>(source.getPaymentTypeIds()));
+        slot.setMenuId(source.getMenuId());
+        slot.setServiceOrderPointId(source.getServiceOrderPointId());
+        slot.setPrinterId(source.getPrinterId());
+        slot.setCashRegisterId(source.getCashRegisterId());
+        return orderPointRepository.save(slot);
     }
 
     /** The self pay type, if set, must exist in the catalog; null → none. */

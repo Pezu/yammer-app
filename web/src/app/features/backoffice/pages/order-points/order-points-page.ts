@@ -342,6 +342,34 @@ export class OrderPointsPage {
     });
   }
 
+  // --- split (tables only) ---
+
+  /** id of the table whose split call is in flight. */
+  readonly splitting = signal<string | null>(null);
+
+  /** Only TABLE points named T{n}.{m} can be split into a new slot. */
+  canSplit(point: OrderPoint): boolean {
+    return this.typeName(point.typeId) === 'TABLE' && /^[A-Za-z]+\d+\.\d+$/.test(point.name);
+  }
+
+  split(point: OrderPoint): void {
+    if (this.splitting()) {
+      return;
+    }
+    this.error.set(null);
+    this.splitting.set(point.id);
+    this.orderPointService.split(point.id).subscribe({
+      next: (slot) => {
+        this.orderPoints.update((list) => this.sorted([...list, slot]));
+        this.splitting.set(null);
+      },
+      error: () => {
+        this.error.set(`Could not split ${point.name}.`);
+        this.splitting.set(null);
+      },
+    });
+  }
+
   // --- delete ---
 
   readonly pendingDelete = signal<OrderPoint | null>(null);
@@ -363,7 +391,12 @@ export class OrderPointsPage {
     this.pendingDelete.set(null);
     this.orderPointService.delete(point.id).subscribe({
       next: () => this.orderPoints.update((list) => list.filter((p) => p.id !== point.id)),
-      error: () => this.error.set('Failed to delete order point.'),
+      error: (err: HttpErrorResponse) =>
+        this.error.set(
+          err.status === 409
+            ? `${point.name} has an open session — close the table first.`
+            : 'Failed to delete order point.',
+        ),
     });
   }
 }

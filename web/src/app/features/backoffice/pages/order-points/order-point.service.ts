@@ -89,6 +89,11 @@ export class OrderPointService {
     return this.http.delete<void>(`${this.baseUrl}/${id}/assign`);
   }
 
+  /** Split a table into its next free slot (T12.1 → T12.2); resolves to the new point. */
+  split(id: string): Observable<OrderPoint> {
+    return this.http.post<OrderPoint>(`${this.baseUrl}/${id}/split`, {});
+  }
+
   delete(id: string): Observable<void> {
     return this.http.delete<void>(`${this.baseUrl}/${id}`);
   }

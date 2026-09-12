@@ -12,9 +12,23 @@
     }
     <div class="grid">
       @for (op of assigned(); track op.id) {
-        <button type="button" class="tile" (click)="open(op)">
-          <span class="name">{{ op.name }}</span>
-        </button>
+        <div class="tile-wrap">
+          <button type="button" class="tile" (click)="open(op)">
+            <span class="name">{{ op.name }}</span>
+          </button>
+          @if (canSplit(op)) {
+            <button
+              type="button"
+              class="split-btn"
+              [disabled]="splitting() === op.id"
+              (click)="split(op, $event)"
+              [title]="t('tables.split')"
+              [attr.aria-label]="t('tables.split')"
+            >
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="3"></circle><circle cx="6" cy="18" r="3"></circle><line x1="20" y1="4" x2="8.12" y2="15.88"></line><line x1="14.47" y1="14.48" x2="20" y2="20"></line><line x1="8.12" y1="8.12" x2="12" y2="12"></line></svg>
+            </button>
+          }
+        </div>
       }
       <button type="button" class="tile add" (click)="openPicker()" aria-label="Assign a table">
         <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>

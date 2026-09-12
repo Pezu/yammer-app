@@ -140,3 +140,39 @@
   padding: 1rem;
   overflow-y: auto;
 }
+
+/* an assigned tile plus its corner split button (kept outside the tile: no nested buttons) */
+.tile-wrap {
+  position: relative;
+  display: flex;
+
+  .tile {
+    flex: 1;
+  }
+}
+
+.split-btn {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  color: var(--muted);
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+
+  &:active {
+    color: var(--primary);
+  }
+
+  &:disabled {
+    opacity: 0.5;
+  }
+}

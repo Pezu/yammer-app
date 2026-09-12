@@ -28,6 +28,8 @@ export const EN = {
   'tables.listFailed': 'Failed to load the table list.',
   'tables.openRefused': 'Table is open — close it from the table page (once everything is paid) to free it.',
   'tables.assignFailed': 'Could not update the assignment — someone may have taken it first.',
+  'tables.split': 'Split table',
+  'tables.splitFailed': 'Could not split the table.',
 
   'detail.table': 'Table',
   'detail.selfOrderTitle': 'Customer self-ordering at this table',
@@ -169,6 +171,8 @@ export const RO: Record<TKey, string> = {
   'tables.listFailed': 'Lista de mese nu a putut fi încărcată.',
   'tables.openRefused': 'Masa este deschisă — închide-o din pagina mesei (după ce totul e plătit) ca să o eliberezi.',
   'tables.assignFailed': 'Alocarea nu a putut fi modificată — poate a luat-o altcineva înainte.',
+  'tables.split': 'Împarte masa',
+  'tables.splitFailed': 'Masa nu a putut fi împărțită.',
 
   'detail.table': 'Masă',
   'detail.selfOrderTitle': 'Autocomanda clienților la această masă',

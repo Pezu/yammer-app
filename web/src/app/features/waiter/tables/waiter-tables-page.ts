@@ -67,6 +67,36 @@ export class WaiterTablesPage {
     });
   }
 
+  // --- split (tables only) ---
+
+  /** id of the table whose split call is in flight. */
+  readonly splitting = signal<string | null>(null);
+
+  /** Only TABLE points named T{n}.{m} can be split into a new slot. */
+  canSplit(point: OrderPoint): boolean {
+    return this.typeById().get(point.typeId) === 'TABLE' && /^[A-Za-z]+\d+\.\d+$/.test(point.name);
+  }
+
+  /** Create the next slot of this table (T12.1 → T12.2); it is assigned to me and shows up as a tile. */
+  split(point: OrderPoint, event: Event): void {
+    event.stopPropagation();
+    if (this.splitting()) {
+      return;
+    }
+    this.error.set(null);
+    this.splitting.set(point.id);
+    this.orderPointService.split(point.id).subscribe({
+      next: () => {
+        this.splitting.set(null);
+        this.loadAssigned();
+      },
+      error: () => {
+        this.splitting.set(null);
+        this.error.set(this.t('tables.splitFailed'));
+      },
+    });
+  }
+
   // --- assign picker ---
 
   readonly pickerOpen = signal(false);

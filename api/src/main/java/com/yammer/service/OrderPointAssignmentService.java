@@ -45,6 +45,7 @@ public class OrderPointAssignmentService {
     private final AccessGuard accessGuard;
     private final OrderService orderService;
     private final OrderReportService orderReportService;
+    private final OrderPointService orderPointService;
 
     /**
      * Service kanban board: undelivered (ORDERED/READY) orders from the points routed
@@ -214,6 +215,22 @@ public class OrderPointAssignmentService {
             session.setOpenedBy(me.getUsername());
             sessionRepository.save(session);
         }
+    }
+
+    /**
+     * Split a table into a new sibling slot (T12.1 → T12.2). Any user who can reach the
+     * table may split it (backoffice admins, or the waiter working it); when the caller
+     * is assigned to the source, the new slot is assigned to them too and its session
+     * opened, so it shows up among their tables right away.
+     */
+    public OrderPointResponse split(UUID orderPointId) {
+        OrderPointEntity source = accessGuard.requireAccessibleOrderPoint(orderPointId);
+        UserEntity me = requireUser();
+        OrderPointEntity slot = orderPointService.splitEntity(source);
+        if (assignmentRepository.existsByOrderPointIdAndUserId(orderPointId, me.getId())) {
+            assign(slot.getId());
+        }
+        return OrderPointResponse.from(slot);
     }
 
     /**
