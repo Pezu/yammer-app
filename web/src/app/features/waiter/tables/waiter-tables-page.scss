@@ -1,6 +1,7 @@
 :host {
   display: block;
   background: #fff;
+  min-height: calc(100vh - 56px);
   min-height: calc(100dvh - 56px); /* fill the content area below the 56px topbar */
 }
 
@@ -31,6 +32,7 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
+  min-height: 96px; /* old Safari (no aspect-ratio) */
   aspect-ratio: 1 / 1;
   padding: 0.5rem;
   font: inherit;
@@ -87,6 +89,10 @@
 /* --- assign picker (bottom sheet) --- */
 .picker-overlay {
   position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
   inset: 0;
   z-index: 40;
   display: flex;
@@ -96,6 +102,7 @@
 
 .picker {
   width: 100%;
+  max-height: 80vh;
   max-height: 80dvh;
   display: flex;
   flex-direction: column;

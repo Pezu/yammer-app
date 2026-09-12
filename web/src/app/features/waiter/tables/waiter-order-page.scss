@@ -1,5 +1,6 @@
 :host {
   display: block;
+  min-height: calc(100vh - 56px);
   min-height: calc(100dvh - 56px); /* fill below the 56px top bar so no page-bg shows through */
   background: #fff;
 }
@@ -170,6 +171,10 @@
 }
 .combo-backdrop {
   position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
   inset: 0;
   z-index: 30;
 }
@@ -236,6 +241,7 @@
   justify-content: center;
   gap: 0.3rem;
   min-width: 0;
+  min-height: 96px; /* old Safari (no aspect-ratio) */
   aspect-ratio: 1 / 1;
   padding: 0.5rem;
   overflow: hidden;
@@ -524,6 +530,10 @@
 /* pay-as-you-order sheet — same look as the table pay sheet (full-amount view only) */
 .pay-overlay {
   position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
   inset: 0;
   display: flex;
   align-items: flex-end;
@@ -573,6 +583,7 @@
 .pay-body {
   position: relative;
   padding: 1rem;
+  max-height: 72vh;
   max-height: 72dvh;
   overflow-y: auto;
 }

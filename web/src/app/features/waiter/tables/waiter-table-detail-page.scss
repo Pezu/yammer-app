@@ -2,6 +2,7 @@
   display: flex;
   flex-direction: column;
   background: #fff;
+  min-height: calc(100vh - 56px);
   min-height: calc(100dvh - 56px);
 }
 
@@ -205,6 +206,10 @@
 /* --- pay sheet --- */
 .pay-overlay {
   position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
   inset: 0;
   z-index: 40;
   display: flex;
@@ -254,6 +259,7 @@
 .pay-body {
   position: relative;
   padding: 1rem;
+  max-height: 72vh;
   max-height: 72dvh;
   overflow-y: auto;
 }
@@ -438,6 +444,10 @@
 /* quantity editor (opened by long-press on a chip) */
 .qty-edit-backdrop {
   position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
   inset: 0;
   z-index: 50;
   background: rgba(18, 27, 46, 0.25);

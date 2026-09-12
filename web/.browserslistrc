@@ -1,0 +1,11 @@
+# Waiters and customers use whatever phone they have: keep old iPhones working.
+# Angular downlevels JS syntax and prefixes CSS for these; features without a
+# fallback (dvh, aspect-ratio) get manual fallbacks in the SCSS.
+last 2 Chrome versions
+last 2 Firefox versions
+last 2 Edge major versions
+last 2 Safari major versions
+last 2 iOS major versions
+Firefox ESR
+iOS >= 15
+Safari >= 15

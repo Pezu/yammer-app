@@ -73,6 +73,7 @@ import { ApprovalService } from './approvals/approval.service';
         display: flex;
         flex-direction: column;
         min-height: 100vh;
+        min-height: 100vh;
         min-height: 100dvh;
       }
       .topbar {
@@ -135,6 +136,10 @@ import { ApprovalService } from './approvals/approval.service';
       }
       .menu-backdrop {
         position: fixed;
+        top: 0;
+        right: 0;
+        bottom: 0;
+        left: 0;
         inset: 0;
         z-index: 20;
       }

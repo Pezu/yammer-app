@@ -240,6 +240,7 @@ import { ComboBox } from '../../shared/combo-box';
       display: flex;
       flex-direction: column;
       min-height: 100vh;
+      min-height: 100vh;
       min-height: 100dvh;
       background: #fff;
     }
@@ -295,6 +296,10 @@ import { ComboBox } from '../../shared/combo-box';
     }
     .drawer-backdrop {
       position: fixed;
+      top: 0;
+      right: 0;
+      bottom: 0;
+      left: 0;
       inset: 0;
       z-index: 20;
       background: rgba(18, 27, 46, 0.35);
@@ -587,6 +592,10 @@ import { ComboBox } from '../../shared/combo-box';
     /* split-table slot chooser — blocks the page until the customer picks their seat */
     .slot-backdrop {
       position: fixed;
+      top: 0;
+      right: 0;
+      bottom: 0;
+      left: 0;
       inset: 0;
       background: rgba(0, 0, 0, 0.45);
       z-index: 40;
