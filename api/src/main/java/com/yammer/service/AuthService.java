@@ -5,8 +5,6 @@ import com.yammer.dto.LoginResponse;
 import com.yammer.entity.UserEntity;
 import com.yammer.repository.UserRepository;
 import com.yammer.security.PasswordHasher;
-import com.yammer.security.UserPrincipal;
-import java.util.Set;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -18,10 +16,10 @@ import org.springframework.web.server.ResponseStatusException;
 public class AuthService {
 
     /**
-     * The web app currently serves only the back office, so login is restricted to
-     * ADMIN and SUPER operators.
+     * Every role has a home in the web app now (backoffice, waiter tables, service board),
+     * so any user with at least one role may sign in with a password; QR login is a
+     * convenience on top, not the only door for waiters and service users.
      */
-    private static final Set<String> ALLOWED_LOGIN_ROLES = Set.of("ADMIN", UserPrincipal.SUPER);
 
     private final UserRepository userRepository;
     private final JwtService jwtService;
@@ -35,9 +33,9 @@ public class AuthService {
         if (!passwordHasher.matches(request.password(), user.getPassword())) {
             throw invalidCredentials();
         }
-        // Same 401 as bad credentials so a probe can't tell a valid password
-        // from a disallowed role.
-        if (user.getRoles().stream().noneMatch(ALLOWED_LOGIN_ROLES::contains)) {
+        // Same 401 as bad credentials so a probe can't tell a valid password from a
+        // user that has no role (and therefore nowhere to land).
+        if (user.getRoles().isEmpty()) {
             throw invalidCredentials();
         }
         // Transparently upgrade legacy MD5 hashes to BCrypt on a successful login.
