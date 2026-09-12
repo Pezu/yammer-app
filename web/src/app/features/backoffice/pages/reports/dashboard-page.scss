@@ -8,6 +8,11 @@
   min-width: 200px;
 }
 
+/* the dashboard is a grid of cards, not one full-width table panel: give it margins */
+.page-body {
+  padding: 1.5rem 2rem;
+}
+
 .range {
   display: flex;
   align-items: center;
@@ -317,5 +322,57 @@
 
   .bar {
     fill: #e49e3d;
+  }
+}
+
+/* phones (the watcher's usual screen): stack the header, let filters wrap, tighten padding */
+@media (max-width: 768px) {
+  .page-header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.75rem;
+    padding: 0.9rem 1rem;
+  }
+
+  .header-actions {
+    flex-wrap: wrap;
+  }
+
+  .header-combo {
+    flex: 1 1 100%;
+    min-width: 0;
+  }
+
+  .range {
+    width: 100%;
+
+    .input.date {
+      flex: 1 1 40%;
+      width: auto;
+      min-width: 0;
+    }
+  }
+
+  .quick {
+    width: 100%;
+    margin: 0.25rem 0 0;
+    flex-wrap: wrap;
+  }
+
+  .page-body {
+    padding: 1rem;
+  }
+
+  .tiles {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.6rem;
+  }
+
+  .tile .val {
+    font-size: 1rem;
+  }
+
+  .widget-head {
+    flex-wrap: wrap;
   }
 }
