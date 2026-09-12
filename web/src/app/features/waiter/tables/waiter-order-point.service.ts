@@ -10,6 +10,8 @@ export interface MenuNode {
   orderable: boolean;
   price: number | null;
   vatTypeId: string | null;
+  /** Catalog product description (size, ingredients); absent for categories. */
+  description?: string | null;
   children: MenuNode[];
 }
 
@@ -21,6 +23,7 @@ export interface MenuOption {
 export interface ProductOption {
   id: string;
   name: string;
+  description?: string | null;
   price: number | null;
   menuId: string;
   menuName: string;

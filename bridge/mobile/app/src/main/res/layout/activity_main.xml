@@ -192,7 +192,15 @@
                             android:layout_width="0dp"
                             android:layout_weight="1"
                             android:layout_height="wrap_content"
+                            android:layout_marginEnd="8dp"
                             android:text="Test casa" />
+
+                        <Button
+                            android:id="@+id/printerTest"
+                            android:layout_width="0dp"
+                            android:layout_weight="1"
+                            android:layout_height="wrap_content"
+                            android:text="Test imprimanta" />
                     </LinearLayout>
 
                     <LinearLayout

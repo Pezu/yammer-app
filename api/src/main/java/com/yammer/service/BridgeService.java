@@ -294,7 +294,7 @@ public class BridgeService {
         IntegrationEntity printer = op.getPrinterId() == null ? null
                 : integrationRepository.findById(op.getPrinterId()).orElse(null);
         if (printer == null) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "No printer configured for " + op.getName());
+            throw refuseProforma(op, "No printer configured for " + op.getName());
         }
         // A "Mobile" printer hangs off that phone's USB: the job carries no IP and the bridge
         // writes to its USB printer. A TCP printer needs its IP; any connected bridge can reach it.
@@ -302,16 +302,17 @@ public class BridgeService {
         String targetDevice = viaMobile ? Strings.trimToNull(printer.getDeviceId()) : null;
         String printerIp = viaMobile ? null : Strings.trimToNull(printer.getIp());
         if (viaMobile && targetDevice == null) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT,
-                    "Printer '" + printer.getName() + "' has no phone attached");
+            throw refuseProforma(op, "Printer '" + printer.getName() + "' has no phone attached");
         }
         if (!viaMobile && printerIp == null) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT,
-                    "Printer '" + printer.getName() + "' has no IP address");
+            throw refuseProforma(op, "Printer '" + printer.getName() + "' has no IP address");
         }
         boolean online = targetDevice != null ? handler.isDeviceConnected(targetDevice) : handler.isConnected();
         if (!online) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "No bridge connected for the printer");
+            throw refuseProforma(op, viaMobile
+                    ? "Phone '" + Strings.trimToNull(printer.getDeviceName()) + "' of printer '"
+                            + printer.getName() + "' is not connected"
+                    : "No bridge connected for printer '" + printer.getName() + "'");
         }
 
         List<Map<String, Object>> lines = new ArrayList<>();
@@ -347,10 +348,15 @@ public class BridgeService {
                 ? (handler.sendTo(targetDevice, frame) ? targetDevice : null)
                 : handler.sendToAnyReturningDevice(frame);
         if (sent == null) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "Bridge dropped the proforma — try again");
+            throw refuseProforma(op, "Bridge dropped the proforma — try again");
         }
         log.info("Sent PROFORMA for {} ({} lines, {} RON) to device '{}' via printer {}.",
                 op.getName(), lines.size(), bill.unpaidTotal(), sent, printerIp == null ? "USB" : printerIp);
+    }
+
+    private static ResponseStatusException refuseProforma(OrderPointEntity op, String reason) {
+        log.warn("Proforma for {} refused: {}", op.getName(), reason);
+        return new ResponseStatusException(HttpStatus.CONFLICT, reason);
     }
 
     /** Product names are rich text: strip markup (and the small description block) to one line. */

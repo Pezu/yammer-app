@@ -25,6 +25,7 @@ public record OrderPointMenuResponse(
     }
 
     /** A searchable product (a menu item with orderable=true) and the menu it comes from. */
-    public record ProductOption(UUID id, String name, BigDecimal price, UUID menuId, String menuName) {
+    public record ProductOption(UUID id, String name, String description, BigDecimal price, UUID menuId,
+                                String menuName) {
     }
 }

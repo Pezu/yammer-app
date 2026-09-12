@@ -28,12 +28,14 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 @Service
+@Slf4j
 @RequiredArgsConstructor
 @Transactional
 public class OrderPointAssignmentService {
@@ -245,6 +247,7 @@ public class OrderPointAssignmentService {
         UserEntity me = requireUser();
         OrderPointBillResponse bill = orderService.billUnchecked(orderPointId);
         if (bill.unpaidTotal() == null || bill.unpaidTotal().signum() <= 0) {
+            log.warn("Proforma for {} refused: nothing to pay", point.getName());
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Nothing to pay on " + point.getName());
         }
         String waiter = me.getName() == null || me.getName().isBlank() ? me.getUsername() : me.getName();

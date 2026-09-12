@@ -21,6 +21,9 @@
             @for (p of group.items; track p.id) {
               <button type="button" class="combo-opt product-opt" (click)="addProduct(p)">
                 <span class="p-name" [innerHTML]="p.name"></span>
+                @if (p.description) {
+                  <span class="p-desc">{{ p.description }}</span>
+                }
                 <span class="p-meta">{{ (p.price ?? 0) | number: '1.2-2' }} RON</span>
               </button>
             }
@@ -94,6 +97,9 @@
             </span>
           }
           <span class="name" [innerHTML]="n.name"></span>
+          @if (!isCategory(n) && n.description) {
+            <span class="desc">{{ n.description }}</span>
+          }
           @if (!isCategory(n) && n.price !== null) {
             <span class="price">{{ n.price | number: '1.2-2' }} RON</span>
           }

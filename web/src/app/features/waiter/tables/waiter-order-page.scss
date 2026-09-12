@@ -290,6 +290,20 @@
     }
   }
 
+  /* product description under the name — smaller, muted, clipped to two lines */
+  .desc {
+    max-width: 100%;
+    text-align: center;
+    font-size: 0.62rem;
+    line-height: 1.15;
+    color: var(--muted);
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow-wrap: anywhere;
+  }
+
   .price {
     font-size: 0.78rem;
     font-weight: 700;
@@ -494,4 +508,15 @@
   .primary {
     margin-top: 1rem;
   }
+}
+
+/* search results: description on its own line under name + price */
+.combo-opt.product-opt {
+  flex-wrap: wrap;
+}
+.product-opt .p-desc {
+  flex-basis: 100%;
+  order: 3;
+  font-size: 0.72rem;
+  color: var(--muted);
 }

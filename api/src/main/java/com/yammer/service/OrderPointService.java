@@ -78,6 +78,7 @@ public class OrderPointService {
                             return new OrderPointMenuResponse.ProductOption(
                                     mi.getId(),
                                     p != null ? p.getName() : mi.getName(),
+                                    p != null ? p.getDescription() : null,
                                     mi.getPrice(), // the price on that menu
                                     mi.getMenuId(),
                                     menuNameById.get(mi.getMenuId()));

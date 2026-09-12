@@ -23,6 +23,7 @@ import com.google.android.material.navigation.NavigationView
 import com.yammer.bridge.mobile.fiscal.DatecsProtocol
 import com.yammer.bridge.mobile.service.BridgeForegroundService
 import com.yammer.bridge.mobile.store.FailedOrderStore
+import com.yammer.bridge.mobile.print.EscPosThermalService
 import com.yammer.bridge.mobile.usb.UsbRegisterManager
 import com.yammer.bridge.mobile.usb.UsbThermalPrinterManager
 import java.time.ZoneId
@@ -183,6 +184,7 @@ class MainActivity : AppCompatActivity() {
 
         findViewById<Button>(R.id.usbConnect).setOnClickListener { connectUsb() }
         findViewById<Button>(R.id.usbTest).setOnClickListener { testRegister() }
+        findViewById<Button>(R.id.printerTest).setOnClickListener { testPrinter() }
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -261,6 +263,19 @@ class MainActivity : AppCompatActivity() {
             } catch (ex: Exception) {
                 BridgeState.log("✗ Test casa esuat: ${ex.message}")
             }
+        }
+    }
+
+    /** Print a small ticket on the USB thermal printer — the link is proven when paper comes out. */
+    private fun testPrinter() {
+        thread(name = "printer-test") {
+            try {
+                EscPosThermalService(usbPrinter).printTest()
+                BridgeState.log("✓ Test imprimanta trimis — verificati ca a iesit bonul de test.")
+            } catch (ex: Exception) {
+                BridgeState.log("✗ Test imprimanta esuat: ${ex.message}")
+            }
+            refreshUsbStatus()
         }
     }
 

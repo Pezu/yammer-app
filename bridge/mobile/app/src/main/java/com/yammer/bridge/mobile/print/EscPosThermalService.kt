@@ -98,6 +98,23 @@ class EscPosThermalService(private val usbPrinter: UsbThermalPrinterManager) {
         }
     }
 
+    /** A short test ticket on the USB printer (or the given IP) — proves the link end to end. */
+    fun printTest(host: String? = null) {
+        openSink(host).use { sink ->
+            val out = sink.out
+            out.write(INIT)
+            out.write(ALIGN_CENTER)
+            out.write(BOLD_ON)
+            writeLine(out, "YAMMER BRIDGE")
+            out.write(BOLD_OFF)
+            writeLine(out, "Test imprimanta OK")
+            writeLine(out, LocalDateTime.now().withNano(0).toString().replace('T', ' '))
+            out.write(FEED_LINES)
+            out.write(FEED_AND_CUT)
+            sink.finish()
+        }
+    }
+
     /** Non-fiscal receipt of a sale (fallback when the job is marked non-fiscal). */
     fun printReceipt(payload: ReceiptRequest): ReceiptResult {
         val host = payload.printerIp

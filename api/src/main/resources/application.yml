@@ -30,6 +30,8 @@ spring:
 
 server:
   port: ${SERVER_PORT:8080}
+  error:
+    include-message: always   # the reason of a 4xx (e.g. "No printer configured for T1.1") reaches the UI
 
 # JWT signing config. Secret must be >= 32 bytes for HS256.
 # Override JWT_SECRET in any real environment.
