@@ -11,6 +11,7 @@ export const EN = {
 
   'menu.tables': 'Tables',
   'menu.approvals': 'Approvals',
+  'menu.refresh': 'Refresh',
   'menu.refreshMenu': 'Refresh menu',
   'menu.logout': 'Logout',
   'menu.menuRefreshed': 'Menu refreshed',
@@ -158,6 +159,7 @@ export const RO: Record<TKey, string> = {
 
   'menu.tables': 'Mese',
   'menu.approvals': 'Aprobări',
+  'menu.refresh': 'Reîncarcă',
   'menu.refreshMenu': 'Reîncarcă meniul',
   'menu.logout': 'Deconectare',
   'menu.menuRefreshed': 'Meniul a fost reîncărcat',
