@@ -297,6 +297,7 @@ export class OrderPointsPage {
   readonly editingId = signal<string | null>(null);
   readonly editName = new FormControl('', { nonNullable: true, validators: [Validators.required] });
   readonly editNickname = new FormControl('', { nonNullable: true });
+  readonly editDiscount = new FormControl<number | null>(null);
   readonly editSelfOrderMode = signal<SelfOrderMode>('CONFIRM');
   readonly selfOrderModeOptions = [
     { id: 'ALLOW', name: 'Allowed' },
@@ -324,6 +325,7 @@ export class OrderPointsPage {
     this.editingId.set(point.id);
     this.editName.setValue(point.name);
     this.editNickname.setValue(point.nickname ?? '');
+    this.editDiscount.setValue(point.discountPercent ?? null);
     this.editSelfOrderMode.set(point.selfOrderMode ?? 'CONFIRM');
     this.editSelfPayTypeId.set(point.selfPayTypeId ?? '');
     this.editAllowMultipleUsers.set(point.allowMultipleUsers);
@@ -349,6 +351,7 @@ export class OrderPointsPage {
       name: this.editName.value.trim(),
       nickname: this.editNickname.value.trim() || null,
       selfOrderMode: this.editSelfOrderMode(),
+      discountPercent: this.editDiscount.value ? Math.min(100, Math.max(0, Number(this.editDiscount.value))) : null,
       selfPayTypeId: this.editSelfPayTypeId() || null,
       allowMultipleUsers: this.editAllowMultipleUsers(),
       keepOpen: this.editKeepOpen(),

@@ -41,6 +41,10 @@ import { ApprovalService } from './approvals/approval.service';
               <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"></path><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path></svg>
               <span>{{ t('menu.approvals') }}</span>
             </button>
+            <button type="button" class="menu-item" (click)="goToStats()">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"></path><rect x="7" y="11" width="3" height="6"></rect><rect x="12" y="7" width="3" height="10"></rect><rect x="17" y="13" width="3" height="4"></rect></svg>
+              <span>{{ t('menu.stats') }}</span>
+            </button>
             <button type="button" class="menu-item" (click)="refreshMenu()">
               <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
               <span>{{ t('menu.refreshMenu') }}</span>
@@ -270,6 +274,11 @@ export class WaiterPage implements OnDestroy {
   goToApprovals(): void {
     this.menuOpen.set(false);
     this.router.navigateByUrl('/waiter/approvals');
+  }
+
+  goToStats(): void {
+    this.menuOpen.set(false);
+    this.router.navigateByUrl('/waiter/stats');
   }
 
   /** Header refresh: drop the cached menus and reload the page so everything is fresh. */

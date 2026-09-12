@@ -92,7 +92,9 @@
       <div class="pay-body">
         <div class="mode-switch">
           <button type="button" class="mode" [class.selected]="payMode() === 'FULL'" (click)="setMode('FULL')">{{ t('pay.full') }}</button>
-          <button type="button" class="mode" [class.selected]="payMode() === 'AMOUNT'" (click)="setMode('AMOUNT')">{{ t('pay.amount') }}</button>
+          @if (!(bill()?.discountPercent)) {
+            <button type="button" class="mode" [class.selected]="payMode() === 'AMOUNT'" (click)="setMode('AMOUNT')">{{ t('pay.amount') }}</button>
+          }
           <button type="button" class="mode" [class.selected]="payMode() === 'PARTIAL'" (click)="setMode('PARTIAL')">{{ t('pay.selectItems') }}</button>
         </div>
 
@@ -193,6 +195,10 @@
           </div>
         }
 
+        @if (discountPercent() > 0) {
+          <div class="sum-row"><span>{{ t('pay.subtotal') }}</span><span>{{ grossTotal() | number: '1.2-2' }} RON</span></div>
+          <div class="sum-row"><span>{{ t('pay.discount') }} {{ discountPercent() }}%</span><span>-{{ discountAmount() | number: '1.2-2' }} RON</span></div>
+        }
         <div class="sum-row"><span>{{ t('pay.amount') }}</span><span>{{ chargeTotal() | number: '1.2-2' }} RON</span></div>
         <div class="sum-row"><span>{{ t('pay.tip') }}</span><span>{{ computedTip() | number: '1.2-2' }} RON</span></div>
         <div class="sum-row total"><span>{{ t('pay.totalToPay') }}</span><span>{{ totalToPay() | number: '1.2-2' }} RON</span></div>

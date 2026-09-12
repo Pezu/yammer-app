@@ -40,6 +40,10 @@ public interface PaymentRepository extends JpaRepository<PaymentEntity, UUID> {
             """)
     Object[] totalsByLocationId(@Param("locationId") UUID locationId);
 
+    /** Payments a user took in [from, to) (their own collections, any table). */
+    List<PaymentEntity> findByCreatedByAndCreatedAtGreaterThanEqualAndCreatedAtLessThan(
+            String createdBy, java.time.LocalDateTime from, java.time.LocalDateTime to);
+
     /** Payments taken at one location's points in [from, to). */
     @Query("""
             select p from PaymentEntity p, OrderPointEntity op

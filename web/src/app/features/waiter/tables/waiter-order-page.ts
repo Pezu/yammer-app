@@ -89,7 +89,10 @@ export class WaiterOrderPage {
   });
   /** Older cached menus carry no flag: treat them as tabs (the safe default). */
   readonly payNow = computed(() => this.menu()?.keepOpen === false);
-  readonly payTotal = computed(() => round2(this.total() + this.computedTip()));
+  readonly discountPercent = computed(() => this.menu()?.discountPercent ?? 0);
+  readonly discountAmount = computed(() => round2((this.total() * this.discountPercent()) / 100));
+  readonly chargeTotal = computed(() => round2(this.total() - this.discountAmount()));
+  readonly payTotal = computed(() => round2(this.chargeTotal() + this.computedTip()));
 
   setTip(mode: TipMode): void {
     this.tipMode.set(mode);

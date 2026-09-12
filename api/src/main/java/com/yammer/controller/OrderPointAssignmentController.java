@@ -2,6 +2,9 @@ package com.yammer.controller;
 
 import com.yammer.dto.AssignableOrderPointResponse;
 import com.yammer.dto.OrderPointResponse;
+import org.springframework.format.annotation.DateTimeFormat;
+import java.time.LocalDate;
+import com.yammer.dto.TableStatsResponse;
 import com.yammer.dto.OrderReportRow;
 import com.yammer.service.ApprovalService;
 import com.yammer.service.OrderPointAssignmentService;
@@ -87,6 +90,16 @@ public class OrderPointAssignmentController {
     }
 
     public record SelfOrderModeRequest(String mode) {
+    }
+
+    /** The waiter's own takings per table for a day range (defaults to today). */
+    @GetMapping("/my-stats")
+    public List<TableStatsResponse> myStats(
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to) {
+        LocalDate f = from == null ? LocalDate.now() : from;
+        LocalDate t = to == null ? f : to;
+        return assignmentService.myStats(f, t);
     }
 
     /** Print the table's unpaid bill as a proforma on its thermal printer. */

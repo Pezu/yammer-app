@@ -87,7 +87,8 @@ public class OrderPointService {
 
         return new OrderPointMenuResponse(
                 op.getId(), op.getName(), op.getMenuId(), items, menus, products,
-                op.isKeepOpen(), op.getPaymentTypeIds() == null ? List.of() : List.copyOf(op.getPaymentTypeIds()));
+                op.isKeepOpen(), op.getPaymentTypeIds() == null ? List.of() : List.copyOf(op.getPaymentTypeIds()),
+                op.getDiscountPercent());
     }
 
     /** Order points of one location (tenant-checked via the location), naturally ordered. */
@@ -172,6 +173,7 @@ public class OrderPointService {
         entity.setSelfPayTypeId(resolveSelfPayType(request.selfPayTypeId()));
         entity.setAllowMultipleUsers(request.allowMultipleUsers());
         entity.setKeepOpen(request.keepOpen());
+        entity.setDiscountPercent(normalizeDiscount(request.discountPercent()));
         entity.setPaymentTypeIds(resolvePaymentTypes(request.paymentTypeIds()));
         entity.setMenuId(request.menuId());
         entity.setServiceOrderPointId(serviceId);
@@ -191,6 +193,17 @@ public class OrderPointService {
     }
 
     private static final java.util.Set<String> SELF_ORDER_MODES = java.util.Set.of("ALLOW", "CONFIRM", "DISALLOW");
+
+    /** null / 0 → none; otherwise 0 < d ≤ 100 with 2 decimals. */
+    private static java.math.BigDecimal normalizeDiscount(java.math.BigDecimal requested) {
+        if (requested == null || requested.signum() <= 0) {
+            return null;
+        }
+        if (requested.compareTo(java.math.BigDecimal.valueOf(100)) > 0) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Discount must be between 0 and 100");
+        }
+        return requested.setScale(2, java.math.RoundingMode.HALF_UP);
+    }
 
     /** A table slot: prefix (T12) and split index (T12.3 → 3). */
     private static final Pattern SPLIT_NAME = Pattern.compile("^([A-Za-z]+\\d+)\\.(\\d+)$");

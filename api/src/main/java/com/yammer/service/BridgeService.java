@@ -23,6 +23,7 @@ import com.yammer.repository.PaymentTypeRepository;
 import com.yammer.repository.ProductRepository;
 import com.yammer.repository.VatTypeRepository;
 import com.yammer.util.Strings;
+import com.yammer.util.DiscountMath;
 import com.yammer.ws.BridgeWsHandler;
 import jakarta.annotation.PostConstruct;
 import java.math.BigDecimal;
@@ -238,7 +239,9 @@ public class BridgeService {
             Map<String, Object> m = new LinkedHashMap<>();
             m.put("name", plainName(it.getName()));
             m.put("quantity", it.getQuantity());
-            m.put("unitPrice", it.getPrice());
+            // the discount is baked into the unit price, as the old app did: the register prints
+            // net prices and its total equals the stored payment amount
+            m.put("unitPrice", DiscountMath.discountedUnit(it.getPrice(), payment.getDiscountPercent()));
             m.put("vat", it.getMenuItemId() == null ? null : vatByMenuItem.get(it.getMenuItemId()));
             lines.add(m);
         }

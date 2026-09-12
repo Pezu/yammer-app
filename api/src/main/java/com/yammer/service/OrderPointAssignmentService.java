@@ -11,6 +11,15 @@ import com.yammer.entity.TableSessionEntity;
 import com.yammer.entity.UserEntity;
 import com.yammer.repository.OrderPointAssignmentRepository;
 import com.yammer.repository.OrderPointRepository;
+import java.util.HashMap;
+import java.util.ArrayList;
+import java.time.LocalDate;
+import java.math.BigDecimal;
+import com.yammer.repository.PaymentTypeRepository;
+import com.yammer.repository.PaymentRepository;
+import com.yammer.entity.PaymentTypeEntity;
+import com.yammer.entity.PaymentEntity;
+import com.yammer.dto.TableStatsResponse;
 import com.yammer.repository.ClientRepository;
 import com.yammer.repository.LocationRepository;
 import com.yammer.dto.OrderPointBillResponse;
@@ -52,6 +61,8 @@ public class OrderPointAssignmentService {
     private final OrderReportService orderReportService;
     private final OrderPointService orderPointService;
     private final BridgeService bridgeService;
+    private final PaymentRepository paymentRepository;
+    private final PaymentTypeRepository paymentTypeRepository;
     private final LocationRepository locationRepository;
     private final ClientRepository clientRepository;
 
@@ -239,6 +250,69 @@ public class OrderPointAssignmentService {
             assign(slot.getId());
         }
         return OrderPointResponse.from(slot);
+    }
+
+    /**
+     * The waiter's Statistics page: per table, what this user collected in [from, to] (card /
+     * cash and tips by payment type), what is still unpaid on the table's open session (for
+     * the tables currently assigned to them), and PROTOCOL settlements. Tables = the assigned
+     * ones plus any table where the user took a payment in the period.
+     */
+    @Transactional(readOnly = true)
+    public List<TableStatsResponse> myStats(LocalDate from, LocalDate to) {
+        UserEntity me = requireUser();
+        LocalDateTime start = from.atStartOfDay();
+        LocalDateTime end = to.plusDays(1).atStartOfDay();
+        Map<UUID, String> typeName = paymentTypeRepository.findAll().stream()
+                .collect(Collectors.toMap(PaymentTypeEntity::getId, PaymentTypeEntity::getType));
+        Set<UUID> protocolTypes = typeName.entrySet().stream()
+                .filter(e -> "PROTOCOL".equalsIgnoreCase(e.getValue())).map(Map.Entry::getKey).collect(Collectors.toSet());
+
+        Set<UUID> assigned = assignmentRepository.findByUserId(me.getId()).stream()
+                .map(OrderPointAssignmentEntity::getOrderPointId).collect(Collectors.toSet());
+        List<PaymentEntity> mine = paymentRepository
+                .findByCreatedByAndCreatedAtGreaterThanEqualAndCreatedAtLessThan(me.getUsername(), start, end)
+                .stream().filter(p -> !"FAILED".equals(p.getStatus())).toList();
+
+        Set<UUID> pointIds = new java.util.HashSet<>(assigned);
+        mine.forEach(p -> pointIds.add(p.getOrderPointId()));
+        List<OrderPointEntity> points = orderPointRepository.findAllById(pointIds).stream()
+                .sorted((a, b) -> OrderPointService.compareNames(a.getName(), b.getName()))
+                .toList();
+
+        Map<UUID, BigDecimal[]> agg = new HashMap<>(); // [card, cash, tipCard, tipCash, settled]
+        for (PaymentEntity p : mine) {
+            BigDecimal[] a = agg.computeIfAbsent(p.getOrderPointId(), k -> {
+                BigDecimal[] z = new BigDecimal[5];
+                java.util.Arrays.fill(z, BigDecimal.ZERO);
+                return z;
+            });
+            String type = typeName.getOrDefault(p.getPaymentTypeId(), "").toUpperCase();
+            BigDecimal amount = p.getAmount() == null ? BigDecimal.ZERO : p.getAmount();
+            BigDecimal tip = p.getTip() == null ? BigDecimal.ZERO : p.getTip();
+            switch (type) {
+                case "CASH" -> { a[1] = a[1].add(amount); a[3] = a[3].add(tip); }
+                case "CARD", "ONLINE" -> { a[0] = a[0].add(amount); a[2] = a[2].add(tip); }
+                case "PROTOCOL" -> a[4] = a[4].add(amount);
+                default -> { /* PO etc.: neither cash nor card */ }
+            }
+        }
+        List<TableStatsResponse> out = new ArrayList<>(points.size());
+        for (OrderPointEntity op : points) {
+            BigDecimal[] a = agg.get(op.getId());
+            BigDecimal unpaid = assigned.contains(op.getId()) && !isServicePoint(op)
+                    ? nz(orderService.billUnchecked(op.getId()).unpaidTotal()) : BigDecimal.ZERO;
+            boolean protocol = op.getPaymentTypeIds() != null && op.getPaymentTypeIds().stream().anyMatch(protocolTypes::contains);
+            out.add(new TableStatsResponse(op.getId(), op.getName(),
+                    a == null ? BigDecimal.ZERO : a[0], a == null ? BigDecimal.ZERO : a[1],
+                    a == null ? BigDecimal.ZERO : a[2], a == null ? BigDecimal.ZERO : a[3],
+                    unpaid, a == null ? BigDecimal.ZERO : a[4], protocol));
+        }
+        return out;
+    }
+
+    private static BigDecimal nz(BigDecimal v) {
+        return v == null ? BigDecimal.ZERO : v;
     }
 
     /** Print the table's unpaid bill as a PROFORMA on its thermal printer (best-effort). */

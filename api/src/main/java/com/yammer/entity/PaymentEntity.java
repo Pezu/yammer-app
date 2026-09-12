@@ -38,6 +38,14 @@ public class PaymentEntity {
     @Column(nullable = false, precision = 10, scale = 2)
     private BigDecimal tip = BigDecimal.ZERO;
 
+    /** Discount applied to this payment (snapshot of the table's at the time); null = none. */
+    @Column(name = "discount_percent")
+    private BigDecimal discountPercent;
+
+    /** Money not charged because of the discount (gross − amount). */
+    @Column(name = "discount_amount", nullable = false)
+    private BigDecimal discountAmount = BigDecimal.ZERO;
+
     /** From the payment_type catalog; restricted to the order point's accepted set. */
     @Column(name = "payment_type_id")
     private UUID paymentTypeId;

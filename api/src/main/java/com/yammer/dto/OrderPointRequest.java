@@ -1,6 +1,7 @@
 package com.yammer.dto;
 
 import jakarta.validation.constraints.NotBlank;
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.UUID;
 
@@ -11,6 +12,8 @@ public record OrderPointRequest(
         String nickname,
         // ALLOW / CONFIRM / DISALLOW; null = unchanged
         String selfOrderMode,
+        // discount on the table's bills, percent (0–100); null/0 = none
+        BigDecimal discountPercent,
         UUID selfPayTypeId,
         boolean allowMultipleUsers,
         boolean keepOpen,

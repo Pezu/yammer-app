@@ -12,6 +12,8 @@ export interface OrderPoint {
   /** Free label shown under the name on the waiter's tiles. */
   nickname: string | null;
   selfOrderMode: SelfOrderMode;
+  /** Discount on the table's bills, percent; null = none. */
+  discountPercent: number | null;
   typeId: string;
   selfPayTypeId: string | null;
   allowMultipleUsers: boolean;
@@ -28,6 +30,7 @@ export interface OrderPointInput {
   name: string;
   nickname: string | null;
   selfOrderMode: SelfOrderMode | null;
+  discountPercent: number | null;
   selfPayTypeId: string | null;
   allowMultipleUsers: boolean;
   /** Runs a tab (pay later); false = pay as you order. */

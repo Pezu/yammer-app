@@ -42,6 +42,8 @@ export interface OrderPointMenu {
   keepOpen?: boolean;
   /** Payment types accepted at this point (buttons of the pay-now sheet). */
   paymentTypeIds?: string[];
+  /** The table's discount, percent; null = none. */
+  discountPercent?: number | null;
 }
 
 export interface OrderItemInput {
@@ -73,6 +75,19 @@ export interface BillLine {
   originalPrice: number | null;
 }
 
+/** One table on the Statistics page: this waiter's collections there, unpaid, protocol. */
+export interface TableStats {
+  orderPointId: string;
+  name: string;
+  paidCard: number;
+  paidCash: number;
+  tipCard: number;
+  tipCash: number;
+  unpaid: number;
+  settled: number;
+  protocol: boolean;
+}
+
 export type PaymentMode = 'FULL' | 'PARTIAL' | 'AMOUNT';
 
 export interface PayInput {
@@ -95,6 +110,8 @@ export interface OrderPointBill {
   /** Customer self-ordering at this table: ALLOW / CONFIRM (waiter approves) / DISALLOW. */
   /** Runs a tab; false = pay as you order (pay sheet opens right after an order). */
   keepOpen: boolean;
+  /** The table's discount, percent; null = none (read-only for waiters, set in the backoffice). */
+  discountPercent: number | null;
   selfOrderMode: 'ALLOW' | 'CONFIRM' | 'DISALLOW';
   lines: BillLine[];
   total: number;
@@ -163,6 +180,12 @@ export class WaiterOrderPointService {
   }
 
   /** Close the table's session (only when fully settled) and free the table. */
+  /** The waiter's own takings per table for a day (Statistics page). */
+  myStats(from: string, to: string): Observable<TableStats[]> {
+    const params = new HttpParams().set('from', from).set('to', to);
+    return this.http.get<TableStats[]>(`${environment.apiUrl}/order-points/my-stats`, { params });
+  }
+
   /** Print the unpaid bill as a proforma on the table's thermal printer (best-effort). */
   printProforma(orderPointId: string): Observable<void> {
     return this.http.post<void>(`${environment.apiUrl}/order-points/${orderPointId}/proforma`, {});

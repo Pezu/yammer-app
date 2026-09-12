@@ -228,7 +228,8 @@ export class WaiterTableDetailPage {
   );
 
   /** What this payment charges (before tip), per mode. */
-  readonly chargeTotal = computed(() => {
+  /** The lines' value before the table's discount (what the bill shows). */
+  readonly grossTotal = computed(() => {
     const due = this.bill()?.unpaidTotal ?? 0;
     switch (this.payMode()) {
       case 'FULL':
@@ -239,6 +240,13 @@ export class WaiterTableDetailPage {
         return this.payingTotal();
     }
   });
+  /** The table's discount (backoffice-set); a fixed sum (AMOUNT) is taken as is. */
+  readonly discountPercent = computed(() =>
+    this.payMode() === 'AMOUNT' ? 0 : (this.bill()?.discountPercent ?? 0),
+  );
+  readonly discountAmount = computed(() => round2((this.grossTotal() * this.discountPercent()) / 100));
+  /** What is charged: gross minus the discount. The server's per-line rounding is authoritative. */
+  readonly chargeTotal = computed(() => round2(this.grossTotal() - this.discountAmount()));
 
   // --- tip (as in the old pay modal: presets + custom % / custom RON) ---
 
@@ -246,7 +254,7 @@ export class WaiterTableDetailPage {
   readonly tipCustomPercent = signal<number | null>(null);
   readonly tipCustomAmount = signal<number | null>(null);
   readonly computedTip = computed(() => {
-    const base = this.chargeTotal() || 0;
+    const base = this.grossTotal() || 0; // tip presets on the undiscounted value, as in the old app
     let tip = 0;
     switch (this.tipMode()) {
       case 'p10':

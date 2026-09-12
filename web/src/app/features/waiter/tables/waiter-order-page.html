@@ -162,7 +162,11 @@
           </div>
         }
 
-        <div class="sum-row"><span>{{ t('pay.amount') }}</span><span>{{ total() | number: '1.2-2' }} RON</span></div>
+        @if (discountPercent() > 0) {
+          <div class="sum-row"><span>{{ t('pay.subtotal') }}</span><span>{{ total() | number: '1.2-2' }} RON</span></div>
+          <div class="sum-row"><span>{{ t('pay.discount') }} {{ discountPercent() }}%</span><span>-{{ discountAmount() | number: '1.2-2' }} RON</span></div>
+        }
+        <div class="sum-row"><span>{{ t('pay.amount') }}</span><span>{{ chargeTotal() | number: '1.2-2' }} RON</span></div>
         <div class="sum-row"><span>{{ t('pay.tip') }}</span><span>{{ computedTip() | number: '1.2-2' }} RON</span></div>
         <div class="sum-row total"><span>{{ t('pay.totalToPay') }}</span><span>{{ payTotal() | number: '1.2-2' }} RON</span></div>
 

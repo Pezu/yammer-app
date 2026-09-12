@@ -22,7 +22,9 @@ public record OrderPointMenuResponse(
         /* runs a tab (pay later); false = pay as you order — the order screen asks for the payment */
         boolean keepOpen,
         /* payment types accepted at this point (the pay-now sheet's buttons) */
-        List<UUID> paymentTypeIds) {
+        List<UUID> paymentTypeIds,
+        /* the table's discount, percent; null = none */
+        BigDecimal discountPercent) {
 
     /** A selectable menu (id + display name) for the order screen's menu switcher. */
     public record MenuOption(UUID id, String name) {

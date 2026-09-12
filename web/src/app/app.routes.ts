@@ -194,6 +194,11 @@ export const routes: Routes = [
             (m) => m.WaiterApprovalsPage,
           ),
       },
+      {
+        path: 'stats',
+        loadComponent: () =>
+          import('./features/waiter/stats/waiter-stats-page').then((m) => m.WaiterStatsPage),
+      },
       { path: '', redirectTo: 'tables', pathMatch: 'full' },
     ],
   },

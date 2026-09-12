@@ -50,6 +50,7 @@
               <th>Name</th>
               <th>Nickname</th>
               <th>Self ordering</th>
+              <th>Disc. %</th>
               <th>Menu</th>
               <th>Printer</th>
               <th>Cash register</th>
@@ -74,6 +75,7 @@
                       (valueChange)="editSelfOrderMode.set($any($event))"
                     />
                   </td>
+                  <td><input type="number" class="input disc" min="0" max="100" step="1" placeholder="0" [formControl]="editDiscount" (keyup.enter)="saveEdit(point.id)" (keyup.escape)="cancelEdit()" title="Discount on this table's bills, percent" /></td>
                   <td>
                     <app-combo-box
                       [options]="menuOptions()"
@@ -149,6 +151,7 @@
                   <td>{{ point.name }}</td>
                   <td>{{ point.nickname || '—' }}</td>
                   <td>{{ selfOrderModeLabel(point.selfOrderMode) }}</td>
+                  <td>{{ point.discountPercent ? point.discountPercent + '%' : '—' }}</td>
                   <td>{{ menuName(point.menuId) }}</td>
                   <td>{{ deviceName(point.printerId) }}</td>
                   <td>{{ deviceName(point.cashRegisterId) }}</td>
@@ -205,7 +208,7 @@
 
             @if (!loading() && orderPoints().length === 0) {
               <tr>
-                <td colspan="12" class="empty">No order points yet — use the + button to add some.</td>
+                <td colspan="13" class="empty">No order points yet — use the + button to add some.</td>
               </tr>
             }
           </tbody>

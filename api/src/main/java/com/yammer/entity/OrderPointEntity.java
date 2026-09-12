@@ -51,6 +51,10 @@ public class OrderPointEntity {
     @Column(name = "nickname")
     private String nickname;
 
+    /** Backoffice-set discount on this table's bills, percent; null = none. Applied when paying. */
+    @Column(name = "discount_percent")
+    private java.math.BigDecimal discountPercent;
+
     /** Runs a tab (orders accumulate on the open session, paid later) — off = pay as you order. */
     @Column(name = "keep_open", nullable = false)
     private boolean keepOpen = true;

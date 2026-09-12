@@ -17,6 +17,8 @@ public record OrderPointBillResponse(
         String selfOrderMode,
         /* the point runs a tab; false = pay as you order (the waiter pays right after ordering) */
         boolean keepOpen,
+        /* the table's discount, percent; null = none — the waiter's pay sheet shows Subtotal/Discount/Amount */
+        BigDecimal discountPercent,
         List<OrderPointBillLine> lines,
         BigDecimal total,
         BigDecimal unpaidTotal) {

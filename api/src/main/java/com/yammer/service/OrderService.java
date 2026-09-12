@@ -8,6 +8,7 @@ import com.yammer.event.OrderChangedEvent;
 import com.yammer.event.PaymentCommittedEvent;
 import com.yammer.dto.OrderResponse;
 import com.yammer.dto.PayRequest;
+import com.yammer.util.DiscountMath;
 import com.yammer.dto.PaymentMode;
 import com.yammer.dto.PlaceOrderRequest;
 import com.yammer.entity.CustomerSessionEntity;
@@ -127,10 +128,12 @@ public class OrderService {
         List<OrderItemEntity> savedItems = orderItemRepository.saveAll(toSave);
         if (payNow) {
             // Settle exactly this order's lines (other unpaid lines on the point stay as they are).
-            BigDecimal amount = savedItems.stream().map(this::lineTotal).reduce(BigDecimal.ZERO, BigDecimal::add);
+            BigDecimal gross = savedItems.stream().map(this::lineTotal).reduce(BigDecimal.ZERO, BigDecimal::add);
+            BigDecimal net = savedItems.stream().map(i -> discountedLineTotal(i, op.getDiscountPercent()))
+                    .reduce(BigDecimal.ZERO, BigDecimal::add);
             PayRequest pay = new PayRequest(op.getId(), request.paymentTypeId(), PaymentMode.FULL,
                     request.tip() == null ? BigDecimal.ZERO : request.tip(), null, null);
-            PaymentEntity payment = createPayment(pay, amount, me, session);
+            PaymentEntity payment = createPayment(pay, gross, net, op.getDiscountPercent(), me, session);
             savedItems.forEach(i -> i.setPaymentId(payment.getId()));
             savedItems = orderItemRepository.saveAll(savedItems);
         } else {
@@ -440,7 +443,7 @@ public class OrderService {
         }
         return new OrderPointBillResponse(
                 op.getName(), op.getPaymentTypeIds(), session.isPresent(), op.getSelfOrderMode(),
-                op.isKeepOpen(), List.copyOf(lines.values()), total, unpaidTotal);
+                op.isKeepOpen(), op.getDiscountPercent(), List.copyOf(lines.values()), total, unpaidTotal);
     }
 
     /**
@@ -479,10 +482,11 @@ public class OrderService {
         if (unpaid.isEmpty()) {
             throw badRequest("Nothing to pay");
         }
+        BigDecimal discount = op.getDiscountPercent();
         switch (request.mode()) {
-            case FULL -> payFull(request, me, session, unpaid);
-            case PARTIAL -> payPartial(request, me, session, unpaid);
-            case AMOUNT -> payAmount(request, me, session, unpaid);
+            case FULL -> payFull(request, me, session, unpaid, discount);
+            case PARTIAL -> payPartial(request, me, session, unpaid, discount);
+            case AMOUNT -> payAmount(request, me, session, unpaid); // a fixed sum: taken as is, no discount
         }
         return billByOrderPoint(op.getId());
     }
@@ -490,9 +494,11 @@ public class OrderService {
     // --- full ---
 
     private void payFull(
-            PayRequest request, UserPrincipal me, TableSessionEntity session, List<OrderItemEntity> unpaid) {
-        BigDecimal amount = unpaid.stream().map(this::lineTotal).reduce(BigDecimal.ZERO, BigDecimal::add);
-        PaymentEntity payment = createPayment(request, amount, me, session);
+            PayRequest request, UserPrincipal me, TableSessionEntity session, List<OrderItemEntity> unpaid,
+            BigDecimal discount) {
+        BigDecimal gross = unpaid.stream().map(this::lineTotal).reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal net = unpaid.stream().map(i -> discountedLineTotal(i, discount)).reduce(BigDecimal.ZERO, BigDecimal::add);
+        PaymentEntity payment = createPayment(request, gross, net, discount, me, session);
         unpaid.forEach(i -> i.setPaymentId(payment.getId()));
         orderItemRepository.saveAll(unpaid);
     }
@@ -506,7 +512,8 @@ public class OrderService {
     }
 
     private void payPartial(
-            PayRequest request, UserPrincipal me, TableSessionEntity session, List<OrderItemEntity> unpaid) {
+            PayRequest request, UserPrincipal me, TableSessionEntity session, List<OrderItemEntity> unpaid,
+            BigDecimal discount) {
         if (request.items() == null || request.items().isEmpty()) {
             throw badRequest("Partial payment requires at least one item");
         }
@@ -524,6 +531,7 @@ public class OrderService {
         Map<UUID, Integer> taken = new HashMap<>();
         Map<UUID, Alloc> planByLine = new LinkedHashMap<>();
         BigDecimal amount = BigDecimal.ZERO;
+        BigDecimal net = BigDecimal.ZERO;
         for (ReqEntry entry : requested.values()) {
             int remaining = entry.quantity();
             for (OrderItemEntity line : unpaid) {
@@ -545,6 +553,7 @@ public class OrderService {
                 planByLine.merge(line.getId(), new Alloc(line, take),
                         (a, b) -> new Alloc(a.line(), a.coveredQty() + b.coveredQty()));
                 amount = amount.add(unitPrice(line).multiply(BigDecimal.valueOf(take)));
+                net = net.add(DiscountMath.discountedUnit(unitPrice(line), discount).multiply(BigDecimal.valueOf(take)));
                 remaining -= take;
             }
             if (remaining > 0) {
@@ -554,7 +563,8 @@ public class OrderService {
         // Apply: create the Payment, then stamp/split lines. When a line is partially
         // covered the ORIGINAL stays unpaid with its quantity reduced; a NEW line is
         // inserted under the same order for the paid quantity.
-        PaymentEntity payment = createPayment(request, amount.setScale(2, RoundingMode.HALF_UP), me, session);
+        PaymentEntity payment = createPayment(request, amount.setScale(2, RoundingMode.HALF_UP),
+                net.setScale(2, RoundingMode.HALF_UP), discount, me, session);
         for (Alloc alloc : planByLine.values()) {
             OrderItemEntity line = alloc.line();
             if (alloc.coveredQty() == line.getQuantity()) {
@@ -577,7 +587,7 @@ public class OrderService {
         }
         BigDecimal unpaidTotal = unpaid.stream().map(this::lineTotal).reduce(BigDecimal.ZERO, BigDecimal::add);
         BigDecimal remaining = request.amount().min(unpaidTotal).setScale(2, RoundingMode.HALF_UP);
-        PaymentEntity payment = createPayment(request, remaining, me, session);
+        PaymentEntity payment = createPayment(request, remaining, remaining, null, me, session);
 
         for (OrderItemEntity line : unpaid) {
             if (remaining.signum() == 0) {
@@ -627,12 +637,24 @@ public class OrderService {
      * CASH / CARD → SUCCESS + fiscal RECEIPT pushed to the bridge after commit (the register
      * records the payment mode); PROTOCOL / PO → SUCCESS, no fiscal.
      */
+    /**
+     * Record a payment. {@code gross} is the lines' value, {@code net} the same after the
+     * table's discount (per unit, see {@link DiscountMath}); the stored amount is the net and
+     * the payment keeps the percentage and the money not charged. PROTOCOL is never discounted.
+     */
     private PaymentEntity createPayment(
-            PayRequest request, BigDecimal amount, UserPrincipal me, TableSessionEntity session) {
+            PayRequest request, BigDecimal gross, BigDecimal net, BigDecimal discount,
+            UserPrincipal me, TableSessionEntity session) {
+        String typeName = paymentTypeRepository.findById(request.paymentTypeId())
+                .map(PaymentTypeEntity::getType).orElse("");
+        boolean discounted = discount != null && discount.signum() > 0 && !"PROTOCOL".equalsIgnoreCase(typeName);
+        BigDecimal amount = discounted ? net : gross;
         PaymentEntity payment = new PaymentEntity();
         payment.setOrderPointId(request.orderPointId());
         payment.setSessionId(session.getId());
         payment.setAmount(amount);
+        payment.setDiscountPercent(discounted ? discount : null);
+        payment.setDiscountAmount(discounted ? gross.subtract(amount).max(BigDecimal.ZERO) : BigDecimal.ZERO);
         payment.setTip(request.tip() == null ? BigDecimal.ZERO : request.tip());
         payment.setPaymentTypeId(request.paymentTypeId());
         payment.setCreatedBy(me.username());
@@ -672,6 +694,11 @@ public class OrderService {
 
     private BigDecimal lineTotal(OrderItemEntity line) {
         return unitPrice(line).multiply(BigDecimal.valueOf(line.getQuantity()));
+    }
+
+    /** The line's value after the discount, computed per unit like the register does. */
+    private BigDecimal discountedLineTotal(OrderItemEntity line, BigDecimal discount) {
+        return DiscountMath.discountedUnit(unitPrice(line), discount).multiply(BigDecimal.valueOf(line.getQuantity()));
     }
 
     private ResponseStatusException badRequest(String message) {
