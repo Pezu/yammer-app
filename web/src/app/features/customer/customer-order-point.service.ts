@@ -32,6 +32,8 @@ export interface CustomerOrderPoint {
   /** ONLINE self-pay table — ordering redirects through the Netopia gateway. */
   selfPayOnline: boolean;
   menu: MenuNode[];
+  /** The table's split slots (T3.1, T3.2, …) incl. this one; more than one → the customer picks. */
+  slots: { id: string; name: string }[];
 }
 
 /**

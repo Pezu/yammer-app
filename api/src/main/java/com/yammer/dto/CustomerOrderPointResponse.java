@@ -19,5 +19,10 @@ public record CustomerOrderPointResponse(
         String customerStatus,
         /* ONLINE self-pay table: ordering goes through the Netopia gateway */
         boolean selfPayOnline,
-        List<MenuItemNode> menu) {
+        List<MenuItemNode> menu,
+        /* the table's split slots (T3.1, T3.2, …) incl. this one — more than one → the customer picks */
+        List<Slot> slots) {
+
+    public record Slot(UUID id, String name) {
+    }
 }

@@ -19,12 +19,16 @@ import com.yammer.repository.SelfPayTypeRepository;
 import com.yammer.repository.TableSessionRepository;
 import com.yammer.service.CustomerAccessService;
 import com.yammer.service.MenuService;
+import com.yammer.service.OrderPointService;
 import com.yammer.service.OnlinePaymentService;
 import com.yammer.service.OrderService;
 import com.yammer.service.StorageService;
 import com.yammer.service.StorageService.StoredObject;
 import jakarta.validation.Valid;
 import java.util.List;
+import java.util.regex.Pattern;
+import java.util.regex.Matcher;
+import java.util.Objects;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -77,7 +81,30 @@ public class PublicController {
                 : menuService.getTreeUnchecked(op.getMenuId());
         return new CustomerOrderPointResponse(
                 op.getId(), op.getName(), clientId, sessionOpen, op.getSelfOrderMode(),
-                customerAccessService.statusAt(opId, token), selfPaysOnline(op), menu);
+                customerAccessService.statusAt(opId, token), selfPaysOnline(op), menu, slotsOf(op));
+    }
+
+    private static final Pattern SLOT_NAME = Pattern.compile("^([A-Za-z]+\\d+)\\.(\\d+)$");
+
+    /**
+     * The split slots of the scanned table (T3.1, T3.2, …), itself included, in name order.
+     * The QR always opens the lowest slot; with several slots the customer chooses where they sit.
+     */
+    private List<CustomerOrderPointResponse.Slot> slotsOf(OrderPointEntity op) {
+        Matcher m = SLOT_NAME.matcher(op.getName());
+        if (!m.matches()) {
+            return List.of(new CustomerOrderPointResponse.Slot(op.getId(), op.getName()));
+        }
+        String parent = m.group(1);
+        return orderPointRepository.findByLocationIdOrderByName(op.getLocationId()).stream()
+                .filter(o -> Objects.equals(o.getTypeId(), op.getTypeId()))
+                .filter(o -> {
+                    Matcher x = SLOT_NAME.matcher(o.getName());
+                    return x.matches() && x.group(1).equalsIgnoreCase(parent);
+                })
+                .sorted((a, b) -> OrderPointService.compareNames(a.getName(), b.getName()))
+                .map(o -> new CustomerOrderPointResponse.Slot(o.getId(), o.getName()))
+                .toList();
     }
 
     /**

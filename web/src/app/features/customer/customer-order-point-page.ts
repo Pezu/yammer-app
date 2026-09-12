@@ -39,6 +39,19 @@ import { ComboBox } from '../../shared/combo-box';
       </button>
     </header>
 
+    @if (slotChoice(); as slots) {
+      <div class="slot-backdrop"></div>
+      <div class="slot-dialog" role="dialog" aria-modal="true">
+        <h2>{{ t('cust.pickSlotTitle') }}</h2>
+        <p>{{ t('cust.pickSlotHint', { name: parentName() }) }}</p>
+        <div class="slot-grid">
+          @for (s of slots; track s.id) {
+            <button type="button" class="slot-btn" (click)="chooseSlot(s.id)">{{ s.name }}</button>
+          }
+        </div>
+      </div>
+    }
+
     @if (menuOpen()) {
       <div class="drawer-backdrop" (click)="closeMenu()"></div>
       <nav class="drawer">
@@ -571,6 +584,57 @@ import { ComboBox } from '../../shared/combo-box';
       color: var(--text);
     }
     /* last row right of the image; wraps freely so long descriptions stay readable */
+    /* split-table slot chooser — blocks the page until the customer picks their seat */
+    .slot-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.45);
+      z-index: 40;
+    }
+    .slot-dialog {
+      position: fixed;
+      left: 50%;
+      top: 50%;
+      transform: translate(-50%, -50%);
+      width: min(92vw, 380px);
+      padding: 20px 18px;
+      background: #fff;
+      border-radius: 14px;
+      box-shadow: 0 12px 40px rgba(0, 0, 0, 0.25);
+      z-index: 41;
+      text-align: center;
+
+      h2 {
+        margin: 0 0 6px;
+        font-size: 18px;
+      }
+      p {
+        margin: 0 0 14px;
+        font-size: 13px;
+        color: var(--muted);
+      }
+    }
+    .slot-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+      gap: 10px;
+    }
+    .slot-btn {
+      padding: 16px 8px;
+      font: inherit;
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--text);
+      background: #fff;
+      border: 2px solid var(--border);
+      border-radius: 10px;
+      cursor: pointer;
+
+      &:active {
+        border-color: var(--primary);
+        color: var(--primary);
+      }
+    }
     .item-desc {
       margin: 0;
       font-size: 12px;
@@ -842,9 +906,20 @@ export class CustomerOrderPointPage implements OnDestroy {
     }
     this.service.getOrderPoint(this.opId, this.storedToken()).subscribe({
       next: (op) => {
+        // A split table: the QR opens its first slot. A device already sitting at a sibling
+        // slot goes straight there; a new device picks where it sits before joining.
+        const known = this.knownSlot(op);
+        if (known && known !== this.opId) {
+          window.location.replace(`/customer/order-point/${known}`);
+          return;
+        }
         this.op.set(op);
         this.customerStatus.set(op.customerStatus);
         this.loading.set(false);
+        if (op.slots.length > 1 && !known) {
+          this.slotChoice.set(op.slots);
+          return; // join once the customer has chosen
+        }
         this.ensureJoined(op);
       },
       error: () => {
@@ -857,6 +932,49 @@ export class CustomerOrderPointPage implements OnDestroy {
   ngOnDestroy(): void {
     document.body.style.background = '';
     this.stopApprovalPoll();
+  }
+
+  // --- split tables: which slot is this device at? ---
+
+  /** Slots to choose from while the customer hasn't picked one (null = no choice pending). */
+  readonly slotChoice = signal<{ id: string; name: string }[] | null>(null);
+
+  /** "T3" for T3.1 — the table the customer scanned. */
+  readonly parentName = computed(() => (this.op()?.name ?? '').replace(/\.\d+$/, ''));
+
+  private slotChoiceKey(op: CustomerOrderPoint): string {
+    return `yammer.customer.slot.${op.clientId ?? ''}.${op.name.replace(/\.\d+$/, '')}`;
+  }
+
+  /** The slot this device already belongs to: a stored session token for it, or an earlier choice. */
+  private knownSlot(op: CustomerOrderPoint): string | null {
+    if (op.slots.length <= 1) return op.id;
+    try {
+      for (const s of op.slots) {
+        if (localStorage.getItem(`yammer.customer.${s.id}`)) return s.id;
+      }
+      const chosen = localStorage.getItem(this.slotChoiceKey(op));
+      if (chosen && op.slots.some((s) => s.id === chosen)) return chosen;
+    } catch {
+      /* no storage: ask every time */
+    }
+    return null;
+  }
+
+  chooseSlot(id: string): void {
+    const op = this.op();
+    if (!op) return;
+    try {
+      localStorage.setItem(this.slotChoiceKey(op), id);
+    } catch {
+      /* ignore */
+    }
+    this.slotChoice.set(null);
+    if (id !== this.opId) {
+      window.location.replace(`/customer/order-point/${id}`);
+      return;
+    }
+    this.ensureJoined(op);
   }
 
   private storedToken(): string | null {
