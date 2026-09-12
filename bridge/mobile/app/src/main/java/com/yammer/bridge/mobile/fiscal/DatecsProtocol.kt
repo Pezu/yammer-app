@@ -68,7 +68,8 @@ class DatecsProtocol(
         return allReceipt
     }
 
-    /** Cmd 49 — add an item. taxGroup: 1..5 = A..E, 6 = exempt ("scutit"), 7 = "alte taxe". */
+    /** Cmd 49 — add an item. taxGroup 1..7 = the register's rate table order (cmd 50); the
+     *  slot whose rate reads 100.00 is the exempt group, 100.01 "alte taxe". */
     fun sell(name: String, taxGroup: Int, price: Double, qty: Double) {
         val data = name + "\t" + taxGroup + "\t" +
             "%.2f".format(price) + "\t" +

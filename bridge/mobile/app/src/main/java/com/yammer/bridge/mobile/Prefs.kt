@@ -59,11 +59,13 @@ class Prefs(context: Context) {
         set(v) = sp.edit().putString("tillNumber", v.trim()).apply()
 
     /**
-     * DATECS tax code of the EXEMPT group ("scutit de TVA"). The RO firmware numbers the
-     * codes 1..7: 1..5 = the programmable rates A..E, 6 = exempt, 7 = "alte taxe".
+     * DATECS tax code of the EXEMPT group ("scutit de TVA") — the FALLBACK only: before each
+     * receipt the bridge reads the register's rate table (cmd 50) and uses the code whose
+     * rate is 100.00, which is how the RO firmware marks the exempt group (100.01 = "alte
+     * taxe", 100.02 = unused). On the DP-25MX seen so far that is code 7.
      */
     var exemptTaxGroup: Int
-        get() = sp.getInt("exemptTaxGroup", 6)
+        get() = sp.getInt("exemptTaxGroup", 7)
         set(v) = sp.edit().putInt("exemptTaxGroup", v).apply()
 
     var serialNumber: String

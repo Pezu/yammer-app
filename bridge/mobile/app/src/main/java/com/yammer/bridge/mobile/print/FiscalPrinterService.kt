@@ -222,9 +222,10 @@ class FiscalPrinterService(
         allReceiptOut[0] = allReceipt
         syncUnsCounter(deviceKey, allReceipt)
 
-        // 3. Lines (cmd 49).
+        // 3. Lines (cmd 49). Exempt lines (tips) go to the register's own exempt group.
+        val exemptGroup = resolveExemptGroup(fp)
         for (line in request.lines) {
-            fp.sell(line.name, resolveTaxGroup(line), line.unitPrice.toDouble(), line.quantity)
+            fp.sell(line.name, resolveTaxGroup(line, exemptGroup), line.unitPrice.toDouble(), line.quantity)
         }
 
         // 4. Fiscal footer text (cmd 54).
@@ -272,10 +273,39 @@ class FiscalPrinterService(
         till.trim().toLongOrNull()?.let { "%04d".format(it) } ?: (till + "0000").substring(0, 4)
 
     /** Exempt lines (tips) → the register's "scutit" code; everything else by VAT percentage. */
-    private fun resolveTaxGroup(line: ReceiptRequest.Line): Int {
-        if (line.exempt) return prefs.exemptTaxGroup
+    private fun resolveTaxGroup(line: ReceiptRequest.Line, exemptGroup: Int): Int {
+        if (line.exempt) return exemptGroup
         val vat = line.vat ?: return 1
         return VAT_TO_TAX_GROUP[vat.setScale(0, RoundingMode.HALF_UP).toInt()] ?: 1
+    }
+
+    /**
+     * The exempt ("scutit de TVA") tax code, read from the register's rate table (cmd 50):
+     * `ErrorCode, ?, rateA, rateB, …, date` — the slot whose rate is 100.00 is the exempt
+     * group on the RO firmware (100.01 = "alte taxe", 100.02 = unused). Falls back to the
+     * configured code when the table can't be read or has no 100.00 slot.
+     */
+    private fun resolveExemptGroup(fp: DatecsProtocol): Int {
+        val fallback = prefs.exemptTaxGroup
+        val raw = try {
+            fp.readTaxRates()
+        } catch (ex: Exception) {
+            Log.w(TAG, "Tax table unreadable (${ex.message}) — exempt code falls back to $fallback")
+            return fallback
+        }
+        val parts = raw.split("\t")
+        // rates start at index 2; a rate field looks like "19.00" / "100.01"
+        for (i in 2 until parts.size) {
+            val v = parts[i].trim().toBigDecimalOrNull() ?: continue
+            if (v.compareTo(BigDecimal("100.00")) == 0) {
+                val code = i - 1
+                if (code != fallback) {
+                    BridgeState.log("Cod TVA scutit dupa tabela casei: $code (setarea $fallback nu se aplica).")
+                }
+                return code
+            }
+        }
+        return fallback
     }
 
     private fun resolvePayMode(paymentMethod: String?): Int =
