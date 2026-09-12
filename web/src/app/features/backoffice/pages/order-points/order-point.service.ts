@@ -3,10 +3,15 @@ import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { environment } from '../../../../../environments/environment';
 
+export type SelfOrderMode = 'ALLOW' | 'CONFIRM' | 'DISALLOW';
+
 export interface OrderPoint {
   id: string;
   locationId: string;
   name: string;
+  /** Free label shown under the name on the waiter's tiles. */
+  nickname: string | null;
+  selfOrderMode: SelfOrderMode;
   typeId: string;
   selfPayTypeId: string | null;
   allowMultipleUsers: boolean;
@@ -21,6 +26,8 @@ export interface OrderPoint {
 
 export interface OrderPointInput {
   name: string;
+  nickname: string | null;
+  selfOrderMode: SelfOrderMode | null;
   selfPayTypeId: string | null;
   allowMultipleUsers: boolean;
   /** Runs a tab (pay later); false = pay as you order. */

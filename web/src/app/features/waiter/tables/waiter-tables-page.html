@@ -15,6 +15,9 @@
         <div class="tile-wrap">
           <button type="button" class="tile" (click)="open(op)">
             <span class="name">{{ op.name }}</span>
+            @if (op.nickname) {
+              <span class="nick">{{ op.nickname }}</span>
+            }
           </button>
           @if (canSplit(op)) {
             <button

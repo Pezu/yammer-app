@@ -48,6 +48,8 @@
           <thead>
             <tr>
               <th>Name</th>
+              <th>Nickname</th>
+              <th>Self ordering</th>
               <th>Menu</th>
               <th>Printer</th>
               <th>Cash register</th>
@@ -64,6 +66,14 @@
               <tr>
                 @if (editingId() === point.id) {
                   <td><input type="text" class="input" [formControl]="editName" (keyup.enter)="saveEdit(point.id)" (keyup.escape)="cancelEdit()" /></td>
+                  <td><input type="text" class="input" placeholder="Nickname" [formControl]="editNickname" (keyup.enter)="saveEdit(point.id)" (keyup.escape)="cancelEdit()" /></td>
+                  <td>
+                    <app-combo-box
+                      [options]="selfOrderModeOptions"
+                      [value]="editSelfOrderMode()"
+                      (valueChange)="editSelfOrderMode.set($any($event))"
+                    />
+                  </td>
                   <td>
                     <app-combo-box
                       [options]="menuOptions()"
@@ -137,6 +147,8 @@
                   </td>
                 } @else {
                   <td>{{ point.name }}</td>
+                  <td>{{ point.nickname || '—' }}</td>
+                  <td>{{ selfOrderModeLabel(point.selfOrderMode) }}</td>
                   <td>{{ menuName(point.menuId) }}</td>
                   <td>{{ deviceName(point.printerId) }}</td>
                   <td>{{ deviceName(point.cashRegisterId) }}</td>
@@ -193,7 +205,7 @@
 
             @if (!loading() && orderPoints().length === 0) {
               <tr>
-                <td colspan="10" class="empty">No order points yet — use the + button to add some.</td>
+                <td colspan="12" class="empty">No order points yet — use the + button to add some.</td>
               </tr>
             }
           </tbody>

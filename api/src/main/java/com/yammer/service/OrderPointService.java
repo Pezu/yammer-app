@@ -161,6 +161,14 @@ public class OrderPointService {
         }
         UUID serviceId = resolveServicePoint(entity.getLocationId(), request.serviceOrderPointId());
         entity.setName(request.name().trim());
+        entity.setNickname(request.nickname() == null || request.nickname().isBlank() ? null : request.nickname().trim());
+        if (request.selfOrderMode() != null) {
+            String mode = request.selfOrderMode().trim().toUpperCase();
+            if (!SELF_ORDER_MODES.contains(mode)) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Unknown self-order mode: " + request.selfOrderMode());
+            }
+            entity.setSelfOrderMode(mode);
+        }
         entity.setSelfPayTypeId(resolveSelfPayType(request.selfPayTypeId()));
         entity.setAllowMultipleUsers(request.allowMultipleUsers());
         entity.setKeepOpen(request.keepOpen());
@@ -181,6 +189,8 @@ public class OrderPointService {
         }
         orderPointRepository.delete(entity);
     }
+
+    private static final java.util.Set<String> SELF_ORDER_MODES = java.util.Set.of("ALLOW", "CONFIRM", "DISALLOW");
 
     /** A table slot: prefix (T12) and split index (T12.3 → 3). */
     private static final Pattern SPLIT_NAME = Pattern.compile("^([A-Za-z]+\\d+)\\.(\\d+)$");

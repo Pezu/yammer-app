@@ -51,6 +51,16 @@
     overflow-wrap: anywhere;
   }
 
+  /* the free label from the backoffice (reservation, guest) under the table name */
+  .nick {
+    margin-top: 0.2rem;
+    font-size: 0.72rem;
+    font-weight: 500;
+    color: var(--muted);
+    text-align: center;
+    overflow-wrap: anywhere;
+  }
+
   .status {
     margin-top: 0.25rem;
     font-size: 0.7rem;

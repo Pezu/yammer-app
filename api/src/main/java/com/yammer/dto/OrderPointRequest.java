@@ -7,6 +7,10 @@ import java.util.UUID;
 /** Row edit — the type is fixed at creation (it's baked into the generated name). */
 public record OrderPointRequest(
         @NotBlank String name,
+        // free label under the name on the waiter's tiles; blank = none
+        String nickname,
+        // ALLOW / CONFIRM / DISALLOW; null = unchanged
+        String selfOrderMode,
         UUID selfPayTypeId,
         boolean allowMultipleUsers,
         boolean keepOpen,

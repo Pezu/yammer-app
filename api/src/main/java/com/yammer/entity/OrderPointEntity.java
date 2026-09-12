@@ -47,6 +47,10 @@ public class OrderPointEntity {
     @Column(name = "allow_multiple_users", nullable = false)
     private boolean allowMultipleUsers;
 
+    /** Free label shown to the waiter under the name (a reservation, a guest); split slots don't inherit it. */
+    @Column(name = "nickname")
+    private String nickname;
+
     /** Runs a tab (orders accumulate on the open session, paid later) — off = pay as you order. */
     @Column(name = "keep_open", nullable = false)
     private boolean keepOpen = true;

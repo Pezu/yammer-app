@@ -6,6 +6,7 @@ import {
   OrderPoint,
   OrderPointInput,
   OrderPointService,
+  SelfOrderMode,
 } from './order-point.service';
 import { OrderPointType, OrderPointTypeService } from '../order-point-types/order-point-type.service';
 import { Client, ClientService } from '../clients/client.service';
@@ -295,6 +296,16 @@ export class OrderPointsPage {
 
   readonly editingId = signal<string | null>(null);
   readonly editName = new FormControl('', { nonNullable: true, validators: [Validators.required] });
+  readonly editNickname = new FormControl('', { nonNullable: true });
+  readonly editSelfOrderMode = signal<SelfOrderMode>('CONFIRM');
+  readonly selfOrderModeOptions = [
+    { id: 'ALLOW', name: 'Allowed' },
+    { id: 'CONFIRM', name: 'Confirm' },
+    { id: 'DISALLOW', name: 'Disabled' },
+  ];
+  selfOrderModeLabel(mode: SelfOrderMode): string {
+    return this.selfOrderModeOptions.find((o) => o.id === mode)?.name ?? mode;
+  }
   readonly editSelfPayTypeId = signal<string>('');
   readonly editAllowMultipleUsers = signal(false);
   readonly editKeepOpen = signal(true);
@@ -312,6 +323,8 @@ export class OrderPointsPage {
   startEdit(point: OrderPoint): void {
     this.editingId.set(point.id);
     this.editName.setValue(point.name);
+    this.editNickname.setValue(point.nickname ?? '');
+    this.editSelfOrderMode.set(point.selfOrderMode ?? 'CONFIRM');
     this.editSelfPayTypeId.set(point.selfPayTypeId ?? '');
     this.editAllowMultipleUsers.set(point.allowMultipleUsers);
     this.editKeepOpen.set(point.keepOpen);
@@ -334,6 +347,8 @@ export class OrderPointsPage {
     }
     const input: OrderPointInput = {
       name: this.editName.value.trim(),
+      nickname: this.editNickname.value.trim() || null,
+      selfOrderMode: this.editSelfOrderMode(),
       selfPayTypeId: this.editSelfPayTypeId() || null,
       allowMultipleUsers: this.editAllowMultipleUsers(),
       keepOpen: this.editKeepOpen(),
