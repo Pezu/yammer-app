@@ -10,4 +10,9 @@
             android:icon="@android:drawable/ic_menu_agenda"
             android:title="Comenzi" />
     </group>
+    <item
+        android:id="@+id/nav_advanced"
+        android:icon="@android:drawable/ic_menu_preferences"
+        android:checkable="true"
+        android:title="Setari avansate" />
 </menu>

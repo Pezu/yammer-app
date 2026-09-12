@@ -12,6 +12,7 @@ import java.math.BigDecimal
 import java.math.RoundingMode
 import java.time.Instant
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.Executors
 import java.util.concurrent.ScheduledExecutorService
 import java.util.concurrent.TimeUnit
@@ -47,6 +48,13 @@ class BridgeWebSocketClient(
 
     /** Receipts handed to the printer but not yet finished — closes the de-dup window during printing. */
     private val inFlight: MutableSet<String> = ConcurrentHashMap.newKeySet()
+
+    /**
+     * Results the backend has not received because the socket was down when the print finished.
+     * Flushed right after the next HELLO — the backend's status transitions are idempotent, so a
+     * late or duplicate result is harmless, while a lost one leaves the payment to the sweeper.
+     */
+    private val unsentResults = ConcurrentLinkedQueue<ReceiptResult>()
 
     @Volatile private var webSocket: WebSocket? = null
     @Volatile private var running = false
@@ -99,6 +107,17 @@ class BridgeWebSocketClient(
             .put("deviceId", prefs.deviceId)
             .put("deviceName", prefs.deviceName)
         webSocket.send(hello.toString())
+        flushUnsentResults()
+    }
+
+    private fun flushUnsentResults() {
+        var n = 0
+        while (true) {
+            val r = unsentResults.poll() ?: break
+            sendResult(r)
+            n++
+        }
+        if (n > 0) BridgeState.log("Am retrimis $n rezultat(e) ramase din timpul deconectarii.")
     }
 
     override fun onMessage(webSocket: WebSocket, text: String) {
@@ -248,17 +267,28 @@ class BridgeWebSocketClient(
     private fun sendResult(result: ReceiptResult) {
         val ws = webSocket
         if (ws == null) {
-            Log.w(TAG, "No live WebSocket session — result NOT sent (requestId=${result.requestId}).")
-            BridgeState.log("⚠ Fara conexiune — rezultatul pentru ${result.requestId} nu a fost trimis.")
+            park(result, "fara conexiune")
             return
         }
         try {
             val out = result.toJson().put("type", TYPE_RESULT)
-            ws.send(out.toString())
-            Log.i(TAG, "Sent RECEIPT_RESULT requestId=${result.requestId} status=${result.status}")
+            if (ws.send(out.toString())) {
+                Log.i(TAG, "Sent RECEIPT_RESULT requestId=${result.requestId} status=${result.status}")
+            } else {
+                park(result, "socket inchis")
+            }
         } catch (ex: Exception) {
             Log.e(TAG, "Failed to send result requestId=${result.requestId}: ${ex.message}", ex)
+            park(result, ex.message ?: "eroare")
         }
+    }
+
+    /** Keep a result for the next connection instead of losing it. */
+    private fun park(result: ReceiptResult, why: String) {
+        if (unsentResults.size >= MAX_UNSENT) unsentResults.poll()
+        unsentResults.add(result)
+        Log.w(TAG, "Result for ${result.requestId} parked ($why) — will be resent after reconnect.")
+        BridgeState.log("⚠ Rezultatul pentru ${result.requestId} se trimite dupa reconectare ($why).")
     }
 
     companion object {
@@ -267,6 +297,7 @@ class BridgeWebSocketClient(
         private const val TYPE_RECEIPT = "RECEIPT"
         private const val TYPE_INFO = "INFO_RECEIPT"
         private const val TYPE_RESULT = "RECEIPT_RESULT"
-        private const val RECONNECT_DELAY_S = 10L
+        private const val RECONNECT_DELAY_S = 3L
+        private const val MAX_UNSENT = 200
     }
 }

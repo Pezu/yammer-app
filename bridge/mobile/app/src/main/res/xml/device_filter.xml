@@ -15,4 +15,6 @@
     <!-- Datecs (two vendor ids seen in the field: 0xFFB0 and 0xFFF0 "Datecs Serial", CDC-ACM) -->
     <usb-device vendor-id="65456" />
     <usb-device vendor-id="65520" />
+    <!-- Any USB printer-class device (ESC/POS thermal printers): the proforma printer. -->
+    <usb-device class="7" subclass="1" />
 </resources>

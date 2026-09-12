@@ -1,6 +1,7 @@
 package com.yammer.bridge.mobile.print
 
 import android.util.Log
+import com.yammer.bridge.mobile.BridgeState
 import com.yammer.bridge.mobile.Prefs
 import com.yammer.bridge.mobile.dto.ReceiptRequest
 import com.yammer.bridge.mobile.dto.ReceiptResult
@@ -90,22 +91,18 @@ class FiscalPrinterService(
                 }
 
                 val closeAttempted = booleanArrayOf(false)
+                val allReceipt = longArrayOf(0L)
                 try {
-                    val result = doPrint(fp, request, deviceKey, closeAttempted)
+                    val result = doPrint(fp, request, deviceKey, closeAttempted, allReceipt)
                     // Journal the OK here so every caller gets the de-dup guarantee.
                     processedStore.put(request.requestId, result)
                     result
                 } catch (ex: Exception) {
                     if (closeAttempted[0]) {
                         // Close was sent — the register may have fiscalized even though the
-                        // confirmation was lost. Keep the intent open (resends answer UNKNOWN).
+                        // confirmation was lost. Ask the register itself before giving up.
                         Log.e(TAG, "Fiscal print AMBIGUOUS requestId=${request.requestId}: ${ex.message}", ex)
-                        return ReceiptResult.unknown(
-                            request.requestId, request.paymentMethod,
-                            "CLOSE_UNCONFIRMED",
-                            "Confirmarea inchiderii bonului s-a pierdut — bonul poate fi emis. " +
-                                "Verificati pe casa de marcat si rezolvati manual din aplicatie.",
-                        )
+                        return settleLostClose(fp, request, deviceKey, allReceipt[0], ex)
                     }
                     // Failure before close: not fiscalized (recovery voids any half-open receipt).
                     processedStore.clearIntent(request.requestId)
@@ -143,11 +140,78 @@ class FiscalPrinterService(
             }
         }
 
+    /**
+     * The close confirmation was lost. Read the register's current-receipt info (cmd 76):
+     *  - a receipt is still OPEN → the close never happened: void it, clear the intent and
+     *    report a retryable error (the resend prints a fresh receipt);
+     *  - no receipt open and the reported number is the one we expected → the close DID
+     *    happen: journal it and report OK with that receipt number;
+     *  - anything else (register unreachable, unexpected layout/number) → UNKNOWN, intent kept,
+     *    an operator settles it in the backoffice as before.
+     */
+    private fun settleLostClose(
+        fp: DatecsProtocol,
+        request: ReceiptRequest,
+        deviceKey: String,
+        allReceipt: Long,
+        cause: Exception,
+    ): ReceiptResult {
+        val raw = try {
+            fp.readCurrentReceipt()
+        } catch (probe: Exception) {
+            Log.w(TAG, "Lost close for ${request.requestId}: register unreachable for verification (${probe.message})")
+            BridgeState.log("⚠ Bon ${request.requestId}: confirmarea inchiderii s-a pierdut si casa nu raspunde la verificare.")
+            return closeUnconfirmed(request, "${cause.message}; verificare imposibila: ${probe.message}")
+        }
+        BridgeState.log("Verificare bon ${request.requestId} (cmd 76): ${raw.replace("\t", " | ")}")
+        val parts = raw.split("\t")
+        val isOpen = parts.getOrNull(1)?.trim()
+        val number = parts.getOrNull(2)?.trim()?.toLongOrNull()
+        if (isOpen == "1") {
+            // The receipt is still open on the register: nothing was fiscalized. Void it so the
+            // next job starts clean, and let the backend retry with a fresh print.
+            fp.cancelFiscalCheck()
+            processedStore.clearIntent(request.requestId)
+            BridgeState.log("✗ Bon ${request.requestId}: inchiderea NU s-a facut — bonul deschis a fost anulat.")
+            return ReceiptResult.error(
+                request.requestId, request.paymentMethod,
+                "CLOSE_FAILED_VOIDED",
+                "Inchiderea bonului a esuat (${cause.message}); bonul deschis a fost anulat pe casa. Reincercati.",
+            )
+        }
+        val expected = if (allReceipt > 0) setOf(allReceipt, allReceipt + 1) else emptySet()
+        if (isOpen == "0" && number != null && number in expected) {
+            val result = ReceiptResult(
+                status = ReceiptResult.OK,
+                requestId = request.requestId,
+                receiptNumber = number.toString(),
+                fiscalReceiptId = number.toString(),
+                cashRegisterSerial = prefs.serialNumber.ifEmpty { deviceKey },
+                issuedAt = LocalDateTime.now(),
+                totalAmount = calculateTotal(request),
+                paymentMethod = request.paymentMethod,
+            )
+            processedStore.put(request.requestId, result)
+            BridgeState.log("✓ Bon ${request.requestId}: casa confirma bonul nr=$number (inchiderea reusise).")
+            return result
+        }
+        return closeUnconfirmed(request, "${cause.message}; cmd 76: $raw (asteptat nr ${expected.joinToString("/")})")
+    }
+
+    private fun closeUnconfirmed(request: ReceiptRequest, detail: String): ReceiptResult =
+        ReceiptResult.unknown(
+            request.requestId, request.paymentMethod,
+            "CLOSE_UNCONFIRMED",
+            "Confirmarea inchiderii bonului s-a pierdut — bonul poate fi emis. " +
+                "Verificati pe casa de marcat si rezolvati manual din aplicatie. ($detail)",
+        )
+
     private fun doPrint(
         fp: DatecsProtocol,
         request: ReceiptRequest,
         deviceKey: String,
         closeAttempted: BooleanArray,
+        allReceiptOut: LongArray,
     ): ReceiptResult {
         // 1. Recovery — cancel a previously left-open receipt (cmd 60).
         fp.cancelFiscalCheck()
@@ -155,6 +219,7 @@ class FiscalPrinterService(
         // 2. Open the fiscal receipt with a per-register unique sale number (cmd 48).
         val uns = generateUns(deviceKey)
         val allReceipt = fp.openFiscalCheck(prefs.operatorCode, prefs.operatorPass, prefs.tillNumber, uns)
+        allReceiptOut[0] = allReceipt
         syncUnsCounter(deviceKey, allReceipt)
 
         // 3. Lines (cmd 49).

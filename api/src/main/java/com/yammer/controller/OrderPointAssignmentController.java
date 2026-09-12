@@ -89,6 +89,13 @@ public class OrderPointAssignmentController {
     public record SelfOrderModeRequest(String mode) {
     }
 
+    /** Print the table's unpaid bill as a proforma on its thermal printer. */
+    @PostMapping("/{id}/proforma")
+    @ResponseStatus(HttpStatus.ACCEPTED)
+    public void proforma(@PathVariable UUID id) {
+        assignmentService.printProforma(id);
+    }
+
     /** Close the table's session (only when fully settled) and free the table. */
     @PostMapping("/{id}/close")
     @ResponseStatus(HttpStatus.NO_CONTENT)

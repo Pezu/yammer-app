@@ -24,6 +24,7 @@ import com.yammer.bridge.mobile.fiscal.DatecsProtocol
 import com.yammer.bridge.mobile.service.BridgeForegroundService
 import com.yammer.bridge.mobile.store.FailedOrderStore
 import com.yammer.bridge.mobile.usb.UsbRegisterManager
+import com.yammer.bridge.mobile.usb.UsbThermalPrinterManager
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import kotlin.concurrent.thread
@@ -39,6 +40,7 @@ class MainActivity : AppCompatActivity() {
 
     private lateinit var prefs: Prefs
     private lateinit var usb: UsbRegisterManager
+    private lateinit var usbPrinter: UsbThermalPrinterManager
 
     private lateinit var drawer: DrawerLayout
     private lateinit var statusContainer: View
@@ -72,6 +74,7 @@ class MainActivity : AppCompatActivity() {
 
         prefs = Prefs(this)
         usb = UsbRegisterManager(this)
+        usbPrinter = UsbThermalPrinterManager(this)
 
         drawer = findViewById(R.id.drawerLayout)
         statusContainer = findViewById(R.id.statusContainer)
@@ -99,6 +102,10 @@ class MainActivity : AppCompatActivity() {
             FailedOrderStore.clear()
             render()
         }
+        findViewById<Button>(R.id.logClear).setOnClickListener {
+            BridgeState.clear()
+            BridgeState.log("Jurnal golit.")
+        }
 
         ContextCompat.registerReceiver(
             this, usbPermissionReceiver,
@@ -124,7 +131,16 @@ class MainActivity : AppCompatActivity() {
         val navView = findViewById<NavigationView>(R.id.navView)
         navView.setCheckedItem(R.id.nav_status)
         navView.setNavigationItemSelectedListener { item ->
-            showScreen(item.itemId)
+            if (item.itemId == R.id.nav_advanced) {
+                // toggle the hidden settings (server, key, USB/register parameters)
+                val advanced = findViewById<View>(R.id.advancedContainer)
+                val show = advanced.visibility != View.VISIBLE
+                advanced.visibility = if (show) View.VISIBLE else View.GONE
+                item.isChecked = show
+                navView.setCheckedItem(if (ordersContainer.visibility == View.VISIBLE) R.id.nav_orders else R.id.nav_status)
+            } else {
+                showScreen(item.itemId)
+            }
             drawer.closeDrawers()
             true
         }
@@ -192,6 +208,13 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun connectUsb() {
+        // the thermal printer (printer-class device) needs its own permission grant
+        usbPrinter.find()?.let { printer ->
+            if (!usbPrinter.hasPermission(printer)) {
+                BridgeState.log("Cer permisiune USB pentru imprimanta ${usbPrinter.describe(printer)}")
+                usbPrinter.requestPermission(printer)
+            }
+        }
         // Diagnostic dump first: exactly what the phone enumerates, register or not.
         val attached = usb.listAttached()
         if (attached.isEmpty()) {
@@ -228,6 +251,12 @@ class MainActivity : AppCompatActivity() {
                     } catch (ex: Exception) {
                         BridgeState.log("Cote TVA casa: necitite (${ex.message})")
                     }
+                    // Read-only: the field layout this answer shows is what the lost-close check relies on.
+                    try {
+                        BridgeState.log("Bon curent (cmd 76): ${fp.readCurrentReceipt().replace("\t", " | ")}")
+                    } catch (ex: Exception) {
+                        BridgeState.log("Bon curent (cmd 76): necitit (${ex.message})")
+                    }
                 }
             } catch (ex: Exception) {
                 BridgeState.log("✗ Test casa esuat: ${ex.message}")
@@ -242,13 +271,32 @@ class MainActivity : AppCompatActivity() {
             !usb.hasPermission(driver.device) -> BridgeState.setUsb("fara permisiune: ${usb.describe(driver)}")
             else -> BridgeState.setUsb("pregatit: ${usb.describe(driver)}")
         }
+        val printer = usbPrinter.find()
+        when {
+            printer == null -> BridgeState.setPrinter("neconectata")
+            !usbPrinter.hasPermission(printer) -> BridgeState.setPrinter("fara permisiune: ${usbPrinter.describe(printer)}")
+            else -> BridgeState.setPrinter("pregatita: ${usbPrinter.describe(printer)}")
+        }
     }
 
     private fun render() {
         wsStatus.text = "Server: ${BridgeState.wsStatus}"
-        usbStatus.text = "USB: ${BridgeState.usbStatus}"
+        usbStatus.text = "Casa (USB): ${BridgeState.usbStatus}"
+        findViewById<TextView>(R.id.printerStatus).text = "Imprimanta (USB): ${BridgeState.printerStatus}"
+        paintDot(R.id.wsDot, BridgeState.wsConnected)
+        paintDot(R.id.usbDot, BridgeState.usbReady)
+        paintDot(R.id.printerDot, BridgeState.printerReady)
         logView.text = BridgeState.logText()
         renderOrders()
+    }
+
+    /** Green when the link is up, red otherwise — readable from across the bar. */
+    private fun paintDot(viewId: Int, ok: Boolean) {
+        val dot = android.graphics.drawable.GradientDrawable().apply {
+            shape = android.graphics.drawable.GradientDrawable.OVAL
+            setColor(if (ok) 0xFF2E7D32.toInt() else 0xFFC62828.toInt())
+        }
+        findViewById<View>(viewId).background = dot
     }
 
     /** Orders whose item list is expanded (keyed by requestId). */

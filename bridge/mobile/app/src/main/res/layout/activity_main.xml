@@ -36,19 +36,67 @@
                     android:orientation="vertical"
                     android:padding="16dp">
 
-                    <TextView
-                        android:id="@+id/wsStatus"
+                    <LinearLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:textStyle="bold"
-                        android:text="Server: —" />
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical">
 
-                    <TextView
-                        android:id="@+id/usbStatus"
+                        <View
+                            android:id="@+id/wsDot"
+                            android:layout_width="14dp"
+                            android:layout_height="14dp"
+                            android:layout_marginEnd="8dp" />
+
+                        <TextView
+                            android:id="@+id/wsStatus"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:textStyle="bold"
+                            android:text="Server: —" />
+                    </LinearLayout>
+
+                    <LinearLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:textStyle="bold"
-                        android:text="USB: —" />
+                        android:layout_marginTop="4dp"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical">
+
+                        <View
+                            android:id="@+id/usbDot"
+                            android:layout_width="14dp"
+                            android:layout_height="14dp"
+                            android:layout_marginEnd="8dp" />
+
+                        <TextView
+                            android:id="@+id/usbStatus"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:textStyle="bold"
+                            android:text="Casa (USB): —" />
+                    </LinearLayout>
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="4dp"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical">
+
+                        <View
+                            android:id="@+id/printerDot"
+                            android:layout_width="14dp"
+                            android:layout_height="14dp"
+                            android:layout_marginEnd="8dp" />
+
+                        <TextView
+                            android:id="@+id/printerStatus"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:textStyle="bold"
+                            android:text="Imprimanta: —" />
+                    </LinearLayout>
 
                     <TextView
                         android:id="@+id/deviceId"
@@ -66,6 +114,14 @@
                         android:hint="Nume dispozitiv (vizibil in backoffice)"
                         android:inputType="textCapSentences"
                         android:maxLength="40" />
+
+                    <!-- Advanced settings: hidden unless "Setari avansate" is toggled in the drawer. -->
+                    <LinearLayout
+                        android:id="@+id/advancedContainer"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical"
+                        android:visibility="gone">
 
                     <EditText
                         android:id="@+id/serverUrl"
@@ -110,12 +166,13 @@
                             android:hint="Cod TVA scutit"
                             android:inputType="number" />
                     </LinearLayout>
+                    </LinearLayout>
 
                     <Button
                         android:id="@+id/saveRestart"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:text="Salveaza si (re)porneste bridge-ul" />
+                        android:text="Salveaza si reporneste" />
 
                     <LinearLayout
                         android:layout_width="match_parent"
@@ -138,12 +195,27 @@
                             android:text="Test casa" />
                     </LinearLayout>
 
-                    <TextView
+                    <LinearLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="12dp"
-                        android:textStyle="bold"
-                        android:text="Jurnal" />
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical">
+
+                        <TextView
+                            android:layout_width="0dp"
+                            android:layout_weight="1"
+                            android:layout_height="wrap_content"
+                            android:textStyle="bold"
+                            android:text="Jurnal" />
+
+                        <Button
+                            android:id="@+id/logClear"
+                            style="?android:attr/buttonBarButtonStyle"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Goleste jurnalul" />
+                    </LinearLayout>
 
                     <TextView
                         android:id="@+id/logView"

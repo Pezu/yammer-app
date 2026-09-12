@@ -102,6 +102,7 @@ public class BridgeWsHandler extends TextWebSocketHandler {
         }
         log.info("Bridge device registered: '{}'{} ({} device(s) connected).",
                 deviceId, deviceName.isEmpty() ? "" : " [" + deviceName + "]", devices.size());
+        bridgeService.onDeviceRegistered(deviceId); // deliver frames that waited for this bridge
     }
 
     public boolean isConnected() {

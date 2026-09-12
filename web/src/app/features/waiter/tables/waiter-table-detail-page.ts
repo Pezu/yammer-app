@@ -86,6 +86,26 @@ export class WaiterTableDetailPage {
       this.bill()!.lines.every((l) => l.paid),
   );
 
+  /** Send the unpaid bill to the table's thermal printer as a proforma (not a fiscal receipt). */
+  readonly printing = signal(false);
+
+  printProforma(): void {
+    if (this.printing()) {
+      return;
+    }
+    this.printing.set(true);
+    this.service.printProforma(this.id).subscribe({
+      next: () => {
+        this.printing.set(false);
+        this.toast.show(this.t('detail.proformaSent'));
+      },
+      error: (err) => {
+        this.printing.set(false);
+        this.toast.show(err?.error?.message || this.t('detail.proformaFailed'));
+      },
+    });
+  }
+
   /** Close the session and free the table, then return to the tables list. */
   closeTable(): void {
     if (this.closing()) {

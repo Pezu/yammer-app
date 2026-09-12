@@ -9,6 +9,7 @@ class BridgeApp : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        BridgeState.init(filesDir)
         FailedOrderStore.init(this)
         val manager = getSystemService(NotificationManager::class.java)
         manager.createNotificationChannel(

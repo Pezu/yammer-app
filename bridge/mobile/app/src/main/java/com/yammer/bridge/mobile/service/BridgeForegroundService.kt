@@ -16,6 +16,7 @@ import com.yammer.bridge.mobile.print.EscPosThermalService
 import com.yammer.bridge.mobile.print.FiscalPrinterService
 import com.yammer.bridge.mobile.print.PrintQueueManager
 import com.yammer.bridge.mobile.usb.UsbRegisterManager
+import com.yammer.bridge.mobile.usb.UsbThermalPrinterManager
 import com.yammer.bridge.mobile.ws.BridgeWebSocketClient
 import com.yammer.bridge.mobile.ws.ProcessedReceiptStore
 
@@ -34,7 +35,7 @@ class BridgeForegroundService : Service() {
         val prefs = Prefs(this)
         val usb = UsbRegisterManager(this)
         val store = ProcessedReceiptStore(this)
-        val q = PrintQueueManager(FiscalPrinterService(prefs, usb, store), EscPosThermalService())
+        val q = PrintQueueManager(FiscalPrinterService(prefs, usb, store), EscPosThermalService(UsbThermalPrinterManager(this)))
         queue = q
         ws = BridgeWebSocketClient(prefs, q, store)
         com.yammer.bridge.mobile.BridgeRuntime.client = ws

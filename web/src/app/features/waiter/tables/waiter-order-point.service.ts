@@ -144,6 +144,11 @@ export class WaiterOrderPointService {
   }
 
   /** Close the table's session (only when fully settled) and free the table. */
+  /** Print the unpaid bill as a proforma on the table's thermal printer (best-effort). */
+  printProforma(orderPointId: string): Observable<void> {
+    return this.http.post<void>(`${environment.apiUrl}/order-points/${orderPointId}/proforma`, {});
+  }
+
   closeTable(orderPointId: string): Observable<void> {
     return this.http.post<void>(`${environment.apiUrl}/order-points/${orderPointId}/close`, {});
   }

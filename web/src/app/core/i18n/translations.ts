@@ -48,6 +48,10 @@ export const EN = {
   'detail.closing': 'Closing…',
   'detail.closeTable': 'Close table',
   'detail.closeFailed': 'Could not close the table.',
+  'detail.proforma': 'Print bill',
+  'detail.printing': 'Printing…',
+  'detail.proformaSent': 'Bill sent to the printer.',
+  'detail.proformaFailed': 'Could not print the bill.',
   'detail.loadFailed': 'Could not load the table.',
   'detail.modeFailed': 'Could not change the self-order mode',
 
@@ -191,6 +195,10 @@ export const RO: Record<TKey, string> = {
   'detail.closing': 'Se închide…',
   'detail.closeTable': 'Închide masa',
   'detail.closeFailed': 'Masa nu a putut fi închisă.',
+  'detail.proforma': 'Tipărește nota',
+  'detail.printing': 'Se tipărește…',
+  'detail.proformaSent': 'Nota a fost trimisă la imprimantă.',
+  'detail.proformaFailed': 'Nota nu a putut fi tipărită.',
   'detail.loadFailed': 'Masa nu a putut fi încărcată.',
   'detail.modeFailed': 'Modul de autocomandă nu a putut fi schimbat',
 

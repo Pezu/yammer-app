@@ -4,6 +4,8 @@ import android.util.Log
 import com.yammer.bridge.mobile.dto.InfoReceiptRequest
 import com.yammer.bridge.mobile.dto.ReceiptRequest
 import com.yammer.bridge.mobile.dto.ReceiptResult
+import com.yammer.bridge.mobile.usb.UsbThermalPrinterManager
+import java.io.Closeable
 import java.io.IOException
 import java.io.OutputStream
 import java.math.BigDecimal
@@ -14,23 +16,19 @@ import java.nio.charset.StandardCharsets
 import java.time.LocalDateTime
 
 /**
- * Prints non-fiscal bills on an ESC/POS thermal printer over raw TCP to ip:9100.
- * Direct port of the desktop `EscPosThermalService` (same layout, byte for byte).
+ * Prints non-fiscal bills on an ESC/POS thermal printer — on the phone's USB when the
+ * job carries no printer IP (the backend routes a "Mobile" printer to this phone), or
+ * over raw TCP to ip:9100 otherwise. Layout ported from the desktop bridge byte for byte.
  */
-class EscPosThermalService {
+class EscPosThermalService(private val usbPrinter: UsbThermalPrinterManager) {
 
     fun print(payload: InfoReceiptRequest): ReceiptResult {
         val host = payload.printerIp
-        Log.i(TAG, "Info print: requestId=${payload.requestId} printer=$host:$PORT table=${payload.table}")
-        if (host.isNullOrBlank()) {
-            return ReceiptResult.error(payload.requestId, null, "NO_DEVICE", "Lipseste IP-ul imprimantei")
-        }
+        Log.i(TAG, "Info print: requestId=${payload.requestId} printer=${host ?: "USB"} table=${payload.table}")
 
         return try {
-            Socket().use { socket ->
-                socket.connect(InetSocketAddress(host, PORT), CONNECT_TIMEOUT_MS)
-                socket.tcpNoDelay = true
-                val out = socket.getOutputStream()
+            openSink(host).use { sink ->
+                val out = sink.out
 
                 out.write(INIT)
                 out.write(ALIGN_CENTER)
@@ -85,9 +83,8 @@ class EscPosThermalService {
 
                 out.write(FEED_LINES)
                 out.write(FEED_AND_CUT)
-                out.flush()
-                settle(socket)
-                Log.i(TAG, "Info print OK: requestId=${payload.requestId} printer=$host")
+                sink.finish()
+                Log.i(TAG, "Info print OK: requestId=${payload.requestId} printer=${host ?: "USB"}")
                 ReceiptResult(
                     status = ReceiptResult.OK,
                     requestId = payload.requestId,
@@ -105,16 +102,10 @@ class EscPosThermalService {
     fun printReceipt(payload: ReceiptRequest): ReceiptResult {
         val host = payload.printerIp
         Log.i(TAG, "Non-fiscal receipt: requestId=${payload.requestId} printer=$host:$PORT method=${payload.paymentMethod}")
-        if (host.isNullOrBlank()) {
-            return ReceiptResult.error(payload.requestId, payload.paymentMethod, "NO_DEVICE", "Lipseste IP-ul imprimantei")
-        }
-
         var total = BigDecimal.ZERO
         return try {
-            Socket().use { socket ->
-                socket.connect(InetSocketAddress(host, PORT), CONNECT_TIMEOUT_MS)
-                socket.tcpNoDelay = true
-                val out = socket.getOutputStream()
+            openSink(host).use { sink ->
+                val out = sink.out
 
                 out.write(INIT)
                 out.write(ALIGN_CENTER)
@@ -145,8 +136,7 @@ class EscPosThermalService {
 
                 out.write(FEED_LINES)
                 out.write(FEED_AND_CUT)
-                out.flush()
-                settle(socket)
+                sink.finish()
                 Log.i(TAG, "Non-fiscal receipt OK: requestId=${payload.requestId} printer=$host total=$total")
                 ReceiptResult(
                     status = ReceiptResult.OK,
@@ -165,6 +155,35 @@ class EscPosThermalService {
     /** Whole quantities without the trailing ".0" (port of desktop `Qty`). */
     private fun qtyLabel(qty: Double): String =
         if (qty == Math.floor(qty)) qty.toLong().toString() else qty.toString()
+
+    /** Where the bytes go: the USB printer (no IP in the job) or a TCP printer at ip:9100. */
+    private interface Sink : Closeable {
+        val out: OutputStream
+        /** Flush and let the printer drain before the transport closes. */
+        fun finish()
+    }
+
+    private fun openSink(host: String?): Sink {
+        if (host.isNullOrBlank()) {
+            val conn = usbPrinter.open()
+            return object : Sink {
+                override val out: OutputStream = conn.output
+                override fun finish() = out.flush()
+                override fun close() = conn.close()
+            }
+        }
+        val socket = Socket()
+        socket.connect(InetSocketAddress(host, PORT), CONNECT_TIMEOUT_MS)
+        socket.tcpNoDelay = true
+        return object : Sink {
+            override val out: OutputStream = socket.getOutputStream()
+            override fun finish() {
+                out.flush()
+                settle(socket)
+            }
+            override fun close() = socket.close()
+        }
+    }
 
     /**
      * Some thermal printers discard unprinted data on an abrupt disconnect. Half-close

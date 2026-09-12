@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.yammer.entity.ConnectionType;
 import com.yammer.entity.FiscalStatus;
+import com.yammer.dto.OrderPointBillResponse;
 import com.yammer.entity.IntegrationEntity;
 import com.yammer.entity.MenuItemEntity;
 import com.yammer.entity.OrderItemEntity;
@@ -25,20 +26,27 @@ import com.yammer.util.Strings;
 import com.yammer.ws.BridgeWsHandler;
 import jakarta.annotation.PostConstruct;
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Iterator;
 import java.util.Map;
+import java.util.Queue;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.web.server.ResponseStatusException;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.annotation.Transactional;
@@ -76,6 +84,20 @@ public class BridgeService {
     /** Short load+stamp step in its own tx so the socket send happens with no DB connection held. */
     private TransactionTemplate txTemplate;
 
+    /** Same deadline the sweeper uses: a frame that could not be delivered by then is dropped. */
+    @Value("${bridge.fiscal-result-timeout-seconds:180}")
+    private long resultTimeoutSeconds;
+
+    /**
+     * RECEIPT frames waiting for a bridge: the pinned device (or any device when {@code targetDevice}
+     * is null) was offline when the payment committed. Delivered on the next HELLO within the
+     * deadline; the sweeper fails the payment if no bridge shows up in time. Single API instance.
+     */
+    private final Queue<Waiting> waiting = new ConcurrentLinkedQueue<>();
+
+    private record Waiting(UUID paymentId, String frame, String targetDevice, Instant expiresAt) {
+    }
+
     @PostConstruct
     void initTx() {
         this.txTemplate = new TransactionTemplate(transactionManager);
@@ -94,12 +116,6 @@ public class BridgeService {
     }
 
     private void sendReceipt(UUID paymentId) {
-        if (!handler.isConnected()) {
-            log.warn("Bridge offline — fiscal receipt for payment {} not sent (re-issue from the UI when online).",
-                    paymentId);
-            markFailed(paymentId);
-            return;
-        }
         Dispatch dispatch;
         try {
             dispatch = txTemplate.execute(status -> buildAndStampFrame(paymentId));
@@ -111,16 +127,28 @@ public class BridgeService {
         if (dispatch == null) {
             return; // nothing to fiscalize, already SUCCESS, or not configurable — logged inside
         }
-        if (dispatch.targetDevice() != null && !handler.isDeviceConnected(dispatch.targetDevice())) {
-            log.warn("Bridge device '{}' offline — fiscal RECEIPT for payment {} marked FAILED "
-                    + "(re-issue from the UI when the device reconnects).", dispatch.targetDevice(), paymentId);
-            markFailed(paymentId);
+        boolean online = dispatch.targetDevice() != null
+                ? handler.isDeviceConnected(dispatch.targetDevice())
+                : handler.isConnected();
+        if (!online) {
+            // Bridges drop and reconnect (the WebSocket is cut every hour by the platform): keep the
+            // payment PENDING and hand the frame over on the next HELLO instead of failing it now.
+            waiting.add(new Waiting(paymentId, dispatch.frame(), dispatch.targetDevice(),
+                    Instant.now().plusSeconds(resultTimeoutSeconds)));
+            log.warn("Bridge {} offline — fiscal RECEIPT for payment {} queued until it reconnects "
+                    + "(deadline {} s).", dispatch.targetDevice() == null ? "" : "'" + dispatch.targetDevice() + "'",
+                    paymentId, resultTimeoutSeconds);
             return;
         }
+        deliver(paymentId, dispatch.frame(), dispatch.targetDevice());
+    }
+
+    /** Push one frame now; a drop (socket died between the check and the write) marks the payment FAILED. */
+    private void deliver(UUID paymentId, String frame, String targetDevice) {
         try {
-            String sentDevice = dispatch.targetDevice() != null
-                    ? (handler.sendTo(dispatch.targetDevice(), dispatch.frame()) ? dispatch.targetDevice() : null)
-                    : handler.sendToAnyReturningDevice(dispatch.frame());
+            String sentDevice = targetDevice != null
+                    ? (handler.sendTo(targetDevice, frame) ? targetDevice : null)
+                    : handler.sendToAnyReturningDevice(frame);
             if (sentDevice != null) {
                 // first writer wins: every re-dispatch lands on the same bridge (same de-dup store)
                 txTemplate.executeWithoutResult(st -> paymentRepository.pinFiscalDevice(paymentId, sentDevice));
@@ -133,6 +161,23 @@ public class BridgeService {
         } catch (Exception e) {
             log.error("Failed to send fiscal RECEIPT for payment {}: {}", paymentId, e.getMessage(), e);
             markFailed(paymentId);
+        }
+    }
+
+    /** A bridge said HELLO: deliver every frame that was waiting for it (or for any bridge). */
+    public void onDeviceRegistered(String deviceId) {
+        Instant now = Instant.now();
+        for (Iterator<Waiting> it = waiting.iterator(); it.hasNext(); ) {
+            Waiting w = it.next();
+            if (w.expiresAt().isBefore(now)) {
+                it.remove(); // the sweeper has (or will have) failed it — never print late
+                log.warn("Queued fiscal RECEIPT for payment {} expired before a bridge reconnected.", w.paymentId());
+                continue;
+            }
+            if (w.targetDevice() == null || w.targetDevice().equals(deviceId)) {
+                it.remove();
+                deliver(w.paymentId(), w.frame(), w.targetDevice() == null ? null : deviceId);
+            }
         }
     }
 
@@ -238,6 +283,76 @@ public class BridgeService {
         }
     }
 
+    // ─── proforma (thermal printer, best-effort) ─────────────────────────────
+
+    /**
+     * Print the table's unpaid bill on its thermal printer as a PROFORMA (not a fiscal receipt),
+     * like the old project. Best-effort: the bridge's result is only logged. Throws 409 when the
+     * table has no printer, the printer has no IP, or no bridge that can reach it is connected.
+     */
+    public void sendProforma(OrderPointEntity op, OrderPointBillResponse bill, String waiter, String company) {
+        IntegrationEntity printer = op.getPrinterId() == null ? null
+                : integrationRepository.findById(op.getPrinterId()).orElse(null);
+        if (printer == null) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "No printer configured for " + op.getName());
+        }
+        // A "Mobile" printer hangs off that phone's USB: the job carries no IP and the bridge
+        // writes to its USB printer. A TCP printer needs its IP; any connected bridge can reach it.
+        boolean viaMobile = printer.getConnection() == ConnectionType.MOBILE;
+        String targetDevice = viaMobile ? Strings.trimToNull(printer.getDeviceId()) : null;
+        String printerIp = viaMobile ? null : Strings.trimToNull(printer.getIp());
+        if (viaMobile && targetDevice == null) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "Printer '" + printer.getName() + "' has no phone attached");
+        }
+        if (!viaMobile && printerIp == null) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "Printer '" + printer.getName() + "' has no IP address");
+        }
+        boolean online = targetDevice != null ? handler.isDeviceConnected(targetDevice) : handler.isConnected();
+        if (!online) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "No bridge connected for the printer");
+        }
+
+        List<Map<String, Object>> lines = new ArrayList<>();
+        for (OrderPointBillResponse.OrderPointBillLine line : bill.lines()) {
+            if (line.paid()) {
+                continue;
+            }
+            BigDecimal price = line.price() == null ? BigDecimal.ZERO : line.price();
+            Map<String, Object> m = new LinkedHashMap<>();
+            m.put("name", plainName(line.name()));
+            m.put("quantity", line.quantity());
+            m.put("unitPrice", price);
+            m.put("lineTotal", price.multiply(BigDecimal.valueOf(line.quantity())));
+            lines.add(m);
+        }
+        Map<String, Object> msg = new LinkedHashMap<>();
+        msg.put("type", "INFO_RECEIPT");
+        msg.put("requestId", "proforma-" + UUID.randomUUID()); // not a payment id: results are only logged
+        msg.put("printerIp", printerIp);
+        msg.put("table", op.getName());
+        msg.put("waiter", waiter);
+        msg.put("company", Map.of("name", company == null ? "" : company));
+        msg.put("orderNos", List.of());
+        msg.put("lines", lines);
+        msg.put("total", bill.unpaidTotal());
+        String frame;
+        try {
+            frame = mapper.writeValueAsString(msg);
+        } catch (Exception e) {
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Could not build the proforma", e);
+        }
+        String sent = targetDevice != null
+                ? (handler.sendTo(targetDevice, frame) ? targetDevice : null)
+                : handler.sendToAnyReturningDevice(frame);
+        if (sent == null) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Bridge dropped the proforma — try again");
+        }
+        log.info("Sent PROFORMA for {} ({} lines, {} RON) to device '{}' via printer {}.",
+                op.getName(), lines.size(), bill.unpaidTotal(), sent, printerIp == null ? "USB" : printerIp);
+    }
+
     /** Product names are rich text: strip markup (and the small description block) to one line. */
     static String plainName(String html) {
         if (html == null) {
@@ -273,6 +388,16 @@ public class BridgeService {
             JsonNode node = mapper.readTree(json);
             String requestId = node.path("requestId").asText(null);
             if (requestId == null) {
+                return;
+            }
+            if (requestId.startsWith("proforma-")) { // thermal print job: best-effort, just log
+                String status = node.path("status").asText("");
+                if ("OK".equalsIgnoreCase(status)) {
+                    log.info("Proforma {} printed.", requestId);
+                } else {
+                    log.warn("Proforma {} not printed: {} {}", requestId, node.path("errorCode").asText(""),
+                            node.path("errorMessage").asText(""));
+                }
                 return;
             }
             UUID paymentId;

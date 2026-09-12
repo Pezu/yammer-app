@@ -85,6 +85,17 @@ class DatecsProtocol(
         return resp.trim()
     }
 
+    /**
+     * Cmd 76 — information on the current receipt (read-only, prints nothing). Tab-separated:
+     * `ErrorCode, IsOpen, Number, …` — whether a fiscal receipt is open right now and the
+     * number of the current/last receipt. Used to settle a lost close confirmation.
+     */
+    fun readCurrentReceipt(): String {
+        val resp = send(76, "")
+        checkOk(76, resp)
+        return resp.trim()
+    }
+
     /** Cmd 54 — print fiscal text (e.g. thank-you note). */
     fun printFiscalText(text: String) {
         val resp = send(54, "$text\t0\t0\t0\t0\t1\t")

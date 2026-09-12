@@ -11,6 +11,9 @@ import com.yammer.entity.TableSessionEntity;
 import com.yammer.entity.UserEntity;
 import com.yammer.repository.OrderPointAssignmentRepository;
 import com.yammer.repository.OrderPointRepository;
+import com.yammer.repository.ClientRepository;
+import com.yammer.repository.LocationRepository;
+import com.yammer.dto.OrderPointBillResponse;
 import com.yammer.repository.OrderPointTypeRepository;
 import com.yammer.repository.OrderRepository;
 import com.yammer.repository.TableSessionRepository;
@@ -46,6 +49,9 @@ public class OrderPointAssignmentService {
     private final OrderService orderService;
     private final OrderReportService orderReportService;
     private final OrderPointService orderPointService;
+    private final BridgeService bridgeService;
+    private final LocationRepository locationRepository;
+    private final ClientRepository clientRepository;
 
     /**
      * Service kanban board: undelivered (ORDERED/READY) orders from the points routed
@@ -231,6 +237,22 @@ public class OrderPointAssignmentService {
             assign(slot.getId());
         }
         return OrderPointResponse.from(slot);
+    }
+
+    /** Print the table's unpaid bill as a PROFORMA on its thermal printer (best-effort). */
+    public void printProforma(UUID orderPointId) {
+        OrderPointEntity point = accessGuard.requireAccessibleOrderPoint(orderPointId);
+        UserEntity me = requireUser();
+        OrderPointBillResponse bill = orderService.billUnchecked(orderPointId);
+        if (bill.unpaidTotal() == null || bill.unpaidTotal().signum() <= 0) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Nothing to pay on " + point.getName());
+        }
+        String waiter = me.getName() == null || me.getName().isBlank() ? me.getUsername() : me.getName();
+        String company = locationRepository.findById(point.getLocationId())
+                .flatMap(l -> clientRepository.findById(l.getClientId()))
+                .map(c -> c.getName())
+                .orElse(null);
+        bridgeService.sendProforma(point, bill, waiter, company);
     }
 
     /**
