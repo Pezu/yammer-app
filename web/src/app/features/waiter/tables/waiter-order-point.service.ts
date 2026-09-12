@@ -38,6 +38,10 @@ export interface OrderPointMenu {
   menus: MenuOption[];
   /** Every orderable product across the location's menus (for the search box). */
   products: ProductOption[];
+  /** Runs a tab (pay later); false = pay as you order — placing an order asks for the payment. */
+  keepOpen?: boolean;
+  /** Payment types accepted at this point (buttons of the pay-now sheet). */
+  paymentTypeIds?: string[];
 }
 
 export interface OrderItemInput {
@@ -89,6 +93,8 @@ export interface OrderPointBill {
   /** Whether a table session is running; Close table is offered when open + fully paid. */
   sessionOpen: boolean;
   /** Customer self-ordering at this table: ALLOW / CONFIRM (waiter approves) / DISALLOW. */
+  /** Runs a tab; false = pay as you order (pay sheet opens right after an order). */
+  keepOpen: boolean;
   selfOrderMode: 'ALLOW' | 'CONFIRM' | 'DISALLOW';
   lines: BillLine[];
   total: number;
@@ -110,8 +116,18 @@ export class WaiterOrderPointService {
   }
 
   /** Place an order at the point. */
-  placeOrder(orderPointId: string, items: OrderItemInput[]): Observable<WaiterOrder> {
-    return this.http.post<WaiterOrder>(`${environment.apiUrl}/orders`, { orderPointId, items });
+  /** Place an order; with `pay` it is settled on the spot (pay-as-you-order points). */
+  placeOrder(
+    orderPointId: string,
+    items: OrderItemInput[],
+    pay?: { paymentTypeId: string; tip: number },
+  ): Observable<WaiterOrder> {
+    return this.http.post<WaiterOrder>(`${environment.apiUrl}/orders`, {
+      orderPointId,
+      items,
+      paymentTypeId: pay?.paymentTypeId ?? null,
+      tip: pay?.tip ?? null,
+    });
   }
 
   /** Orders placed at the point, newest first. */

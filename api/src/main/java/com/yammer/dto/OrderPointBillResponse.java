@@ -15,6 +15,8 @@ public record OrderPointBillResponse(
         List<UUID> paymentTypeIds,
         boolean sessionOpen,
         String selfOrderMode,
+        /* the point runs a tab; false = pay as you order (the waiter pays right after ordering) */
+        boolean keepOpen,
         List<OrderPointBillLine> lines,
         BigDecimal total,
         BigDecimal unpaidTotal) {

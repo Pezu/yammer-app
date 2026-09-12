@@ -9,6 +9,7 @@ public record OrderPointRequest(
         @NotBlank String name,
         UUID selfPayTypeId,
         boolean allowMultipleUsers,
+        boolean keepOpen,
         List<UUID> paymentTypeIds,
         UUID menuId,
         UUID serviceOrderPointId,

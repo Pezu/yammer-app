@@ -10,6 +10,10 @@ import {
   WaiterOrderPointService,
 } from './waiter-order-point.service';
 import { WaiterMenuCacheService } from '../waiter-menu-cache.service';
+import {
+  PaymentType,
+  PaymentTypeService,
+} from '../../backoffice/pages/payment-types/payment-type.service';
 import { ToastService } from '../../../core/toast.service';
 import { I18nService } from '../../../core/i18n.service';
 
@@ -33,7 +37,22 @@ export class WaiterOrderPage {
   private readonly service = inject(WaiterOrderPointService);
   private readonly menuCache = inject(WaiterMenuCacheService);
   private readonly toast = inject(ToastService);
+  private readonly paymentTypeService = inject(PaymentTypeService);
   readonly t = inject(I18nService).t;
+
+  // --- pay as you order (keepOpen = false, e.g. bars): the payment is chosen before placing ---
+
+  private readonly paymentTypes = signal<PaymentType[]>([]);
+  readonly payOpen = signal(false);
+  readonly payTip = signal<number | null>(null);
+  /** The point's accepted payment types, as buttons. */
+  readonly payOptions = computed(() => {
+    const byId = new Map(this.paymentTypes().map((p) => [p.id, p.type]));
+    return (this.menu()?.paymentTypeIds ?? []).map((id) => ({ id, name: byId.get(id) ?? '?' }));
+  });
+  /** Older cached menus carry no flag: treat them as tabs (the safe default). */
+  readonly payNow = computed(() => this.menu()?.keepOpen === false);
+  readonly payTotal = computed(() => Math.round((this.total() + (this.payTip() ?? 0)) * 100) / 100);
 
   private readonly id = this.route.snapshot.paramMap.get('id') ?? '';
   private readonly stateName = (history.state?.name as string) ?? '';
@@ -131,6 +150,7 @@ export class WaiterOrderPage {
   readonly total = computed(() => this.cart().reduce((s, l) => s + l.price * l.quantity, 0));
 
   constructor() {
+    this.paymentTypeService.list().subscribe({ next: (types) => this.paymentTypes.set(types) });
     // Loads once on open (from the cache when available) and again whenever the
     // cache version is bumped.
     effect(() => {
@@ -267,11 +287,36 @@ export class WaiterOrderPage {
     });
   }
 
+  /** Tab points place right away; pay-now points ask for the payment first. */
   placeOrder(): void {
-    const lines = this.cart();
-    if (!lines.length || this.placing()) {
+    if (!this.cart().length || this.placing()) {
       return;
     }
+    if (this.payNow()) {
+      if (!this.payOptions().length) {
+        this.placeError.set(this.t('order.noPaymentTypes'));
+        return;
+      }
+      this.payTip.set(null);
+      this.placeError.set(null);
+      this.payOpen.set(true);
+      return;
+    }
+    this.submitOrder();
+  }
+
+  closePay(): void {
+    this.payOpen.set(false);
+  }
+
+  /** Pay-now sheet: the chosen payment type places AND settles the order in one request. */
+  payAndPlace(paymentTypeId: string): void {
+    this.payOpen.set(false);
+    this.submitOrder({ paymentTypeId, tip: this.payTip() ?? 0 });
+  }
+
+  private submitOrder(pay?: { paymentTypeId: string; tip: number }): void {
+    const lines = this.cart();
     this.placing.set(true);
     this.placeError.set(null);
     this.service
@@ -283,11 +328,12 @@ export class WaiterOrderPage {
           price: l.price,
           quantity: l.quantity,
         })),
+        pay,
       )
       .subscribe({
         next: () => {
           this.cart.set([]);
-          this.toast.show(this.t('order.placed'));
+          this.toast.show(this.t(pay ? 'order.placedPaid' : 'order.placed'));
           // rewrite the cart entry to the Tables URL (silently) so a back from the
           // table page exits the table instead of returning to the cart/menu
           this.location.replaceState('/waiter/tables');

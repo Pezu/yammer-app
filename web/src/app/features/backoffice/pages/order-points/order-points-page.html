@@ -53,6 +53,7 @@
               <th>Cash register</th>
               <th>Self pay</th>
               <th>Multiple users</th>
+              <th>Keep open</th>
               <th>Payment types</th>
               <th>Service point</th>
               <th class="actions-col">Actions</th>
@@ -110,6 +111,9 @@
                   <td class="paylater-col">
                     <input type="checkbox" class="checkbox" #eamu [checked]="editAllowMultipleUsers()" (change)="editAllowMultipleUsers.set(eamu.checked)" aria-label="Allow multiple users" />
                   </td>
+                  <td class="paylater-col">
+                    <input type="checkbox" class="checkbox" #eko [checked]="editKeepOpen()" (change)="editKeepOpen.set(eko.checked)" aria-label="Keep open" title="Runs a tab: orders are paid later. Off: pay right after ordering." />
+                  </td>
                   <td>
                     <app-combo-box
                       [options]="paymentTypeOptions()"
@@ -140,6 +144,11 @@
                   <td class="paylater-col">
                     @if (point.allowMultipleUsers) {
                       <svg class="check" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-label="Allow multiple users"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                    }
+                  </td>
+                  <td class="paylater-col">
+                    @if (point.keepOpen) {
+                      <svg class="check" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-label="Keep open"><polyline points="20 6 9 17 4 12"></polyline></svg>
                     }
                   </td>
                   <td>
@@ -184,7 +193,7 @@
 
             @if (!loading() && orderPoints().length === 0) {
               <tr>
-                <td colspan="9" class="empty">No order points yet — use the + button to add some.</td>
+                <td colspan="10" class="empty">No order points yet — use the + button to add some.</td>
               </tr>
             }
           </tbody>
@@ -220,7 +229,7 @@
           <app-combo-box
             [options]="typeOptions()"
             [value]="mTypeId()"
-            (valueChange)="mTypeId.set($event)"
+            (valueChange)="selectModalType($event)"
             placeholder="Select a type…"
             noMatchLabel="No types"
           />
@@ -245,6 +254,12 @@
           <label class="checkbox-label">
             <input type="checkbox" class="checkbox" #amu [checked]="mAllowMultipleUsers()" (change)="mAllowMultipleUsers.set(amu.checked)" />
             Allow multiple users
+          </label>
+        </div>
+        <div class="form-group">
+          <label class="checkbox-label" title="Runs a tab: orders are paid later. Off: the waiter pays right after ordering (bars).">
+            <input type="checkbox" class="checkbox" #mko [checked]="mKeepOpen()" (change)="mKeepOpen.set(mko.checked)" />
+            Keep open (tab, pay later)
           </label>
         </div>
         <div class="form-group">

@@ -86,7 +86,8 @@ public class OrderPointService {
                         .toList();
 
         return new OrderPointMenuResponse(
-                op.getId(), op.getName(), op.getMenuId(), items, menus, products);
+                op.getId(), op.getName(), op.getMenuId(), items, menus, products,
+                op.isKeepOpen(), op.getPaymentTypeIds() == null ? List.of() : List.copyOf(op.getPaymentTypeIds()));
     }
 
     /** Order points of one location (tenant-checked via the location), naturally ordered. */
@@ -142,6 +143,7 @@ public class OrderPointService {
             op.setTypeId(request.typeId());
             op.setSelfPayTypeId(selfPayTypeId);
             op.setAllowMultipleUsers(request.allowMultipleUsers());
+            op.setKeepOpen(request.keepOpen());
             op.setPaymentTypeIds(new ArrayList<>(paymentTypeIds));
             op.setMenuId(request.menuId());
             op.setServiceOrderPointId(serviceId);
@@ -161,6 +163,7 @@ public class OrderPointService {
         entity.setName(request.name().trim());
         entity.setSelfPayTypeId(resolveSelfPayType(request.selfPayTypeId()));
         entity.setAllowMultipleUsers(request.allowMultipleUsers());
+        entity.setKeepOpen(request.keepOpen());
         entity.setPaymentTypeIds(resolvePaymentTypes(request.paymentTypeIds()));
         entity.setMenuId(request.menuId());
         entity.setServiceOrderPointId(serviceId);
@@ -216,6 +219,7 @@ public class OrderPointService {
         slot.setSelfPayTypeId(source.getSelfPayTypeId());
         slot.setSelfOrderMode(source.getSelfOrderMode());
         slot.setAllowMultipleUsers(source.isAllowMultipleUsers());
+        slot.setKeepOpen(source.isKeepOpen());
         slot.setPaymentTypeIds(new ArrayList<>(source.getPaymentTypeIds()));
         slot.setMenuId(source.getMenuId());
         slot.setServiceOrderPointId(source.getServiceOrderPointId());

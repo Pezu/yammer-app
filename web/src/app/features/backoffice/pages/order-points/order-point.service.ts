@@ -10,6 +10,8 @@ export interface OrderPoint {
   typeId: string;
   selfPayTypeId: string | null;
   allowMultipleUsers: boolean;
+  /** Runs a tab (pay later); false = pay as you order. */
+  keepOpen: boolean;
   paymentTypeIds: string[];
   menuId: string | null;
   serviceOrderPointId: string | null;
@@ -21,6 +23,8 @@ export interface OrderPointInput {
   name: string;
   selfPayTypeId: string | null;
   allowMultipleUsers: boolean;
+  /** Runs a tab (pay later); false = pay as you order. */
+  keepOpen: boolean;
   paymentTypeIds: string[];
   menuId: string | null;
   serviceOrderPointId: string | null;
@@ -34,6 +38,8 @@ export interface CreateOrderPointsBatch {
   count: number;
   selfPayTypeId: string | null;
   allowMultipleUsers: boolean;
+  /** Runs a tab (pay later); false = pay as you order. */
+  keepOpen: boolean;
   paymentTypeIds: string[];
   menuId: string | null;
   serviceOrderPointId: string | null;
@@ -47,6 +53,8 @@ export interface AssignableOrderPoint {
   name: string;
   typeId: string;
   allowMultipleUsers: boolean;
+  /** Runs a tab (pay later); false = pay as you order. */
+  keepOpen: boolean;
   assignedCount: number;
   assignedToMe: boolean;
   assignedNames: string[];

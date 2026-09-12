@@ -92,6 +92,9 @@ export const EN = {
   'order.loadFailed': 'Could not load the menu.',
   'order.added': 'Added to cart',
   'order.placed': 'Order placed',
+  'order.placedPaid': 'Order placed & paid',
+  'order.payTitle': 'Pay and place the order',
+  'order.noPaymentTypes': 'No payment type is set for this order point — ask an admin.',
   'order.placeFailed': 'Could not place the order. Please try again.',
 
   'approvals.title': 'Approvals',
@@ -241,6 +244,9 @@ export const RO: Record<TKey, string> = {
   'order.loadFailed': 'Meniul nu a putut fi încărcat.',
   'order.added': 'Adăugat în coș',
   'order.placed': 'Comanda a fost trimisă',
+  'order.placedPaid': 'Comandă plasată și plătită',
+  'order.payTitle': 'Plătește și plasează comanda',
+  'order.noPaymentTypes': 'Nicio metodă de plată setată pentru acest punct — cere unui admin.',
   'order.placeFailed': 'Comanda nu a putut fi trimisă. Încearcă din nou.',
 
   'approvals.title': 'Aprobări',

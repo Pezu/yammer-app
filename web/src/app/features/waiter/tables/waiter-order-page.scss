@@ -520,3 +520,110 @@
   font-size: 0.72rem;
   color: var(--muted);
 }
+
+/* pay-as-you-order sheet (bars): bottom sheet with the total, a tip and one button per payment type */
+.pay-overlay {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: flex-end;
+  background: rgba(18, 27, 46, 0.45);
+  z-index: 60;
+}
+
+.pay-sheet {
+  width: 100%;
+  background: #fff;
+  border-radius: 14px 14px 0 0;
+  box-shadow: 0 -0.5rem 2rem rgba(18, 27, 46, 0.25);
+}
+
+.pay-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem;
+  border-bottom: 1px solid var(--border);
+
+  h3 {
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 700;
+  }
+}
+
+.close-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  color: var(--muted);
+  background: none;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.pay-body {
+  padding: 1rem 1rem 1.25rem;
+}
+
+.sum-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 0.35rem 0;
+  font-size: 0.95rem;
+
+  &.total {
+    margin-top: 0.4rem;
+    padding-top: 0.6rem;
+    border-top: 1px solid var(--border);
+    font-weight: 800;
+  }
+}
+
+.tip-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.35rem 0;
+  font-size: 0.95rem;
+
+  span:first-child {
+    flex: 1;
+  }
+
+  input {
+    width: 6rem;
+    padding: 0.45rem 0.6rem;
+    font: inherit;
+    text-align: right;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+  }
+}
+
+.methods {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 1rem;
+
+  .method {
+    flex: 1;
+    padding: 0.9rem 0.5rem;
+    font: inherit;
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: #fff;
+    background: var(--primary);
+    border: none;
+    border-radius: 10px;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+
+    &:disabled {
+      opacity: 0.5;
+    }
+  }
+}

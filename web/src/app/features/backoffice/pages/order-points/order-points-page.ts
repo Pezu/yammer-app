@@ -215,6 +215,14 @@ export class OrderPointsPage {
   readonly mCount = signal(1);
   readonly mSelfPayTypeId = signal<string>('');
   readonly mAllowMultipleUsers = signal(false);
+  /** Tables run a tab by default; bars pay as they order. */
+  readonly mKeepOpen = signal(true);
+
+  /** Picking the type presets "Keep open": off for BAR, on for everything else. */
+  selectModalType(typeId: string): void {
+    this.mTypeId.set(typeId);
+    this.mKeepOpen.set(this.typeName(typeId) !== 'BAR');
+  }
   readonly mPaymentTypeIds = signal<string[]>([]);
   readonly mMenuId = signal<string>('');
   readonly mServiceId = signal<string>('');
@@ -262,6 +270,7 @@ export class OrderPointsPage {
       count: this.mCount(),
       selfPayTypeId: this.mSelfPayTypeId() || null,
       allowMultipleUsers: this.mAllowMultipleUsers(),
+      keepOpen: this.mKeepOpen(),
       paymentTypeIds: this.mPaymentTypeIds(),
       menuId: this.mMenuId() || null,
       serviceOrderPointId: this.mServiceId() || null,
@@ -288,6 +297,7 @@ export class OrderPointsPage {
   readonly editName = new FormControl('', { nonNullable: true, validators: [Validators.required] });
   readonly editSelfPayTypeId = signal<string>('');
   readonly editAllowMultipleUsers = signal(false);
+  readonly editKeepOpen = signal(true);
   readonly editPaymentTypeIds = signal<string[]>([]);
   readonly editMenuId = signal<string>('');
   readonly editServiceId = signal<string>('');
@@ -304,6 +314,7 @@ export class OrderPointsPage {
     this.editName.setValue(point.name);
     this.editSelfPayTypeId.set(point.selfPayTypeId ?? '');
     this.editAllowMultipleUsers.set(point.allowMultipleUsers);
+    this.editKeepOpen.set(point.keepOpen);
     this.editPaymentTypeIds.set([...point.paymentTypeIds]);
     this.editMenuId.set(point.menuId ?? '');
     this.editServiceId.set(point.serviceOrderPointId ?? '');
@@ -325,6 +336,7 @@ export class OrderPointsPage {
       name: this.editName.value.trim(),
       selfPayTypeId: this.editSelfPayTypeId() || null,
       allowMultipleUsers: this.editAllowMultipleUsers(),
+      keepOpen: this.editKeepOpen(),
       paymentTypeIds: this.editPaymentTypeIds(),
       menuId: this.editMenuId() || null,
       serviceOrderPointId: this.editServiceId() || null,

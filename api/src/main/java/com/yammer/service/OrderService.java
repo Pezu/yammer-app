@@ -8,6 +8,7 @@ import com.yammer.event.OrderChangedEvent;
 import com.yammer.event.PaymentCommittedEvent;
 import com.yammer.dto.OrderResponse;
 import com.yammer.dto.PayRequest;
+import com.yammer.dto.PaymentMode;
 import com.yammer.dto.PlaceOrderRequest;
 import com.yammer.entity.CustomerSessionEntity;
 import com.yammer.entity.LocationEntity;
@@ -98,13 +99,19 @@ public class OrderService {
                 .orElseThrow(() -> new ResponseStatusException(
                         HttpStatus.NOT_FOUND, "Order point not found: " + request.orderPointId()));
 
+        boolean payNow = request.paymentTypeId() != null;
+        if (payNow && (op.getPaymentTypeIds() == null || !op.getPaymentTypeIds().contains(request.paymentTypeId()))) {
+            throw badRequest("Payment type not accepted at this order point");
+        }
+
         OrderEntity order = new OrderEntity();
         order.setOrderNo(orderRepository.maxOrderNoForClient(location.getClientId()) + 1);
         order.setOrderPointId(op.getId());
         order.setSessionId(session.getId());
         order.setCreatedBy(me.username());
         order.setCreatedAt(LocalDateTime.now());
-        order.setStatus("ORDERED");
+        // Paid on the spot = served on the spot (a bar): it never goes through the service board.
+        order.setStatus(payNow ? "DELIVERED" : "ORDERED");
         OrderEntity savedOrder = orderRepository.save(order);
 
         List<OrderItemEntity> toSave = new ArrayList<>(request.items().size());
@@ -118,7 +125,17 @@ public class OrderService {
             toSave.add(item);
         }
         List<OrderItemEntity> savedItems = orderItemRepository.saveAll(toSave);
-        eventPublisher.publishEvent(new OrderChangedEvent(savedOrder, "ORDER_CREATED"));
+        if (payNow) {
+            // Settle exactly this order's lines (other unpaid lines on the point stay as they are).
+            BigDecimal amount = savedItems.stream().map(this::lineTotal).reduce(BigDecimal.ZERO, BigDecimal::add);
+            PayRequest pay = new PayRequest(op.getId(), request.paymentTypeId(), PaymentMode.FULL,
+                    request.tip() == null ? BigDecimal.ZERO : request.tip(), null, null);
+            PaymentEntity payment = createPayment(pay, amount, me, session);
+            savedItems.forEach(i -> i.setPaymentId(payment.getId()));
+            savedItems = orderItemRepository.saveAll(savedItems);
+        } else {
+            eventPublisher.publishEvent(new OrderChangedEvent(savedOrder, "ORDER_CREATED"));
+        }
         return OrderResponse.from(savedOrder, savedItems, op.getName());
     }
 
@@ -423,7 +440,7 @@ public class OrderService {
         }
         return new OrderPointBillResponse(
                 op.getName(), op.getPaymentTypeIds(), session.isPresent(), op.getSelfOrderMode(),
-                List.copyOf(lines.values()), total, unpaidTotal);
+                op.isKeepOpen(), List.copyOf(lines.values()), total, unpaidTotal);
     }
 
     /**

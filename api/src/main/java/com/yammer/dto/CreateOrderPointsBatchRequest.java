@@ -11,6 +11,7 @@ public record CreateOrderPointsBatchRequest(
         @Min(1) int count,
         UUID selfPayTypeId,
         boolean allowMultipleUsers,
+        boolean keepOpen,
         List<UUID> paymentTypeIds,
         UUID menuId,
         UUID serviceOrderPointId,

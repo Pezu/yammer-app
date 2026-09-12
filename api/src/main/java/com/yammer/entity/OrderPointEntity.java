@@ -47,6 +47,10 @@ public class OrderPointEntity {
     @Column(name = "allow_multiple_users", nullable = false)
     private boolean allowMultipleUsers;
 
+    /** Runs a tab (orders accumulate on the open session, paid later) — off = pay as you order. */
+    @Column(name = "keep_open", nullable = false)
+    private boolean keepOpen = true;
+
     /** Accepted payment types, from the payment_type catalog (CARD/CASH/PROTOCOL/PO/…); empty = none set. */
     @JdbcTypeCode(SqlTypes.ARRAY)
     @Column(name = "payment_type_ids", columnDefinition = "uuid[]", nullable = false)
