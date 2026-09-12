@@ -69,3 +69,116 @@
     cursor: default;
   }
 }
+
+/* pager — same as the orders report */
+.pager {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.75rem 0.25rem 0;
+}
+
+.pager-left {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.range {
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+
+.pager-btns {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.pager-btns .page {
+  font-size: 0.78rem;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.pager-btns button {
+  width: 28px;
+  height: 28px;
+  font-size: 1rem;
+  line-height: 1;
+  color: var(--text);
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.pager-btns button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.ps-combo {
+  position: relative;
+}
+
+.combo-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.35rem 0.6rem;
+  font: inherit;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text);
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.combo-trigger .caret {
+  color: var(--muted);
+}
+
+.combo-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+}
+
+.combo-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 31;
+  min-width: 7rem;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 0.5rem 1.5rem rgba(18, 27, 46, 0.15);
+  overflow: hidden;
+}
+
+.combo-opt {
+  display: block;
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  font: inherit;
+  font-size: 0.8rem;
+  text-align: left;
+  color: var(--text);
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+.combo-opt:hover {
+  background: var(--page-bg);
+}
+
+.combo-opt.active {
+  color: var(--primary);
+  font-weight: 700;
+}

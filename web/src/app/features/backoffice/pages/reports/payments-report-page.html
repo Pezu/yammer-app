@@ -51,7 +51,7 @@
             </tr>
           </thead>
           <tbody>
-            @for (row of rows(); track row.id) {
+            @for (row of pageRows(); track row.id) {
               <tr>
                 <td>{{ row.orderPointName }}</td>
                 <td>{{ row.waiter }}</td>
@@ -98,6 +98,33 @@
             </tfoot>
           }
         </table>
+
+        @if (rows().length > 0) {
+          <div class="pager">
+            <div class="pager-left">
+              <div class="ps-combo">
+                <button type="button" class="combo-trigger" (click)="toggleCombo()">
+                  <span>{{ pageSize() }} / page</span>
+                  <svg class="caret" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                </button>
+                @if (comboOpen()) {
+                  <div class="combo-backdrop" (click)="closeCombo()"></div>
+                  <div class="combo-menu">
+                    @for (n of pageSizes; track n) {
+                      <button type="button" class="combo-opt" [class.active]="pageSize() === n" (click)="setPageSize(n)">{{ n }} / page</button>
+                    }
+                  </div>
+                }
+              </div>
+              <span class="range">{{ range() }}</span>
+            </div>
+            <div class="pager-btns">
+              <button type="button" (click)="prev()" [disabled]="page() <= 1">‹</button>
+              <span class="page">{{ page() }} / {{ totalPages() }}</span>
+              <button type="button" (click)="next()" [disabled]="page() >= totalPages()">›</button>
+            </div>
+          </div>
+        }
       </div>
     </div>
   }

@@ -83,10 +83,17 @@ public class DashboardReportService {
 
         Map<UUID, OrderEntity> orderById = orders.stream().collect(Collectors.toMap(OrderEntity::getId, o -> o));
         items = items.stream().filter(i -> orderById.containsKey(i.getOrderId())).toList(); // billable orders only
-        Map<UUID, String> pointName = orderPointRepository.findByLocationIdOrderByName(locationId).stream()
+        List<OrderPointEntity> points = orderPointRepository.findByLocationIdOrderByName(locationId);
+        Map<UUID, String> pointName = points.stream()
                 .collect(Collectors.toMap(OrderPointEntity::getId, OrderPointEntity::getName));
         Map<UUID, String> typeName = paymentTypeRepository.findAll().stream()
                 .collect(Collectors.toMap(PaymentTypeEntity::getId, PaymentTypeEntity::getType));
+        // a "protocol table" accepts the PROTOCOL payment type (comped consumption)
+        Set<UUID> protocolTypeIds = typeName.entrySet().stream()
+                .filter(e -> kind(e.getValue()) == Kind.PROTOCOL).map(Map.Entry::getKey).collect(Collectors.toSet());
+        Set<UUID> protocolPoints = points.stream()
+                .filter(op -> op.getPaymentTypeIds() != null && op.getPaymentTypeIds().stream().anyMatch(protocolTypeIds::contains))
+                .map(OrderPointEntity::getId).collect(Collectors.toSet());
         Map<String, String> displayName = displayNames(orders, payments);
 
         // ---- summary
@@ -96,7 +103,14 @@ public class DashboardReportService {
         BigDecimal tips = sum(payments.stream().map(PaymentEntity::getTip));
         BigDecimal averageOrder = orders.isEmpty() ? BigDecimal.ZERO
                 : ordered.divide(BigDecimal.valueOf(orders.size()), 2, RoundingMode.HALF_UP);
-        Summary summary = new Summary(ordered, paid, tips, remaining, orders.size(), payments.size(), averageOrder);
+        BigDecimal orderedProtocol = sum(items.stream()
+                .filter(i -> protocolPoints.contains(orderById.get(i.getOrderId()).getOrderPointId()))
+                .map(this::lineTotal));
+        BigDecimal paidProtocol = sum(payments.stream()
+                .filter(p -> kind(typeName.get(p.getPaymentTypeId())) == Kind.PROTOCOL)
+                .map(PaymentEntity::getAmount));
+        Summary summary = new Summary(ordered, paid, tips, remaining, orders.size(), payments.size(), averageOrder,
+                orderedProtocol, paidProtocol);
 
         // ---- timeline
         int bucketMinutes = bucketMinutesFor(Duration.between(start, end));
@@ -124,26 +138,34 @@ public class DashboardReportService {
                         e.getValue()[2].longValue()))
                 .toList();
 
-        // ---- tables
+        // ---- tables: [ordered, cash, card, protocol, other, tips, remaining]
         Map<String, BigDecimal[]> byTable = new TreeMap<>((a, b) -> OrderPointService.compareNames(a, b));
-        Function<String, BigDecimal[]> tableAcc = k -> byTable.computeIfAbsent(k, x -> zeros(6));
+        Map<String, Boolean> tableIsProtocol = new HashMap<>();
+        Function<String, BigDecimal[]> tableAcc = k -> byTable.computeIfAbsent(k, x -> zeros(7));
         for (OrderItemEntity i : items) {
             OrderEntity o = orderById.get(i.getOrderId());
-            BigDecimal[] acc = tableAcc.apply(pointName.getOrDefault(o.getOrderPointId(), "?"));
+            String name = pointName.getOrDefault(o.getOrderPointId(), "?");
+            tableIsProtocol.put(name, protocolPoints.contains(o.getOrderPointId()));
+            BigDecimal[] acc = tableAcc.apply(name);
             acc[0] = acc[0].add(lineTotal(i));
             if (i.getPaymentId() == null) {
-                acc[5] = acc[5].add(lineTotal(i));
+                acc[6] = acc[6].add(lineTotal(i));
             }
         }
         for (PaymentEntity p : payments) {
-            BigDecimal[] acc = tableAcc.apply(pointName.getOrDefault(p.getOrderPointId(), "?"));
-            int slot = switch (kind(typeName.get(p.getPaymentTypeId()))) { case CASH -> 1; case CARD -> 2; default -> 3; };
+            String name = pointName.getOrDefault(p.getOrderPointId(), "?");
+            tableIsProtocol.putIfAbsent(name, protocolPoints.contains(p.getOrderPointId()));
+            BigDecimal[] acc = tableAcc.apply(name);
+            int slot = switch (kind(typeName.get(p.getPaymentTypeId()))) {
+                case CASH -> 1; case CARD -> 2; case PROTOCOL -> 3; default -> 4;
+            };
             acc[slot] = acc[slot].add(nz(p.getAmount()));
-            acc[4] = acc[4].add(nz(p.getTip()));
+            acc[5] = acc[5].add(nz(p.getTip()));
         }
         List<TableRow> tables = byTable.entrySet().stream()
-                .map(e -> new TableRow(e.getKey(), e.getValue()[0], e.getValue()[1], e.getValue()[2],
-                        e.getValue()[3], e.getValue()[4], e.getValue()[5]))
+                .map(e -> new TableRow(e.getKey(), tableIsProtocol.getOrDefault(e.getKey(), false),
+                        e.getValue()[0], e.getValue()[1], e.getValue()[2], e.getValue()[3], e.getValue()[4],
+                        e.getValue()[5], e.getValue()[6]))
                 .toList();
 
         // ---- products (by plain product name)
@@ -159,8 +181,8 @@ public class DashboardReportService {
                 .toList();
 
         // ---- waiters: orders/sales/unsettled by the order's creator; takings/tips by the payment's creator
-        Map<String, BigDecimal[]> byWaiter = new TreeMap<>(); // [orders, sales, cash, card, other, tipsCash, tipsCard, unsettled]
-        Function<String, BigDecimal[]> waiterAcc = k -> byWaiter.computeIfAbsent(k, x -> zeros(8));
+        Map<String, BigDecimal[]> byWaiter = new TreeMap<>(); // [orders, sales, cash, card, protocol, other, tipsCash, tipsCard, unsettled]
+        Function<String, BigDecimal[]> waiterAcc = k -> byWaiter.computeIfAbsent(k, x -> zeros(9));
         for (OrderEntity o : orders) {
             waiterAcc.apply(displayName.getOrDefault(o.getCreatedBy(), who(o.getCreatedBy())))[0] =
                     waiterAcc.apply(displayName.getOrDefault(o.getCreatedBy(), who(o.getCreatedBy())))[0].add(BigDecimal.ONE);
@@ -170,20 +192,22 @@ public class DashboardReportService {
             BigDecimal[] acc = waiterAcc.apply(displayName.getOrDefault(o.getCreatedBy(), who(o.getCreatedBy())));
             acc[1] = acc[1].add(lineTotal(i));
             if (i.getPaymentId() == null) {
-                acc[7] = acc[7].add(lineTotal(i));
+                acc[8] = acc[8].add(lineTotal(i));
             }
         }
         for (PaymentEntity p : payments) {
             BigDecimal[] acc = waiterAcc.apply(displayName.getOrDefault(p.getCreatedBy(), who(p.getCreatedBy())));
             switch (kind(typeName.get(p.getPaymentTypeId()))) {
-                case CASH -> { acc[2] = acc[2].add(nz(p.getAmount())); acc[5] = acc[5].add(nz(p.getTip())); }
-                case CARD -> { acc[3] = acc[3].add(nz(p.getAmount())); acc[6] = acc[6].add(nz(p.getTip())); }
-                default -> acc[4] = acc[4].add(nz(p.getAmount()));
+                case CASH -> { acc[2] = acc[2].add(nz(p.getAmount())); acc[6] = acc[6].add(nz(p.getTip())); }
+                case CARD -> { acc[3] = acc[3].add(nz(p.getAmount())); acc[7] = acc[7].add(nz(p.getTip())); }
+                case PROTOCOL -> acc[4] = acc[4].add(nz(p.getAmount()));
+                default -> acc[5] = acc[5].add(nz(p.getAmount()));
             }
         }
         List<WaiterRow> waiters = byWaiter.entrySet().stream()
                 .map(e -> new WaiterRow(e.getKey(), e.getValue()[0].longValue(), e.getValue()[1], e.getValue()[2],
-                        e.getValue()[3], e.getValue()[4], e.getValue()[5], e.getValue()[6], e.getValue()[7]))
+                        e.getValue()[3], e.getValue()[4], e.getValue()[5], e.getValue()[6], e.getValue()[7],
+                        e.getValue()[8]))
                 .sorted(Comparator.comparing(WaiterRow::sales).reversed())
                 .toList();
 
@@ -210,7 +234,7 @@ public class DashboardReportService {
         return new DashboardResponse(summary, series, bucketMinutes, tables, products, waiters, paymentTypes, finalReport);
     }
 
-    private enum Kind { CASH, CARD, OTHER }
+    private enum Kind { CASH, CARD, PROTOCOL, OTHER }
 
     private static Kind kind(String type) {
         if (type == null) {
@@ -219,6 +243,7 @@ public class DashboardReportService {
         return switch (type.toUpperCase()) {
             case "CASH" -> Kind.CASH;
             case "CARD", "ONLINE" -> Kind.CARD;
+            case "PROTOCOL" -> Kind.PROTOCOL;
             default -> Kind.OTHER;
         };
     }

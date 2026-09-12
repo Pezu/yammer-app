@@ -22,22 +22,27 @@ public record DashboardResponse(
 
     public record Summary(
             BigDecimal ordered, BigDecimal paid, BigDecimal tips, BigDecimal remaining,
-            long orders, long payments, BigDecimal averageOrder) {
+            long orders, long payments, BigDecimal averageOrder,
+            /* ordered on protocol tables (points that accept the PROTOCOL payment type) */
+            BigDecimal orderedProtocol,
+            /* settled with the PROTOCOL payment type (comped, no money) */
+            BigDecimal paidProtocol) {
     }
 
     public record Bucket(String at, BigDecimal ordered, BigDecimal paid, long orders) {
     }
 
-    public record TableRow(String table, BigDecimal ordered, BigDecimal paidCash, BigDecimal paidCard,
-                           BigDecimal paidOther, BigDecimal tips, BigDecimal remaining) {
+    public record TableRow(String table, boolean protocol, BigDecimal ordered, BigDecimal paidCash,
+                           BigDecimal paidCard, BigDecimal paidProtocol, BigDecimal paidOther, BigDecimal tips,
+                           BigDecimal remaining) {
     }
 
     public record ProductRow(String product, long quantity, BigDecimal sales) {
     }
 
     public record WaiterRow(String waiter, long orders, BigDecimal sales, BigDecimal paidCash,
-                            BigDecimal paidCard, BigDecimal paidOther, BigDecimal tipsCash, BigDecimal tipsCard,
-                            BigDecimal unsettled) {
+                            BigDecimal paidCard, BigDecimal paidProtocol, BigDecimal paidOther,
+                            BigDecimal tipsCash, BigDecimal tipsCard, BigDecimal unsettled) {
     }
 
     public record PaymentTypeRow(String type, long count, BigDecimal amount, BigDecimal tips) {

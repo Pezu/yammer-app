@@ -11,6 +11,10 @@ export interface DashboardSummary {
   orders: number;
   payments: number;
   averageOrder: number;
+  /** ordered on protocol tables (points accepting the PROTOCOL payment type) */
+  orderedProtocol: number;
+  /** settled with the PROTOCOL payment type (comped) */
+  paidProtocol: number;
 }
 
 export interface DashboardBucket {
@@ -23,9 +27,11 @@ export interface DashboardBucket {
 
 export interface DashboardTableRow {
   table: string;
+  protocol: boolean;
   ordered: number;
   paidCash: number;
   paidCard: number;
+  paidProtocol: number;
   paidOther: number;
   tips: number;
   remaining: number;
@@ -43,6 +49,7 @@ export interface DashboardWaiterRow {
   sales: number;
   paidCash: number;
   paidCard: number;
+  paidProtocol: number;
   paidOther: number;
   tipsCash: number;
   tipsCard: number;

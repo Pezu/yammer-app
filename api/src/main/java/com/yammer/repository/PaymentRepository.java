@@ -19,6 +19,27 @@ public interface PaymentRepository extends JpaRepository<PaymentEntity, UUID> {
             """)
     List<PaymentEntity> findByLocationId(@Param("locationId") UUID locationId);
 
+    /** One page of the location's non-failed payments, newest first. */
+    @Query(value = """
+            select p from PaymentEntity p, OrderPointEntity op
+            where p.orderPointId = op.id and op.locationId = :locationId and p.status <> 'FAILED'
+            order by p.createdAt desc
+            """,
+            countQuery = """
+            select count(p) from PaymentEntity p, OrderPointEntity op
+            where p.orderPointId = op.id and op.locationId = :locationId and p.status <> 'FAILED'
+            """)
+    org.springframework.data.domain.Page<PaymentEntity> pageByLocationId(
+            @Param("locationId") UUID locationId, org.springframework.data.domain.Pageable pageable);
+
+    /** Sum of amounts and tips over all the location's non-failed payments: [amount, tip]. */
+    @Query("""
+            select coalesce(sum(p.amount), 0), coalesce(sum(p.tip), 0)
+            from PaymentEntity p, OrderPointEntity op
+            where p.orderPointId = op.id and op.locationId = :locationId and p.status <> 'FAILED'
+            """)
+    Object[] totalsByLocationId(@Param("locationId") UUID locationId);
+
     /** Payments taken at one location's points in [from, to). */
     @Query("""
             select p from PaymentEntity p, OrderPointEntity op

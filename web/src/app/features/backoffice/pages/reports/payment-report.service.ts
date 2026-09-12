@@ -4,6 +4,14 @@ import { Observable } from 'rxjs';
 import { environment } from '../../../../../environments/environment';
 
 /** One row of the payments report. */
+export interface PaymentPage {
+  content: PaymentReportRow[];
+  total: number;
+  page: number;
+  size: number;
+  totals: { amount: number; tip: number; total: number };
+}
+
 export interface PaymentReportRow {
   id: string;
   orderPointName: string;
@@ -24,9 +32,10 @@ export type FiscalStatus = 'NONE' | 'PENDING' | 'SUCCESS' | 'FAILED' | 'UNKNOWN'
 export class PaymentReportService {
   private readonly http = inject(HttpClient);
 
-  list(locationId: string): Observable<PaymentReportRow[]> {
-    const params = new HttpParams().set('locationId', locationId);
-    return this.http.get<PaymentReportRow[]>(`${environment.apiUrl}/payments`, { params });
+  /** One page (0-based) of the location's payments, newest first, with totals over all of them. */
+  page(locationId: string, page: number, size: number): Observable<PaymentPage> {
+    const params = new HttpParams().set('locationId', locationId).set('page', page).set('size', size);
+    return this.http.get<PaymentPage>(`${environment.apiUrl}/payments`, { params });
   }
 
   /** Re-issue a FAILED fiscal receipt (the bridge de-dupes by payment id). */

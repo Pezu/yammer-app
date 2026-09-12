@@ -2,6 +2,7 @@ import { Routes } from '@angular/router';
 import { Login } from './features/auth/login/login';
 import { authGuard } from './core/auth.guard';
 import { superGuard } from './core/super.guard';
+import { adminGuard } from './core/admin.guard';
 
 export const routes: Routes = [
   { path: 'login', component: Login },
@@ -32,8 +33,14 @@ export const routes: Routes = [
     loadComponent: () => import('./features/service/service-page').then((m) => m.ServicePage),
   },
   {
-    path: 'backoffice',
+    // WATCHER home: the dashboard alone, read-only, self-refreshing.
+    path: 'watcher',
     canActivate: [authGuard],
+    loadComponent: () => import('./features/watcher/watcher-page').then((m) => m.WatcherPage),
+  },
+  {
+    path: 'backoffice',
+    canActivate: [authGuard, adminGuard],
     loadComponent: () =>
       import('./features/backoffice/backoffice-layout').then((m) => m.BackofficeLayout),
     children: [

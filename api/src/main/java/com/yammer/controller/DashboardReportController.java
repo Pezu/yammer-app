@@ -28,7 +28,7 @@ import org.springframework.web.server.ResponseStatusException;
 @RestController
 @RequestMapping("/reports/dashboard")
 @RequiredArgsConstructor
-@PreAuthorize("hasAnyRole('ADMIN','SUPER')") // reporting is admin-only
+@PreAuthorize("hasAnyRole('ADMIN','SUPER','WATCHER')") // WATCHER = read-only live view of the dashboard
 public class DashboardReportController {
 
     private final DashboardReportService reportService;
@@ -51,6 +51,7 @@ public class DashboardReportController {
 
     /** Print the final report on a thermal printer — one slip per waiter, as the old app did. */
     @PostMapping("/final/print")
+    @PreAuthorize("hasAnyRole('ADMIN','SUPER')") // a side effect: not for watchers
     @ResponseStatus(HttpStatus.ACCEPTED)
     public void printFinal(@RequestBody PrintFinalRequest request) {
         LocationEntity location = accessGuard.requireAccessibleLocation(request.locationId());

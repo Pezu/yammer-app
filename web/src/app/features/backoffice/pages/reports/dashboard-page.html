@@ -42,6 +42,7 @@
       <div class="tile"><span class="lbl">Paid</span><span class="val">{{ d.summary.paid | number: '1.2-2' }} RON</span></div>
       <div class="tile"><span class="lbl">Tips</span><span class="val">{{ d.summary.tips | number: '1.2-2' }} RON</span></div>
       <div class="tile" [class.warn]="d.summary.remaining > 0"><span class="lbl">Unpaid</span><span class="val">{{ d.summary.remaining | number: '1.2-2' }} RON</span></div>
+      <div class="tile"><span class="lbl">Protocol</span><span class="val">{{ d.summary.paidProtocol | number: '1.2-2' }} RON</span><span class="sub">ordered on protocol tables {{ d.summary.orderedProtocol | number: '1.2-2' }}</span></div>
       <div class="tile"><span class="lbl">Orders</span><span class="val">{{ d.summary.orders }}</span></div>
       <div class="tile"><span class="lbl">Payments</span><span class="val">{{ d.summary.payments }}</span></div>
       <div class="tile"><span class="lbl">Avg. order</span><span class="val">{{ d.summary.averageOrder | number: '1.2-2' }} RON</span></div>
@@ -100,25 +101,26 @@
         <div class="widget-head"><h2>Tables</h2></div>
         <div class="widget-body">
           <table class="table">
-            <thead><tr><th>Table</th><th class="num">Ordered</th><th class="num">Cash</th><th class="num">Card</th><th class="num">Other</th><th class="num">Tips</th><th class="num">Unpaid</th></tr></thead>
+            <thead><tr><th>Table</th><th class="num">Ordered</th><th class="num">Cash</th><th class="num">Card</th><th class="num">Protocol</th><th class="num">Other</th><th class="num">Tips</th><th class="num">Unpaid</th></tr></thead>
             <tbody>
               @for (r of d.tables; track r.table) {
                 <tr>
-                  <td>{{ r.table }}</td>
+                  <td>{{ r.table }} @if (r.protocol) {<span class="tag">protocol</span>}</td>
                   <td class="num">{{ r.ordered | number: '1.2-2' }}</td>
                   <td class="num">{{ r.paidCash | number: '1.2-2' }}</td>
                   <td class="num">{{ r.paidCard | number: '1.2-2' }}</td>
+                  <td class="num">{{ r.paidProtocol | number: '1.2-2' }}</td>
                   <td class="num">{{ r.paidOther | number: '1.2-2' }}</td>
                   <td class="num">{{ r.tips | number: '1.2-2' }}</td>
                   <td class="num" [class.warn]="r.remaining > 0">{{ r.remaining | number: '1.2-2' }}</td>
                 </tr>
               } @empty {
-                <tr><td colspan="7" class="empty">No orders in this period.</td></tr>
+                <tr><td colspan="8" class="empty">No orders in this period.</td></tr>
               }
             </tbody>
             @if (d.tables.length) {
               @let t = tableTotals();
-              <tfoot><tr><td>Total</td><td class="num">{{ t['ordered'] | number: '1.2-2' }}</td><td class="num">{{ t['paidCash'] | number: '1.2-2' }}</td><td class="num">{{ t['paidCard'] | number: '1.2-2' }}</td><td class="num">{{ t['paidOther'] | number: '1.2-2' }}</td><td class="num">{{ t['tips'] | number: '1.2-2' }}</td><td class="num">{{ t['remaining'] | number: '1.2-2' }}</td></tr></tfoot>
+              <tfoot><tr><td>Total</td><td class="num">{{ t['ordered'] | number: '1.2-2' }}</td><td class="num">{{ t['paidCash'] | number: '1.2-2' }}</td><td class="num">{{ t['paidCard'] | number: '1.2-2' }}</td><td class="num">{{ t['paidProtocol'] | number: '1.2-2' }}</td><td class="num">{{ t['paidOther'] | number: '1.2-2' }}</td><td class="num">{{ t['tips'] | number: '1.2-2' }}</td><td class="num">{{ t['remaining'] | number: '1.2-2' }}</td></tr></tfoot>
             }
           </table>
         </div>
@@ -150,7 +152,7 @@
         <div class="widget-head"><h2>Waiters</h2></div>
         <div class="widget-body">
           <table class="table">
-            <thead><tr><th>Waiter</th><th class="num">Orders</th><th class="num">Sales</th><th class="num">Cash</th><th class="num">Card</th><th class="num">Other</th><th class="num">Tips cash</th><th class="num">Tips card</th><th class="num">Unsettled</th></tr></thead>
+            <thead><tr><th>Waiter</th><th class="num">Orders</th><th class="num">Sales</th><th class="num">Cash</th><th class="num">Card</th><th class="num">Protocol</th><th class="num">Other</th><th class="num">Tips cash</th><th class="num">Tips card</th><th class="num">Unsettled</th></tr></thead>
             <tbody>
               @for (r of d.waiters; track r.waiter) {
                 <tr>
@@ -159,18 +161,19 @@
                   <td class="num">{{ r.sales | number: '1.2-2' }}</td>
                   <td class="num">{{ r.paidCash | number: '1.2-2' }}</td>
                   <td class="num">{{ r.paidCard | number: '1.2-2' }}</td>
+                  <td class="num">{{ r.paidProtocol | number: '1.2-2' }}</td>
                   <td class="num">{{ r.paidOther | number: '1.2-2' }}</td>
                   <td class="num">{{ r.tipsCash | number: '1.2-2' }}</td>
                   <td class="num">{{ r.tipsCard | number: '1.2-2' }}</td>
                   <td class="num" [class.warn]="r.unsettled > 0">{{ r.unsettled | number: '1.2-2' }}</td>
                 </tr>
               } @empty {
-                <tr><td colspan="9" class="empty">No activity in this period.</td></tr>
+                <tr><td colspan="10" class="empty">No activity in this period.</td></tr>
               }
             </tbody>
             @if (d.waiters.length) {
               @let t = waiterTotals();
-              <tfoot><tr><td>Total</td><td class="num">{{ t['orders'] }}</td><td class="num">{{ t['sales'] | number: '1.2-2' }}</td><td class="num">{{ t['paidCash'] | number: '1.2-2' }}</td><td class="num">{{ t['paidCard'] | number: '1.2-2' }}</td><td class="num">{{ t['paidOther'] | number: '1.2-2' }}</td><td class="num">{{ t['tipsCash'] | number: '1.2-2' }}</td><td class="num">{{ t['tipsCard'] | number: '1.2-2' }}</td><td class="num">{{ t['unsettled'] | number: '1.2-2' }}</td></tr></tfoot>
+              <tfoot><tr><td>Total</td><td class="num">{{ t['orders'] }}</td><td class="num">{{ t['sales'] | number: '1.2-2' }}</td><td class="num">{{ t['paidCash'] | number: '1.2-2' }}</td><td class="num">{{ t['paidCard'] | number: '1.2-2' }}</td><td class="num">{{ t['paidProtocol'] | number: '1.2-2' }}</td><td class="num">{{ t['paidOther'] | number: '1.2-2' }}</td><td class="num">{{ t['tipsCash'] | number: '1.2-2' }}</td><td class="num">{{ t['tipsCard'] | number: '1.2-2' }}</td><td class="num">{{ t['unsettled'] | number: '1.2-2' }}</td></tr></tfoot>
             }
           </table>
         </div>
@@ -197,6 +200,7 @@
       <div class="widget col-2">
         <div class="widget-head">
           <h2>Final report</h2>
+          @if (!readOnly()) {
           <div class="actions">
             @if (printerOptions().length) {
               <div class="printer-combo">
@@ -210,6 +214,7 @@
             }
             <button type="button" class="btn ghost" (click)="exportFinal()" [disabled]="!d.finalReport.length">Export to Excel</button>
           </div>
+          }
         </div>
         <div class="widget-body">
           <table class="table">

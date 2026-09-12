@@ -13,8 +13,11 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Lazy;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.web.socket.CloseStatus;
+import org.springframework.web.socket.PingMessage;
+import org.springframework.web.socket.PongMessage;
 import org.springframework.web.socket.TextMessage;
 import org.springframework.web.socket.WebSocketSession;
 import org.springframework.web.socket.handler.TextWebSocketHandler;
@@ -43,6 +46,11 @@ public class BridgeWsHandler extends TextWebSocketHandler {
     private final Set<WebSocketSession> pending = ConcurrentHashMap.newKeySet();
     private final Map<String, Registered> devices = new ConcurrentHashMap<>();
 
+    /** Last pong (or any frame) per session — a bridge that stops answering pings is dead. */
+    private final Map<WebSocketSession, Instant> lastSeen = new ConcurrentHashMap<>();
+    private static final long PING_EVERY_MS = 30_000;
+    private static final long DEAD_AFTER_SECONDS = 90;
+
     private record Registered(WebSocketSession session, String deviceName, Instant connectedAt) {
     }
 
@@ -58,12 +66,48 @@ public class BridgeWsHandler extends TextWebSocketHandler {
     @Override
     public void afterConnectionEstablished(WebSocketSession session) {
         pending.add(session);
+        lastSeen.put(session, Instant.now());
         log.info("Bridge connection established — waiting for HELLO to register it.");
+    }
+
+    @Override
+    protected void handlePongMessage(WebSocketSession session, PongMessage message) {
+        lastSeen.put(session, Instant.now());
+    }
+
+    /**
+     * Liveness: a phone that vanished without closing the socket (app uninstalled, battery
+     * pulled, network gone) would otherwise stay "connected" until the hourly cut and swallow
+     * receipts. Ping every 30 s; a session silent for 90 s is closed and unregistered.
+     */
+    @Scheduled(fixedDelay = PING_EVERY_MS)
+    public void heartbeat() {
+        Instant deadline = Instant.now().minusSeconds(DEAD_AFTER_SECONDS);
+        for (Map.Entry<String, Registered> e : devices.entrySet()) {
+            WebSocketSession s = e.getValue().session();
+            Instant seen = lastSeen.getOrDefault(s, Instant.EPOCH);
+            if (!s.isOpen() || seen.isBefore(deadline)) {
+                log.warn("Bridge device '{}' silent since {} — dropping the dead session.", e.getKey(), seen);
+                closeQuietly(s);
+                afterConnectionClosed(s, CloseStatus.SESSION_NOT_RELIABLE);
+                continue;
+            }
+            try {
+                synchronized (s) {
+                    s.sendMessage(new PingMessage());
+                }
+            } catch (IOException ex) {
+                log.warn("Ping to bridge device '{}' failed: {} — dropping it.", e.getKey(), ex.getMessage());
+                closeQuietly(s);
+                afterConnectionClosed(s, CloseStatus.SESSION_NOT_RELIABLE);
+            }
+        }
     }
 
     @Override
     public void afterConnectionClosed(WebSocketSession session, CloseStatus status) {
         pending.remove(session);
+        lastSeen.remove(session);
         devices.entrySet().removeIf(e -> {
             if (e.getValue().session() == session) {
                 log.warn("Bridge device '{}' disconnected: {} ({} device(s) left).",
@@ -76,6 +120,7 @@ public class BridgeWsHandler extends TextWebSocketHandler {
 
     @Override
     protected void handleTextMessage(WebSocketSession session, TextMessage message) {
+        lastSeen.put(session, Instant.now());
         try {
             JsonNode node = mapper.readTree(message.getPayload());
             String type = node.path("type").asText("");

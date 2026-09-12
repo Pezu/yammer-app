@@ -1,5 +1,6 @@
 package com.yammer.controller;
 
+import com.yammer.dto.PaymentPageResponse;
 import com.yammer.dto.PaymentReportRow;
 import com.yammer.service.PaymentService;
 import java.util.List;
@@ -25,9 +26,13 @@ public class PaymentController {
     private final PaymentService paymentService;
 
     /** The payments report for one location (newest first). */
+    /** One page of the location's payments (newest first) plus totals over all of them. */
     @GetMapping
-    public List<PaymentReportRow> report(@RequestParam UUID locationId) {
-        return paymentService.report(locationId);
+    public PaymentPageResponse report(
+            @RequestParam UUID locationId,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size) {
+        return paymentService.reportPage(locationId, page, size);
     }
 
     /** Re-issue a FAILED fiscal receipt (409 unless FAILED). */

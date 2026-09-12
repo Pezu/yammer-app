@@ -1,4 +1,4 @@
-import { Component, computed, effect, inject, signal } from '@angular/core';
+import { Component, OnDestroy, computed, effect, inject, input, signal } from '@angular/core';
 import { DecimalPipe } from '@angular/common';
 import { Dashboard, DashboardBucket, DashboardReportService } from './dashboard-report.service';
 import { Client, ClientService } from '../clients/client.service';
@@ -25,7 +25,17 @@ interface Pt {
   templateUrl: './dashboard-page.html',
   styleUrl: './dashboard-page.scss',
 })
-export class DashboardPage {
+export class DashboardPage implements OnDestroy {
+  /** Watcher mode: no print/export actions, no printer lookup, and the data refreshes on its own. */
+  readonly readOnly = input(false);
+  /** Auto-refresh period in seconds (0 = off). */
+  readonly refreshEverySeconds = input(0);
+  private refreshTimer: ReturnType<typeof setInterval> | undefined;
+
+  ngOnDestroy(): void {
+    clearInterval(this.refreshTimer);
+  }
+
   private readonly reportService = inject(DashboardReportService);
   private readonly clientService = inject(ClientService);
   private readonly locationService = inject(LocationService);
@@ -83,8 +93,18 @@ export class DashboardPage {
       }
     });
     effect(() => {
+      clearInterval(this.refreshTimer);
+      const every = this.refreshEverySeconds();
+      if (every > 0) {
+        this.refreshTimer = setInterval(() => {
+          const locationId = this.locationFilter();
+          if (locationId && !this.loading()) this.load(locationId, this.from(), this.to(), true);
+        }, every * 1000);
+      }
+    });
+    effect(() => {
       const locationId = this.locationFilter();
-      if (locationId) {
+      if (locationId && !this.readOnly()) {
         this.integrationService.list(locationId, 'PRINTER').subscribe({
           next: (list) => {
             this.printers.set(list);
@@ -126,8 +146,8 @@ export class DashboardPage {
     }
   }
 
-  private load(locationId: string, from: string, to: string): void {
-    this.loading.set(true);
+  private load(locationId: string, from: string, to: string, silent = false): void {
+    if (!silent) this.loading.set(true);
     this.error.set(null);
     this.reportService.load(locationId, from, to).subscribe({
       next: (data) => {
@@ -147,8 +167,8 @@ export class DashboardPage {
 
   // --- totals for the table footers ---
 
-  readonly tableTotals = computed(() => sumRows(this.data()?.tables ?? [], ['ordered', 'paidCash', 'paidCard', 'paidOther', 'tips', 'remaining']));
-  readonly waiterTotals = computed(() => sumRows(this.data()?.waiters ?? [], ['orders', 'sales', 'paidCash', 'paidCard', 'paidOther', 'tipsCash', 'tipsCard', 'unsettled']));
+  readonly tableTotals = computed(() => sumRows(this.data()?.tables ?? [], ['ordered', 'paidCash', 'paidCard', 'paidProtocol', 'paidOther', 'tips', 'remaining']));
+  readonly waiterTotals = computed(() => sumRows(this.data()?.waiters ?? [], ['orders', 'sales', 'paidCash', 'paidCard', 'paidProtocol', 'paidOther', 'tipsCash', 'tipsCard', 'unsettled']));
   readonly finalTotals = computed(() => sumRows(this.data()?.finalReport ?? [], ['paidCard', 'paidCash', 'tipCard', 'tipCash', 'total']));
   readonly productTotals = computed(() => sumRows(this.data()?.products ?? [], ['quantity', 'sales']));
 

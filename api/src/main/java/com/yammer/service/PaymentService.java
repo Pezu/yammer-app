@@ -1,6 +1,9 @@
 package com.yammer.service;
 
 import com.yammer.dto.PaymentReportRow;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Page;
+import com.yammer.dto.PaymentPageResponse;
 import com.yammer.entity.OrderPointEntity;
 import com.yammer.entity.PaymentEntity;
 import com.yammer.entity.PaymentTypeEntity;
@@ -43,11 +46,34 @@ public class PaymentService {
      * The location's payments, newest first, with table/waiter/payment-type names resolved.
      * FAILED (softPOS-declined) payments are excluded — their lines went back to unpaid.
      */
+    /** One page of the location's payments (newest first) with totals over every payment. */
+    public PaymentPageResponse reportPage(UUID locationId, int page, int size) {
+        accessGuard.requireAccessibleLocation(locationId);
+        int safeSize = Math.max(1, Math.min(size, 500));
+        Page<PaymentEntity> paged = paymentRepository.pageByLocationId(
+                locationId, PageRequest.of(Math.max(0, page), safeSize));
+        Object[] sums = paymentRepository.totalsByLocationId(locationId);
+        // JPQL multi-select comes back as Object[]; a wrapping array shows up on some providers
+        if (sums != null && sums.length == 1 && sums[0] instanceof Object[] inner) {
+            sums = inner;
+        }
+        BigDecimal amount = sums == null || sums.length < 1 || sums[0] == null ? BigDecimal.ZERO : (BigDecimal) sums[0];
+        BigDecimal tip = sums == null || sums.length < 2 || sums[1] == null ? BigDecimal.ZERO : (BigDecimal) sums[1];
+        return new PaymentPageResponse(
+                rows(paged.getContent()), paged.getTotalElements(), paged.getNumber(), paged.getSize(),
+                new PaymentPageResponse.Totals(amount, tip, amount.add(tip)));
+    }
+
     public List<PaymentReportRow> report(UUID locationId) {
         accessGuard.requireAccessibleLocation(locationId);
         List<PaymentEntity> payments = paymentRepository.findByLocationId(locationId).stream()
                 .filter(p -> !"FAILED".equals(p.getStatus()))
                 .toList();
+        return rows(payments);
+    }
+
+    /** Report rows for the given payments (table name, waiter display name, type name, fiscal state). */
+    private List<PaymentReportRow> rows(List<PaymentEntity> payments) {
 
         Map<UUID, String> pointNames = orderPointRepository
                 .findAllById(payments.stream().map(PaymentEntity::getOrderPointId).distinct().toList())

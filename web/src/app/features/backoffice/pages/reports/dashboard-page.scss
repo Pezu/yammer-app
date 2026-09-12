@@ -91,6 +91,24 @@
   &.warn .val {
     color: var(--danger);
   }
+
+  .sub {
+    font-size: 0.7rem;
+    color: var(--muted);
+  }
+}
+
+/* "protocol" marker next to a table name */
+.tag {
+  display: inline-block;
+  margin-left: 0.4rem;
+  padding: 0.05rem 0.4rem;
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--primary);
+  background: rgba(52, 84, 209, 0.08);
+  border-radius: 999px;
 }
 
 /* widget grid, as the old dashboard: 3 columns, widgets span 1–3 */
@@ -159,6 +177,7 @@
 
 .widget-body {
   padding: 0;
+  overflow-x: auto; /* wide tables scroll inside the card on phones (watcher view) */
 
   .table {
     margin: 0;
