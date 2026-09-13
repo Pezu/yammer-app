@@ -120,6 +120,13 @@ export const routes: Routes = [
           ),
       },
       {
+        path: 'reports/not-paid',
+        loadComponent: () =>
+          import('./features/backoffice/pages/reports/not-paid-report-page').then(
+            (m) => m.NotPaidReportPage,
+          ),
+      },
+      {
         path: 'reports/open-tables',
         loadComponent: () =>
           import('./features/backoffice/pages/reports/open-tables-report-page').then(

@@ -126,6 +126,11 @@ web/src/app/
 │           │                         #   /resolve-unknown)
 │           │                         #   + Open tables report (open sessions: table/opened by/
 │           │                         #   opened at/outstanding amount + totals row)
+│           │                         #   + Not paid report (settlements closed as PROTOCOL or PO in a
+│           │                         #   date range, each unfolding to its product lines)
+│           │                         #   + Dashboard (KPIs, timeline, tables/products/waiters/payment
+│           │                         #   types, final report → thermal print / Excel; each waiter row
+│           │                         #   has a PDF statement: payments by table + type + product lines)
 │           ├── order-point-types/    # catalog CRUD (SUPER-only; cloned from roles)
 │           ├── payment-types/        # catalog CRUD (SUPER-only; cloned from order-point-types)
 │           ├── roles/                # roles CRUD (verbatim; SUPER-only)

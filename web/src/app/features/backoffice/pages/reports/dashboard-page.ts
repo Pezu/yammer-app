@@ -169,7 +169,7 @@ export class DashboardPage implements OnDestroy {
 
   readonly tableTotals = computed(() => sumRows(this.data()?.tables ?? [], ['ordered', 'paidCash', 'paidCard', 'paidProtocol', 'paidOther', 'tips', 'remaining']));
   readonly waiterTotals = computed(() => sumRows(this.data()?.waiters ?? [], ['orders', 'sales', 'paidCash', 'paidCard', 'paidProtocol', 'paidOther', 'tipsCash', 'tipsCard', 'unsettled']));
-  readonly finalTotals = computed(() => sumRows(this.data()?.finalReport ?? [], ['paidCard', 'paidCash', 'tipCard', 'tipCash', 'total']));
+  readonly finalTotals = computed(() => sumRows(this.data()?.finalReport ?? [], ['paidCard', 'paidCash', 'tipCard', 'tipCash', 'protocol', 'total']));
   readonly productTotals = computed(() => sumRows(this.data()?.products ?? [], ['quantity', 'sales']));
 
   // --- sales chart (inline SVG, ported from the old sales widget) ---
@@ -252,15 +252,42 @@ export class DashboardPage implements OnDestroy {
     });
   }
 
+  // --- per-waiter statement PDF ---
+
+  readonly exportingWaiter = signal<string | null>(null);
+
+  /** Downloads one waiter's statement: every payment they took, by table, with type and product lines. */
+  exportWaiterPdf(username: string, waiter: string): void {
+    const locationId = this.locationFilter();
+    if (!locationId || this.exportingWaiter()) return;
+    this.exportingWaiter.set(username);
+    this.error.set(null);
+    this.reportService.waiterPdf(locationId, username, this.from(), this.to()).subscribe({
+      next: (blob) => {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `waiter-${waiter.replace(/[^\w.-]+/g, '_')}-${this.from()}_${this.to()}.pdf`;
+        a.click();
+        URL.revokeObjectURL(url);
+        this.exportingWaiter.set(null);
+      },
+      error: () => {
+        this.error.set(`Could not export the statement for ${waiter}.`);
+        this.exportingWaiter.set(null);
+      },
+    });
+  }
+
   /** Excel-openable export of the final report (an HTML table, as the old app did). */
   exportFinal(): void {
     const rows = this.data()?.finalReport ?? [];
     const t = this.finalTotals();
     const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;');
     const body = rows
-      .map((r) => `<tr><td>${esc(r.waiter)}</td><td>${r.paidCard}</td><td>${r.paidCash}</td><td>${r.tipCard}</td><td>${r.tipCash}</td><td>${r.total}</td></tr>`)
+      .map((r) => `<tr><td>${esc(r.waiter)}</td><td>${r.paidCard}</td><td>${r.paidCash}</td><td>${r.tipCard}</td><td>${r.tipCash}</td><td>${r.protocol}</td><td>${r.total}</td></tr>`)
       .join('');
-    const html = `<table border="1"><tr><th>Waiter</th><th>Paid card</th><th>Paid cash</th><th>Tip card</th><th>Tip cash</th><th>Total</th></tr>${body}<tr><td>Total</td><td>${t['paidCard']}</td><td>${t['paidCash']}</td><td>${t['tipCard']}</td><td>${t['tipCash']}</td><td>${t['total']}</td></tr></table>`;
+    const html = `<table border="1"><tr><th>Waiter</th><th>Paid card</th><th>Paid cash</th><th>Tip card</th><th>Tip cash</th><th>Protocol/PO</th><th>Total</th></tr>${body}<tr><td>Total</td><td>${t['paidCard']}</td><td>${t['paidCash']}</td><td>${t['tipCard']}</td><td>${t['tipCash']}</td><td>${t['protocol']}</td><td>${t['total']}</td></tr></table>`;
     const blob = new Blob([`﻿<html><head><meta charset="utf-8"></head><body>${html}</body></html>`], { type: 'application/vnd.ms-excel' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');

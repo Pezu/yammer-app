@@ -42,7 +42,7 @@
       <div class="tile"><span class="lbl">Paid</span><span class="val">{{ d.summary.paid | number: '1.2-2' }} RON</span></div>
       <div class="tile"><span class="lbl">Tips</span><span class="val">{{ d.summary.tips | number: '1.2-2' }} RON</span></div>
       <div class="tile" [class.warn]="d.summary.remaining > 0"><span class="lbl">Unpaid</span><span class="val">{{ d.summary.remaining | number: '1.2-2' }} RON</span></div>
-      <div class="tile"><span class="lbl">Protocol</span><span class="val">{{ d.summary.paidProtocol | number: '1.2-2' }} RON</span><span class="sub">ordered on protocol tables {{ d.summary.orderedProtocol | number: '1.2-2' }}</span></div>
+      <div class="tile"><span class="lbl">Protocol / PO</span><span class="val">{{ d.summary.paidProtocol | number: '1.2-2' }} RON</span><span class="sub">ordered on protocol tables {{ d.summary.orderedProtocol | number: '1.2-2' }}</span></div>
       <div class="tile"><span class="lbl">Orders</span><span class="val">{{ d.summary.orders }}</span></div>
       <div class="tile"><span class="lbl">Payments</span><span class="val">{{ d.summary.payments }}</span></div>
       <div class="tile"><span class="lbl">Avg. order</span><span class="val">{{ d.summary.averageOrder | number: '1.2-2' }} RON</span></div>
@@ -101,7 +101,7 @@
         <div class="widget-head"><h2>Tables</h2></div>
         <div class="widget-body">
           <table class="table">
-            <thead><tr><th>Table</th><th class="num">Ordered</th><th class="num">Cash</th><th class="num">Card</th><th class="num">Protocol</th><th class="num">Other</th><th class="num">Tips</th><th class="num">Unpaid</th></tr></thead>
+            <thead><tr><th>Table</th><th class="num">Ordered</th><th class="num">Cash</th><th class="num">Card</th><th class="num">Protocol/PO</th><th class="num">Other</th><th class="num">Tips</th><th class="num">Unpaid</th></tr></thead>
             <tbody>
               @for (r of d.tables; track r.table) {
                 <tr>
@@ -152,11 +152,14 @@
         <div class="widget-head"><h2>Waiters</h2></div>
         <div class="widget-body">
           <table class="table">
-            <thead><tr><th>Waiter</th><th class="num">Orders</th><th class="num">Sales</th><th class="num">Cash</th><th class="num">Card</th><th class="num">Protocol</th><th class="num">Other</th><th class="num">Tips cash</th><th class="num">Tips card</th><th class="num">Unsettled</th></tr></thead>
+            <thead><tr><th>Waiter</th><th class="num">Orders</th><th class="num">Sales</th><th class="num">Cash</th><th class="num">Card</th><th class="num">Protocol/PO</th><th class="num">Other</th><th class="num">Tips cash</th><th class="num">Tips card</th><th class="num">Unsettled</th></tr></thead>
             <tbody>
-              @for (r of d.waiters; track r.waiter) {
+              @for (r of d.waiters; track r.username) {
                 <tr>
-                  <td>{{ r.waiter }}</td>
+                  <td class="waiter-cell">
+                    <span>{{ r.waiter }}</span>
+                    <button type="button" class="link-btn" (click)="exportWaiterPdf(r.username, r.waiter)" [disabled]="exportingWaiter() === r.username" title="Download this waiter's statement (tables, payment types, products)">PDF</button>
+                  </td>
                   <td class="num">{{ r.orders }}</td>
                   <td class="num">{{ r.sales | number: '1.2-2' }}</td>
                   <td class="num">{{ r.paidCash | number: '1.2-2' }}</td>
@@ -218,17 +221,17 @@
         </div>
         <div class="widget-body">
           <table class="table">
-            <thead><tr><th>Waiter</th><th class="num">Paid card</th><th class="num">Paid cash</th><th class="num">Tip card</th><th class="num">Tip cash</th><th class="num">Total</th></tr></thead>
+            <thead><tr><th>Waiter</th><th class="num">Paid card</th><th class="num">Paid cash</th><th class="num">Tip card</th><th class="num">Tip cash</th><th class="num">Protocol/PO</th><th class="num">Total</th></tr></thead>
             <tbody>
               @for (r of d.finalReport; track r.waiter) {
-                <tr><td>{{ r.waiter }}</td><td class="num">{{ r.paidCard | number: '1.2-2' }}</td><td class="num">{{ r.paidCash | number: '1.2-2' }}</td><td class="num">{{ r.tipCard | number: '1.2-2' }}</td><td class="num">{{ r.tipCash | number: '1.2-2' }}</td><td class="num">{{ r.total | number: '1.2-2' }}</td></tr>
+                <tr><td>{{ r.waiter }}</td><td class="num">{{ r.paidCard | number: '1.2-2' }}</td><td class="num">{{ r.paidCash | number: '1.2-2' }}</td><td class="num">{{ r.tipCard | number: '1.2-2' }}</td><td class="num">{{ r.tipCash | number: '1.2-2' }}</td><td class="num">{{ r.protocol | number: '1.2-2' }}</td><td class="num">{{ r.total | number: '1.2-2' }}</td></tr>
               } @empty {
-                <tr><td colspan="6" class="empty">No cash or card takings in this period.</td></tr>
+                <tr><td colspan="7" class="empty">No takings or protocol in this period.</td></tr>
               }
             </tbody>
             @if (d.finalReport.length) {
               @let t = finalTotals();
-              <tfoot><tr><td>Total</td><td class="num">{{ t['paidCard'] | number: '1.2-2' }}</td><td class="num">{{ t['paidCash'] | number: '1.2-2' }}</td><td class="num">{{ t['tipCard'] | number: '1.2-2' }}</td><td class="num">{{ t['tipCash'] | number: '1.2-2' }}</td><td class="num">{{ t['total'] | number: '1.2-2' }}</td></tr></tfoot>
+              <tfoot><tr><td>Total</td><td class="num">{{ t['paidCard'] | number: '1.2-2' }}</td><td class="num">{{ t['paidCash'] | number: '1.2-2' }}</td><td class="num">{{ t['tipCard'] | number: '1.2-2' }}</td><td class="num">{{ t['tipCash'] | number: '1.2-2' }}</td><td class="num">{{ t['protocol'] | number: '1.2-2' }}</td><td class="num">{{ t['total'] | number: '1.2-2' }}</td></tr></tfoot>
             }
           </table>
         </div>

@@ -13,4 +13,6 @@ public interface OrderItemRepository extends JpaRepository<OrderItemEntity, UUID
     List<OrderItemEntity> findByOrderIdInAndPaymentIdIsNull(Collection<UUID> orderIds);
 
     List<OrderItemEntity> findByPaymentId(UUID paymentId);
+
+    List<OrderItemEntity> findByPaymentIdIn(Collection<UUID> paymentIds);
 }

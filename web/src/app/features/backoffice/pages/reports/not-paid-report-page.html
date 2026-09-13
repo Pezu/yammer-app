@@ -1,0 +1,121 @@
+<header class="page-header">
+  <h1>Not paid</h1>
+  <div class="header-actions">
+    @if (showClientCombo()) {
+      <div class="header-combo">
+        <app-combo-box
+          [options]="clients()"
+          [value]="clientFilter()"
+          (valueChange)="selectClient($event)"
+          placeholder="Select a client…"
+          searchPlaceholder="Search clients…"
+          noMatchLabel="No clients found"
+        />
+      </div>
+    }
+    @if (showLocationCombo()) {
+      <div class="header-combo">
+        <app-combo-box
+          [options]="headerLocationOptions()"
+          [value]="locationFilter()"
+          (valueChange)="locationFilter.set($event)"
+          placeholder="Select a location…"
+          searchPlaceholder="Search locations…"
+          noMatchLabel="No locations"
+        />
+      </div>
+    }
+    <div class="range">
+      <input type="date" class="input date" [value]="from()" (change)="from.set($any($event.target).value)" aria-label="From" />
+      <span class="dash">–</span>
+      <input type="date" class="input date" [value]="to()" (change)="to.set($any($event.target).value)" aria-label="To" />
+      <div class="quick">
+        <button type="button" class="chip" (click)="quick('today')">Today</button>
+        <button type="button" class="chip" (click)="quick('yesterday')">Yesterday</button>
+        <button type="button" class="chip" (click)="quick('week')">7 days</button>
+        <button type="button" class="chip" (click)="quick('month')">Month</button>
+      </div>
+    </div>
+  </div>
+</header>
+
+<section class="page-body">
+  @if (error()) {
+    <div class="error" role="alert">{{ error() }}</div>
+  }
+
+  @if (!locationFilter()) {
+    <div class="select-prompt">Select a location to view what was closed as protocol or PO.</div>
+  } @else {
+    <div class="card">
+      <div class="card-body">
+        <p class="hint">Consumption closed with the PROTOCOL or PO payment type — nothing was collected for these lines.</p>
+        <table class="table">
+          <thead>
+            <tr>
+              <th class="toggle-col"></th>
+              <th>When</th>
+              <th>Table</th>
+              <th>Waiter</th>
+              <th>Type</th>
+              <th class="num">Items</th>
+              <th class="num">Amount</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (row of rows(); track row.paymentId) {
+              <tr class="settlement" (click)="toggle(row.paymentId)">
+                <td class="toggle-col">
+                  <span class="chevron" [class.open]="isOpen(row.paymentId)" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                  </span>
+                </td>
+                <td>{{ row.at ? (row.at | date: 'dd.MM.yyyy HH:mm') : '—' }}</td>
+                <td>{{ row.orderPointName }}</td>
+                <td>{{ row.waiter }}</td>
+                <td>{{ row.paymentType }}</td>
+                <td class="num">{{ itemCount(row) }}</td>
+                <td class="num">{{ row.amount | number: '1.2-2' }}</td>
+              </tr>
+              @if (isOpen(row.paymentId)) {
+                <tr class="lines">
+                  <td></td>
+                  <td colspan="6">
+                    @if (row.items.length) {
+                      <table class="sub">
+                        @for (line of row.items; track $index) {
+                          <tr>
+                            <td class="name">{{ line.name }}</td>
+                            <td class="num">{{ line.quantity }} × {{ line.price | number: '1.2-2' }}</td>
+                            <td class="num">{{ line.total | number: '1.2-2' }}</td>
+                          </tr>
+                        }
+                      </table>
+                    } @else {
+                      <span class="muted">No product lines — a fixed-amount settlement.</span>
+                    }
+                  </td>
+                </tr>
+              }
+            }
+
+            @if (!loading() && rows().length === 0) {
+              <tr>
+                <td colspan="7" class="empty">Nothing closed as protocol or PO in this period.</td>
+              </tr>
+            }
+          </tbody>
+          @if (rows().length > 0) {
+            <tfoot>
+              <tr class="totals">
+                <td colspan="5">TOTAL</td>
+                <td class="num">{{ totalItems() }}</td>
+                <td class="num">{{ totalAmount() | number: '1.2-2' }}</td>
+              </tr>
+            </tfoot>
+          }
+        </table>
+      </div>
+    </div>
+  }
+</section>

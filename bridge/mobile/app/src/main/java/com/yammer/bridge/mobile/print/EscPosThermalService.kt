@@ -99,7 +99,7 @@ class EscPosThermalService(private val usbPrinter: UsbThermalPrinterManager) {
         }
     }
 
-    /** Final report: one slip per waiter (takings by card/cash + tips), cut after each. */
+    /** Final report: one slip per waiter (takings by card/cash + tips + protocol), cut after each. */
     fun printWaiterReport(payload: WaiterReportRequest): ReceiptResult {
         val host = payload.printerIp
         Log.i(TAG, "Waiter report print: requestId=${payload.requestId} printer=${host ?: "USB"} users=${payload.rows.size}")
@@ -132,6 +132,8 @@ class EscPosThermalService(private val usbPrinter: UsbThermalPrinterManager) {
                     writeLine(out, twoCols("Incasat numerar", money(row.paidCash)))
                     writeLine(out, twoCols("Tips card", money(row.tipCard)))
                     writeLine(out, twoCols("Tips numerar", money(row.tipCash)))
+                    // Protocol = consumption given away; listed for the record, not part of the takings total.
+                    writeLine(out, twoCols("Protocol/PO", money(row.protocol)))
                     out.write(DOUBLE_OFF)
                     writeLine(out, sep())
                     out.write(BOLD_ON)

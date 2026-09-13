@@ -169,6 +169,14 @@ Run from `api/`.
   location's OPEN table sessions on TABLE-type points only (no bars), naturally
   ordered by table name, with who opened each, when, and the outstanding unpaid
   amount.
+- `GET /reports/not-paid?locationId=&from=&to=` — not-paid report (ADMIN/SUPER):
+  settlements taken with the PROTOCOL or PO payment types in the inclusive date
+  range, newest first, each with the product lines it covered (`NotPaidReportService`).
+- `GET /reports/dashboard/waiter/{username}/pdf?locationId=&from=&to=` — one waiter's
+  statement as an A4 PDF (`WaiterStatementPdfService`, iText): their payments grouped by
+  table, each with time/type/amount/tip/discount and the products it settled, plus a
+  per-payment-type summary. The dashboard's final report rows also carry `protocol`
+  (shown on the thermal slip, not in the waiter's total).
 - **Live order push** `ws(s)://…/ws/orders?token=<jwt>` (`ws/` package, ported from old yammer):
   the handshake is authenticated from the token (`WsAuthHandshakeInterceptor`; `/ws/**` is
   permitAll for Spring Security), sessions are tracked per username (`OrderWsHandler`).

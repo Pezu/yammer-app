@@ -110,6 +110,7 @@ class DashboardReportServiceTest {
         DashboardResponse.FinalRow bob = d.finalReport().stream().filter(r -> r.waiter().equals("bob")).findFirst().orElseThrow();
         assertEquals(new BigDecimal("75"), bob.paidCash());
         assertEquals(new BigDecimal("80"), bob.total());
+        assertEquals(BigDecimal.ZERO, bob.protocol()); // no PROTOCOL settlements — shown on the slip, never in the total
     }
 
     private OrderEntity order(UUID point, String by, LocalDateTime at) {

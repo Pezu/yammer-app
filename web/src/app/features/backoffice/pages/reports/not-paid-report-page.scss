@@ -1,0 +1,132 @@
+@use '../../../../shared/styles/crud-table';
+
+:host {
+  display: block;
+}
+
+.header-combo {
+  min-width: 200px;
+}
+
+.range {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+
+  .input.date {
+    width: 9.5rem;
+  }
+
+  .dash {
+    color: var(--muted);
+  }
+}
+
+.quick {
+  display: flex;
+  gap: 0.3rem;
+  margin-left: 0.4rem;
+}
+
+.chip {
+  padding: 0.35rem 0.6rem;
+  font: inherit;
+  font-size: 0.78rem;
+  color: var(--primary);
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  cursor: pointer;
+
+  &:hover {
+    border-color: var(--primary);
+  }
+}
+
+.hint {
+  margin: 0;
+  padding: 10px 15px;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.table .num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.table tfoot .totals td {
+  padding: 12px 15px;
+  font-weight: 700;
+  border-top: 2px solid var(--border);
+}
+
+.toggle-col {
+  width: 2rem;
+  padding-right: 0;
+}
+
+.settlement {
+  cursor: pointer;
+}
+
+.chevron {
+  display: inline-flex;
+  color: var(--muted);
+  transition: transform 0.15s;
+
+  &.open {
+    transform: rotate(90deg);
+  }
+}
+
+/* the product lines under a settlement */
+.lines td {
+  padding-top: 0;
+  background: var(--page-bg);
+}
+
+.sub {
+  width: 100%;
+  max-width: 34rem;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+
+  td {
+    padding: 3px 8px;
+    border: 0;
+  }
+
+  .name {
+    width: 60%;
+  }
+}
+
+.muted {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+@media (max-width: 720px) {
+  .page-header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.75rem;
+  }
+
+  .header-actions {
+    flex-wrap: wrap;
+  }
+
+  .header-combo {
+    flex: 1 1 100%;
+    min-width: 0;
+  }
+
+  .range .input.date {
+    flex: 1 1 40%;
+    width: auto;
+    min-width: 0;
+  }
+}

@@ -88,7 +88,7 @@ public class DashboardReportService {
                 .collect(Collectors.toMap(OrderPointEntity::getId, OrderPointEntity::getName));
         Map<UUID, String> typeName = paymentTypeRepository.findAll().stream()
                 .collect(Collectors.toMap(PaymentTypeEntity::getId, PaymentTypeEntity::getType));
-        // a "protocol table" accepts the PROTOCOL payment type (comped consumption)
+        // a "protocol table" accepts the PROTOCOL or PO payment type (comped consumption)
         Set<UUID> protocolTypeIds = typeName.entrySet().stream()
                 .filter(e -> kind(e.getValue()) == Kind.PROTOCOL).map(Map.Entry::getKey).collect(Collectors.toSet());
         Set<UUID> protocolPoints = points.stream()
@@ -181,22 +181,21 @@ public class DashboardReportService {
                 .toList();
 
         // ---- waiters: orders/sales/unsettled by the order's creator; takings/tips by the payment's creator
-        Map<String, BigDecimal[]> byWaiter = new TreeMap<>(); // [orders, sales, cash, card, protocol, other, tipsCash, tipsCard, unsettled]
-        Function<String, BigDecimal[]> waiterAcc = k -> byWaiter.computeIfAbsent(k, x -> zeros(9));
+        Map<String, BigDecimal[]> byWaiter = new TreeMap<>(); // username → [orders, sales, cash, card, protocol, other, tipsCash, tipsCard, unsettled]
+        Function<String, BigDecimal[]> waiterAcc = k -> byWaiter.computeIfAbsent(who(k), x -> zeros(9));
         for (OrderEntity o : orders) {
-            waiterAcc.apply(displayName.getOrDefault(o.getCreatedBy(), who(o.getCreatedBy())))[0] =
-                    waiterAcc.apply(displayName.getOrDefault(o.getCreatedBy(), who(o.getCreatedBy())))[0].add(BigDecimal.ONE);
+            waiterAcc.apply(o.getCreatedBy())[0] = waiterAcc.apply(o.getCreatedBy())[0].add(BigDecimal.ONE);
         }
         for (OrderItemEntity i : items) {
             OrderEntity o = orderById.get(i.getOrderId());
-            BigDecimal[] acc = waiterAcc.apply(displayName.getOrDefault(o.getCreatedBy(), who(o.getCreatedBy())));
+            BigDecimal[] acc = waiterAcc.apply(o.getCreatedBy());
             acc[1] = acc[1].add(lineTotal(i));
             if (i.getPaymentId() == null) {
                 acc[8] = acc[8].add(lineTotal(i));
             }
         }
         for (PaymentEntity p : payments) {
-            BigDecimal[] acc = waiterAcc.apply(displayName.getOrDefault(p.getCreatedBy(), who(p.getCreatedBy())));
+            BigDecimal[] acc = waiterAcc.apply(p.getCreatedBy());
             switch (kind(typeName.get(p.getPaymentTypeId()))) {
                 case CASH -> { acc[2] = acc[2].add(nz(p.getAmount())); acc[6] = acc[6].add(nz(p.getTip())); }
                 case CARD -> { acc[3] = acc[3].add(nz(p.getAmount())); acc[7] = acc[7].add(nz(p.getTip())); }
@@ -205,7 +204,8 @@ public class DashboardReportService {
             }
         }
         List<WaiterRow> waiters = byWaiter.entrySet().stream()
-                .map(e -> new WaiterRow(e.getKey(), e.getValue()[0].longValue(), e.getValue()[1], e.getValue()[2],
+                .map(e -> new WaiterRow(e.getKey(), displayName.getOrDefault(e.getKey(), e.getKey()),
+                        e.getValue()[0].longValue(), e.getValue()[1], e.getValue()[2],
                         e.getValue()[3], e.getValue()[4], e.getValue()[5], e.getValue()[6], e.getValue()[7],
                         e.getValue()[8]))
                 .sorted(Comparator.comparing(WaiterRow::sales).reversed())
@@ -223,11 +223,13 @@ public class DashboardReportService {
                 .map(e -> new PaymentTypeRow(e.getKey(), e.getValue()[0].longValue(), e.getValue()[1], e.getValue()[2]))
                 .toList();
 
-        // ---- final report (the old app's per-waiter slip: CASH and CARD only)
+        // ---- final report (the old app's per-waiter slip: CASH and CARD, plus the PROTOCOL/PO given away)
         List<FinalRow> finalReport = waiters.stream()
                 .filter(w -> w.paidCard().signum() != 0 || w.paidCash().signum() != 0
-                        || w.tipsCard().signum() != 0 || w.tipsCash().signum() != 0)
+                        || w.tipsCard().signum() != 0 || w.tipsCash().signum() != 0
+                        || w.paidProtocol().signum() != 0)
                 .map(w -> new FinalRow(w.waiter(), w.paidCard(), w.paidCash(), w.tipsCard(), w.tipsCash(),
+                        w.paidProtocol(),
                         w.paidCard().add(w.paidCash()).add(w.tipsCard()).add(w.tipsCash())))
                 .toList();
 
@@ -243,7 +245,7 @@ public class DashboardReportService {
         return switch (type.toUpperCase()) {
             case "CASH" -> Kind.CASH;
             case "CARD", "ONLINE" -> Kind.CARD;
-            case "PROTOCOL" -> Kind.PROTOCOL;
+            case "PROTOCOL", "PO" -> Kind.PROTOCOL; // both close consumption without money
             default -> Kind.OTHER;
         };
     }

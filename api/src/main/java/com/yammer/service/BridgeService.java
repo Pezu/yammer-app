@@ -350,6 +350,7 @@ public class BridgeService {
             m.put("paidCash", r.paidCash());
             m.put("tipCard", r.tipCard());
             m.put("tipCash", r.tipCash());
+            m.put("protocol", r.protocol());
             out.add(m);
         }
         Map<String, Object> msg = new LinkedHashMap<>();

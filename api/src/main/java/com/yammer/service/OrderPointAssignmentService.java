@@ -266,7 +266,7 @@ public class OrderPointAssignmentService {
         Map<UUID, String> typeName = paymentTypeRepository.findAll().stream()
                 .collect(Collectors.toMap(PaymentTypeEntity::getId, PaymentTypeEntity::getType));
         Set<UUID> protocolTypes = typeName.entrySet().stream()
-                .filter(e -> "PROTOCOL".equalsIgnoreCase(e.getValue())).map(Map.Entry::getKey).collect(Collectors.toSet());
+                .filter(e -> NotPaidReportService.isNotPaid(e.getValue())).map(Map.Entry::getKey).collect(Collectors.toSet());
 
         Set<UUID> assigned = assignmentRepository.findByUserId(me.getId()).stream()
                 .map(OrderPointAssignmentEntity::getOrderPointId).collect(Collectors.toSet());
@@ -293,8 +293,8 @@ public class OrderPointAssignmentService {
             switch (type) {
                 case "CASH" -> { a[1] = a[1].add(amount); a[3] = a[3].add(tip); }
                 case "CARD", "ONLINE" -> { a[0] = a[0].add(amount); a[2] = a[2].add(tip); }
-                case "PROTOCOL" -> a[4] = a[4].add(amount);
-                default -> { /* PO etc.: neither cash nor card */ }
+                case "PROTOCOL", "PO" -> a[4] = a[4].add(amount);
+                default -> { /* ONLINE-like types with no bucket: neither cash nor card */ }
             }
         }
         List<TableStatsResponse> out = new ArrayList<>(points.size());

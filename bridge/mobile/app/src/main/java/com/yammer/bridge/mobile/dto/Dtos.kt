@@ -122,6 +122,7 @@ data class WaiterReportRequest(
         val paidCash: BigDecimal?,
         val tipCard: BigDecimal?,
         val tipCash: BigDecimal?,
+        val protocol: BigDecimal? = null,
     )
 
     companion object {
@@ -136,6 +137,7 @@ data class WaiterReportRequest(
                     paidCash = it.optBigDecimal("paidCash"),
                     tipCard = it.optBigDecimal("tipCard"),
                     tipCash = it.optBigDecimal("tipCash"),
+                    protocol = it.optBigDecimal("protocol"),
                 )
             },
         )

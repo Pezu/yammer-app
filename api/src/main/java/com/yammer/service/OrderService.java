@@ -640,14 +640,14 @@ public class OrderService {
     /**
      * Record a payment. {@code gross} is the lines' value, {@code net} the same after the
      * table's discount (per unit, see {@link DiscountMath}); the stored amount is the net and
-     * the payment keeps the percentage and the money not charged. PROTOCOL is never discounted.
+     * the payment keeps the percentage and the money not charged. PROTOCOL / PO are never discounted.
      */
     private PaymentEntity createPayment(
             PayRequest request, BigDecimal gross, BigDecimal net, BigDecimal discount,
             UserPrincipal me, TableSessionEntity session) {
         String typeName = paymentTypeRepository.findById(request.paymentTypeId())
                 .map(PaymentTypeEntity::getType).orElse("");
-        boolean discounted = discount != null && discount.signum() > 0 && !"PROTOCOL".equalsIgnoreCase(typeName);
+        boolean discounted = discount != null && discount.signum() > 0 && !NotPaidReportService.isNotPaid(typeName);
         BigDecimal amount = discounted ? net : gross;
         PaymentEntity payment = new PaymentEntity();
         payment.setOrderPointId(request.orderPointId());

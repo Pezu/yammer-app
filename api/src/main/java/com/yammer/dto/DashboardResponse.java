@@ -40,7 +40,8 @@ public record DashboardResponse(
     public record ProductRow(String product, long quantity, BigDecimal sales) {
     }
 
-    public record WaiterRow(String waiter, long orders, BigDecimal sales, BigDecimal paidCash,
+    /** {@code username} is the login (the key for per-waiter exports); {@code waiter} is the display name. */
+    public record WaiterRow(String username, String waiter, long orders, BigDecimal sales, BigDecimal paidCash,
                             BigDecimal paidCard, BigDecimal paidProtocol, BigDecimal paidOther,
                             BigDecimal tipsCash, BigDecimal tipsCard, BigDecimal unsettled) {
     }
@@ -48,7 +49,8 @@ public record DashboardResponse(
     public record PaymentTypeRow(String type, long count, BigDecimal amount, BigDecimal tips) {
     }
 
+    /** One thermal slip per waiter. {@code protocol} is goods given away, so it is shown but not part of {@code total}. */
     public record FinalRow(String waiter, BigDecimal paidCard, BigDecimal paidCash, BigDecimal tipCard,
-                           BigDecimal tipCash, BigDecimal total) {
+                           BigDecimal tipCash, BigDecimal protocol, BigDecimal total) {
     }
 }

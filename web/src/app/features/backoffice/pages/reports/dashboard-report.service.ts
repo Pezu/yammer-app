@@ -44,6 +44,9 @@ export interface DashboardProductRow {
 }
 
 export interface DashboardWaiterRow {
+  /** login — the key for the per-waiter PDF */
+  username: string;
+  /** display name */
   waiter: string;
   orders: number;
   sales: number;
@@ -69,6 +72,7 @@ export interface FinalReportRow {
   paidCash: number;
   tipCard: number;
   tipCash: number;
+  protocol: number;
   total: number;
 }
 
@@ -92,6 +96,12 @@ export class DashboardReportService {
   load(locationId: string, from: string, to: string): Observable<Dashboard> {
     const params = new HttpParams().set('locationId', locationId).set('from', from).set('to', to);
     return this.http.get<Dashboard>(this.baseUrl, { params });
+  }
+
+  /** One waiter's statement as a PDF: their payments by table, each with its type and product lines. */
+  waiterPdf(locationId: string, username: string, from: string, to: string): Observable<Blob> {
+    const params = new HttpParams().set('locationId', locationId).set('from', from).set('to', to);
+    return this.http.get(`${this.baseUrl}/waiter/${encodeURIComponent(username)}/pdf`, { params, responseType: 'blob' });
   }
 
   /** Print the final report (one slip per waiter) on one of the location's thermal printers. */
