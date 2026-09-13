@@ -107,6 +107,30 @@ export class NotPaidReportPage {
     }
   }
 
+  readonly exporting = signal(false);
+
+  exportPdf(): void {
+    const locationId = this.locationFilter();
+    if (!locationId || this.exporting()) return;
+    this.exporting.set(true);
+    this.error.set(null);
+    this.reportService.pdf(locationId, this.from(), this.to()).subscribe({
+      next: (blob) => {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `not-paid-${this.from()}_${this.to()}.pdf`;
+        a.click();
+        URL.revokeObjectURL(url);
+        this.exporting.set(false);
+      },
+      error: () => {
+        this.error.set('Could not export the PDF.');
+        this.exporting.set(false);
+      },
+    });
+  }
+
   toggle(id: string): void {
     const next = new Set(this.collapsed());
     if (next.has(id)) {

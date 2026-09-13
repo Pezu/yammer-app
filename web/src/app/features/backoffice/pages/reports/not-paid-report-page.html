@@ -49,7 +49,10 @@
   } @else {
     <div class="card">
       <div class="card-body">
-        <p class="hint">Consumption closed with the PROTOCOL or PO payment type — nothing was collected for these lines.</p>
+        <div class="card-tools">
+          <p class="hint">Consumption closed with the PROTOCOL or PO payment type — nothing was collected for these lines.</p>
+          <button type="button" class="btn ghost" (click)="exportPdf()" [disabled]="exporting() || !rows().length">Export PDF</button>
+        </div>
         <table class="table">
           <thead>
             <tr>

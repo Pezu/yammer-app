@@ -30,4 +30,9 @@ export class NotPaidReportService {
     const params = new HttpParams().set('locationId', locationId).set('from', from).set('to', to);
     return this.http.get<NotPaidReportRow[]>(`${environment.apiUrl}/reports/not-paid`, { params });
   }
+
+  pdf(locationId: string, from: string, to: string): Observable<Blob> {
+    const params = new HttpParams().set('locationId', locationId).set('from', from).set('to', to);
+    return this.http.get(`${environment.apiUrl}/reports/not-paid/pdf`, { params, responseType: 'blob' });
+  }
 }

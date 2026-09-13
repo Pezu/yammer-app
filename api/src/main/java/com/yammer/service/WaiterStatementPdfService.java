@@ -37,6 +37,7 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
@@ -60,7 +61,7 @@ public class WaiterStatementPdfService {
 
     private static final DateTimeFormatter TIME = DateTimeFormatter.ofPattern("dd.MM HH:mm");
     private static final DeviceRgb HEADER_BG = new DeviceRgb(240, 242, 248);
-    private static final DeviceRgb MUTED = new DeviceRgb(110, 110, 120);
+    static final DeviceRgb MUTED = new DeviceRgb(110, 110, 120);
 
     private final PaymentRepository paymentRepository;
     private final OrderItemRepository orderItemRepository;
@@ -185,8 +186,26 @@ public class WaiterStatementPdfService {
         return baos.toByteArray();
     }
 
+    /** The same product at the same unit price, ordered several times, is one line with the quantities summed. */
+    static List<OrderItemEntity> merged(List<OrderItemEntity> items) {
+        Map<String, OrderItemEntity> byKey = new LinkedHashMap<>();
+        for (OrderItemEntity i : items) {
+            String name = BridgeService.plainName(i.getName());
+            BigDecimal unit = nz(i.getPrice()).stripTrailingZeros();
+            OrderItemEntity acc = byKey.computeIfAbsent(name + "|" + unit.toPlainString(), k -> {
+                OrderItemEntity m = new OrderItemEntity();
+                m.setName(name);
+                m.setPrice(nz(i.getPrice()));
+                m.setQuantity(0);
+                return m;
+            });
+            acc.setQuantity(acc.getQuantity() + (i.getQuantity() == null ? 0 : i.getQuantity()));
+        }
+        return new ArrayList<>(byKey.values());
+    }
+
     /** Product | Qty | Unit | Total for the items one payment settled, with the lines' sum underneath. */
-    private static Table productTable(List<OrderItemEntity> items, PdfFont regular, PdfFont bold) {
+    static Table productTable(List<OrderItemEntity> items, PdfFont regular, PdfFont bold) {
         Table t = new Table(UnitValue.createPercentArray(new float[] {58, 10, 16, 16}))
                 .setWidth(UnitValue.createPercentValue(100)).setFont(regular);
         t.addHeaderCell(header("Product", bold, TextAlignment.LEFT));
@@ -202,7 +221,7 @@ public class WaiterStatementPdfService {
             return t;
         }
         BigDecimal sum = BigDecimal.ZERO;
-        List<OrderItemEntity> sorted = items.stream()
+        List<OrderItemEntity> sorted = merged(items).stream()
                 .sorted(Comparator.comparing((OrderItemEntity i) -> BridgeService.plainName(i.getName()),
                         String.CASE_INSENSITIVE_ORDER))
                 .toList();
@@ -223,14 +242,14 @@ public class WaiterStatementPdfService {
         return t;
     }
 
-    private static Cell header(String label, PdfFont bold, TextAlignment align) {
+    static Cell header(String label, PdfFont bold, TextAlignment align) {
         return new Cell().add(new Paragraph(label).setFont(bold).setTextAlignment(align))
                 .setBackgroundColor(HEADER_BG).setBorder(Border.NO_BORDER)
                 .setBorderBottom(new SolidBorder(ColorConstants.LIGHT_GRAY, 0.5f))
                 .setPaddingTop(3).setPaddingBottom(3).setPaddingLeft(4).setPaddingRight(4);
     }
 
-    private static Cell cell(String value, TextAlignment align) {
+    static Cell cell(String value, TextAlignment align) {
         return new Cell().add(new Paragraph(value).setTextAlignment(align))
                 .setBorder(Border.NO_BORDER)
                 .setBorderBottom(new SolidBorder(ColorConstants.LIGHT_GRAY, 0.5f))
@@ -238,11 +257,11 @@ public class WaiterStatementPdfService {
     }
 
     /** Helvetica/CP1250 has no comma-below ș/ț: fold them onto the cedilla forms it does have. */
-    private static String text(String s) {
+    static String text(String s) {
         return s == null ? "" : s.replace('ș', 'ş').replace('ț', 'ţ').replace('Ș', 'Ş').replace('Ț', 'Ţ');
     }
 
-    private static String money(BigDecimal v) {
+    static String money(BigDecimal v) {
         return nz(v).setScale(2, java.math.RoundingMode.HALF_UP).toPlainString();
     }
 
