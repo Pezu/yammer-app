@@ -12,6 +12,8 @@ import java.util.UUID;
 public record NotPaidReportRow(
         UUID paymentId,
         String orderPointName,
+        /** the table's nickname from the backoffice, null when none */
+        String nickname,
         String waiter,
         Instant at,
         String paymentType,

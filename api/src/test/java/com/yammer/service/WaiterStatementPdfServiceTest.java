@@ -69,6 +69,7 @@ class WaiterStatementPdfServiceTest {
         OrderPointRepository points = mock(OrderPointRepository.class);
         when(points.findByLocationIdOrderByName(location))
                 .thenReturn(List.of(point(t1, "T1.1"), point(t10, "T10"), point(b1, "B1")));
+        b1Nickname(points);
         PaymentTypeRepository types = mock(PaymentTypeRepository.class);
         when(types.findAll()).thenReturn(List.of(type(cash, "CASH"), type(card, "CARD")));
         UserRepository users = mock(UserRepository.class);
@@ -92,6 +93,7 @@ class WaiterStatementPdfServiceTest {
         }
         assertTrue(text.contains("Eduard Popescu"), text);
         assertTrue(text.contains("Rendezvous"), text);
+        assertTrue(text.contains("B1 (Terasa)"), text);
         // tables in the dashboard's natural order: B1, then T1.1 before T10
         assertTrue(text.indexOf("B1") < text.indexOf("T1.1") && text.indexOf("T1.1") < text.indexOf("T10"), text);
         assertTrue(text.contains("CARD   Amount 95.40   Discount 10% (-10.60)   Receipt 0001234"), text);
@@ -103,6 +105,14 @@ class WaiterStatementPdfServiceTest {
         assertTrue(text.contains("fixed-amount payment"), text);
         assertTrue(!text.contains("50.00"), "ana's payment leaked: " + text);
         assertTrue(text.contains("CASH 2 95.00 5.00") && text.contains("190.40"), text);
+    }
+
+    /** B1 carries a nickname: its heading in the PDF must show it. */
+    private void b1Nickname(OrderPointRepository points) {
+        OrderPointEntity bar = point(b1, "B1");
+        bar.setNickname("Terasa");
+        when(points.findByLocationIdOrderByName(location))
+                .thenReturn(List.of(point(t1, "T1.1"), point(t10, "T10"), bar));
     }
 
     private static OrderItemEntity item(String name, String price, int qty, UUID paymentId) {

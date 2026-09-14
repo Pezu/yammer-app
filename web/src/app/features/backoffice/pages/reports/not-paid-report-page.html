@@ -74,7 +74,7 @@
                   </span>
                 </td>
                 <td>{{ row.at ? (row.at | date: 'dd.MM.yyyy HH:mm') : '—' }}</td>
-                <td>{{ row.orderPointName }}</td>
+                <td>{{ row.orderPointName }}@if (row.nickname) { <span class="nick">{{ row.nickname }}</span>}</td>
                 <td>{{ row.waiter }}</td>
                 <td>{{ row.paymentType }}</td>
                 <td class="num">{{ itemCount(row) }}</td>

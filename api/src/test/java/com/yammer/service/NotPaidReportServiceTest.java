@@ -60,7 +60,7 @@ class NotPaidReportServiceTest {
         OrderItemRepository itemRepo = mock(OrderItemRepository.class);
         when(itemRepo.findByPaymentIdIn(any())).thenReturn(items);
         OrderPointRepository points = mock(OrderPointRepository.class);
-        when(points.findByLocationIdOrderByName(location)).thenReturn(List.of(point(t1, "T1.1"), point(t5, "T5")));
+        when(points.findByLocationIdOrderByName(location)).thenReturn(List.of(point(t1, "T1.1", "Fereastra"), point(t5, "T5", null)));
         PaymentTypeRepository types = mock(PaymentTypeRepository.class);
         when(types.findAll()).thenReturn(List.of(type(cash, "CASH"), type(protocol, "PROTOCOL"), type(po, "PO")));
         UserRepository users = mock(UserRepository.class);
@@ -75,6 +75,7 @@ class NotPaidReportServiceTest {
         assertEquals(2, rows.size());
         assertEquals("T5", rows.get(0).orderPointName()); // newest first
         assertEquals("PO", rows.get(0).paymentType());
+        assertEquals("Fereastra", rows.get(1).nickname());
         assertEquals(1, rows.get(1).items().size()); // two orders of the same product → one line
         assertEquals(3, rows.get(1).items().get(0).quantity());
         assertEquals(new BigDecimal("66"), rows.get(1).items().get(0).total());
@@ -87,6 +88,7 @@ class NotPaidReportServiceTest {
         }
         assertTrue(text.contains("Not paid (Protocol / PO)"), text);
         assertTrue(text.contains("Acqua Panna 0.5 L 3 22.00 66.00"), text);
+        assertTrue(text.contains("T1.1 (Fereastra)   12.09 20:15"), text);
         assertTrue(text.contains("PO 1 25.00") && text.contains("PROTOCOL 1 66.00"), text);
         assertTrue(!text.contains("50.00"), "the CASH payment leaked: " + text);
     }
@@ -120,10 +122,11 @@ class NotPaidReportServiceTest {
         return t;
     }
 
-    private static OrderPointEntity point(UUID id, String name) {
+    private static OrderPointEntity point(UUID id, String name, String nickname) {
         OrderPointEntity op = new OrderPointEntity();
         op.setId(id);
         op.setName(name);
+        op.setNickname(nickname);
         return op;
     }
 }

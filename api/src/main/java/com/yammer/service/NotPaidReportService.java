@@ -109,7 +109,7 @@ public class NotPaidReportService {
                 acc[1] = acc[1].add(r.amount());
                 total = total.add(r.amount());
                 String when = r.at() == null ? "" : r.at().atZone(ZoneId.systemDefault()).format(TIME);
-                doc.add(new Paragraph(WaiterStatementPdfService.text(r.orderPointName() + "   " + when + "   "
+                doc.add(new Paragraph(WaiterStatementPdfService.text(tableLabel(r.orderPointName(), r.nickname()) + "   " + when + "   "
                         + r.paymentType() + "   " + r.waiter() + "   Amount " + WaiterStatementPdfService.money(r.amount())))
                         .setFont(bold).setMarginTop(8).setMarginBottom(2));
                 doc.add(linesTable(r, regular, bold));
@@ -133,6 +133,15 @@ public class NotPaidReportService {
             }
         }
         return baos.toByteArray();
+    }
+
+    private static String blankToNull(String s) {
+        return s == null || s.isBlank() ? null : s.trim();
+    }
+
+    /** "T1.1 (Fereastra)" when the table has a nickname, else just the name. */
+    static String tableLabel(String name, String nickname) {
+        return nickname == null || nickname.isBlank() ? name : name + " (" + nickname + ")";
     }
 
     private static Table linesTable(NotPaidReportRow r, PdfFont regular, PdfFont bold) {
@@ -188,8 +197,8 @@ public class NotPaidReportService {
         Map<UUID, List<OrderItemEntity>> itemsByPayment = orderItemRepository
                 .findByPaymentIdIn(payments.stream().map(PaymentEntity::getId).toList())
                 .stream().collect(Collectors.groupingBy(OrderItemEntity::getPaymentId));
-        Map<UUID, String> pointName = orderPointRepository.findByLocationIdOrderByName(locationId).stream()
-                .collect(Collectors.toMap(OrderPointEntity::getId, OrderPointEntity::getName));
+        Map<UUID, OrderPointEntity> point = orderPointRepository.findByLocationIdOrderByName(locationId).stream()
+                .collect(Collectors.toMap(OrderPointEntity::getId, op -> op));
         Map<String, String> waiterName = userRepository.findByUsernameIn(payments.stream()
                         .map(PaymentEntity::getCreatedBy).filter(Objects::nonNull).distinct().toList())
                 .stream().collect(Collectors.toMap(UserEntity::getUsername,
@@ -198,7 +207,8 @@ public class NotPaidReportService {
 
         return payments.stream().map(p -> new NotPaidReportRow(
                 p.getId(),
-                pointName.getOrDefault(p.getOrderPointId(), "?"),
+                point.containsKey(p.getOrderPointId()) ? point.get(p.getOrderPointId()).getName() : "?",
+                point.containsKey(p.getOrderPointId()) ? blankToNull(point.get(p.getOrderPointId()).getNickname()) : null,
                 p.getCreatedBy() == null ? "—" : waiterName.getOrDefault(p.getCreatedBy(), p.getCreatedBy()),
                 p.getCreatedAt() == null ? null : p.getCreatedAt().atZone(ZoneId.systemDefault()).toInstant(),
                 typeName.getOrDefault(p.getPaymentTypeId(), "PROTOCOL"),

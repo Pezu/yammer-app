@@ -89,8 +89,12 @@ public class WaiterStatementPdfService {
         Map<UUID, List<OrderItemEntity>> itemsByPayment = payments.isEmpty() ? Map.of()
                 : orderItemRepository.findByPaymentIdIn(payments.stream().map(PaymentEntity::getId).toList())
                         .stream().collect(Collectors.groupingBy(OrderItemEntity::getPaymentId));
-        Map<UUID, String> pointName = orderPointRepository.findByLocationIdOrderByName(locationId).stream()
+        List<OrderPointEntity> points = orderPointRepository.findByLocationIdOrderByName(locationId);
+        Map<UUID, String> pointName = points.stream()
                 .collect(Collectors.toMap(OrderPointEntity::getId, OrderPointEntity::getName));
+        Map<String, String> nicknameOf = points.stream()
+                .filter(op -> op.getNickname() != null && !op.getNickname().isBlank())
+                .collect(Collectors.toMap(OrderPointEntity::getName, op -> op.getNickname().trim(), (a, b) -> a));
         Map<UUID, String> typeName = paymentTypeRepository.findAll().stream()
                 .collect(Collectors.toMap(PaymentTypeEntity::getId, PaymentTypeEntity::getType));
         String waiter = userRepository.findByUsername(username)
@@ -131,7 +135,8 @@ public class WaiterStatementPdfService {
             BigDecimal grandTip = BigDecimal.ZERO;
             Map<String, BigDecimal[]> byType = new TreeMap<>(); // [count, amount, tip]
             for (Map.Entry<String, List<PaymentEntity>> table : byTable.entrySet()) {
-                doc.add(new Paragraph(text(table.getKey())).setFont(bold).setFontSize(12).setMarginTop(10));
+                doc.add(new Paragraph(text(NotPaidReportService.tableLabel(table.getKey(), nicknameOf.get(table.getKey()))))
+                        .setFont(bold).setFontSize(12).setMarginTop(10));
                 for (PaymentEntity p : table.getValue()) {
                     String type = typeName.getOrDefault(p.getPaymentTypeId(), "?");
                     BigDecimal amount = nz(p.getAmount());

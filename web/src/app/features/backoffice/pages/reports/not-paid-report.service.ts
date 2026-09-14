@@ -14,6 +14,8 @@ export interface NotPaidLine {
 export interface NotPaidReportRow {
   paymentId: string;
   orderPointName: string;
+  /** the table's nickname from the backoffice, null when none */
+  nickname: string | null;
   waiter: string;
   at: string | null;
   paymentType: string;
