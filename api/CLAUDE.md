@@ -297,76 +297,20 @@ Same model as the old project:
 
 ## Database
 
-- Flyway migrations in `src/main/resources/db/migration`; **never edit an existing
-  migration** — add a new `V<n>__*.sql`.
-- `V1__init.sql`: `role`, `client`, `users` (with `name`, `roles TEXT[]`, `client_id`).
-- `V2__seed.sql`: base roles + SUPER operator `office@yammer.ro`
-  (password seeded as MD5, upgraded to BCrypt on first login).
-- `V3__Add_client_logo.sql`: `client.logo_object` (GCS object key).
-- `V4__Super_admin_profile.sql`: name/phone/email for the seeded SUPER operator.
-- `V5__Add_user_qr_token.sql`: `users.qr_token` (unique QR-login secret).
-- `V6__Qr_token_uuid.sql`: `qr_token` re-created as a resettable UUID.
-- `V7__Drop_barman_role.sql`: BARMAN role retired (removed from catalog and users).
-- `V8__Add_location.sql`: `location` (client-owned).
-- `V9__Add_user_location.sql`: `users.location_id` — home location, REQUIRED for
-  client-scoped users (400 without one), must belong to the user's client
-  (`UserService.resolveLocation`); null for SUPER.
-- `V10__Add_order_point_type.sql`: `order_point_type` catalog, seeded SERVICE/BAR/TABLE.
-- `V11__Add_vat_type.sql`: `vat_type` catalog, seeded 21.00/11.00/0.00.
-- `V12__Add_order_point.sql`: `order_point` (location-owned, typed via
-  `order_point_type`; self-FK `service_order_point_id`).
-- `V13__Add_menu.sql`: `menu` (per location — no event) + `menu_item` tree
-  (rich-text TEXT name, price, vat_type_id, image_object, combined, sort_order).
-- `V14__Add_integration.sql`: `integration` (printers/cash registers per location).
-- `V15__Add_payment_type.sql`: `payment_type` catalog (seeded CARD/CASH/PROTOCOL/PO)
-  + `order_point.allow_multiple_users` / `payment_type_id`.
-- `V16__Order_point_payment_types.sql`: single `payment_type_id` replaced with the
-  multi-select `payment_type_ids UUID[]` set.
-- `V17__Add_order_point_assignment.sql`: `order_point_assignment` (point↔user).
-- `V18__Add_orders.sql`: `orders` + `order_item` (no payments yet).
-- `V19__Add_products.sql`: `product` catalog + `menu_item.product_id` (price/vat/
-  combined dropped off menu_item) + `recipe_component`.
-- `V20__Menu_item_price.sql`: price moved BACK onto `menu_item` (per-menu pricing);
-  dropped from `product`.
-- `V21__Product_created_at.sql`: `product.created_at` (newest-first listing).
-- `V22__Add_payment.sql`: `payment` + `order_item.payment_id` (settled-line link).
-- `V23__Add_order_item_original_price.sql`: `order_item.original_price` — stamped
-  on the unpaid remainder line when AMOUNT mode splits a unit's price.
-- `V24__Add_table_session.sql`: `table_session` (one OPEN per point via partial
-  unique index) + `orders.session_id` / `payment.session_id`; backfills an open
-  session for every currently-assigned point, adopting its orders/payments.
-- `V25__Add_self_pay_type.sql`: `self_pay_type` catalog (ONLINE/CHECK) +
-  `order_point.self_pay_type_id`; DROPS the never-used `order_point.pay_later`.
-- `V26__Customer_sessions_and_self_order.sql`: `customer_session` (device token
-  joined to an OPEN table session, PENDING→APPROVED/DENIED, dies with the
-  session) + `order_point.self_order_mode` (ALLOW/CONFIRM/DISALLOW, default
-  CONFIRM) + `orders.customer_session_id`.
-- `V27__Payment_status.sql`: `payment.status` (SUCCESS/PENDING/FAILED).
-- `V28__Add_online_payment.sql`: `online_payment` parked-cart intents (Netopia)
-  + seeds the ONLINE payment type.
-- `V29__Location_active.sql`: `location.active` (default true).
-- `V30__Order_draft_status.sql`: `orders.order_no` nullable; APPROVAL → DRAFT (number cleared);
-  APPROVAL orders on already-closed sessions deleted (never accepted).
-- `V31__Payment_fiscal.sql`: `payment.fiscal_status` (NONE default; existing rows were never
-  fiscalized), `receipt_number`, `fiscal_sent_at`, `fiscal_device`, `fiscal_reprint_authorized`,
-  partial index on PENDING.
-- `V32__Integration_mobile.sql`: (superseded by V34) MOBILE rows + `bridge_id`; connection USB → MOBILE.
-- `V34__Integration_device_direct.sql`: `integration.device_name`; MOBILE rows folded into their
-  devices' `device_id`, `bridge_id` dropped.
-- `V33__Card_payments_fiscalized.sql`: PENDING card payments → SUCCESS + fiscal FAILED (re-issuable).
-- `V42__Location_shift.sql`: `location_shift` (the service day: opened_by/at, closed_by/at)
-  with a partial unique index enforcing at most one OPEN shift per location.
-- `V43__Shift_nickname.sql`: `location_shift.nickname` (the manager's optional label).
-- `V44__Order_payment_shift.sql`: `orders.shift_id` + `payment.shift_id` (FK → location_shift,
-  indexed), backfilled from the shifts that were running when each row was created.
-- `V45__Assignment_round.sql`: `order_point_assignment.assigned_at` (the round's start) and
-  `customer_session.order_point_id` (backfilled from `table_session`, whose FK is now
-  nullable).
-- `V46__Drop_table_session.sql`: drops `table_session` and the `session_id` columns on
-  orders/payment/online_payment plus `customer_session.table_session_id` — nothing has read
-  them since V45.
-- The old DB had 30 migrations; this baseline restarts at V1, so the API must run
-  against a **fresh database volume**, not the old one.
+- Flyway migrations live in `src/main/resources/db/migration`.
+- **Two scripts, no history.** On 2026-09-20 both databases were dropped and the 46
+  incremental migrations were folded into:
+  - `V1__Initial_schema.sql` — every table, index, unique and foreign key (22 tables).
+    It is the schema, not a changelog: read the git log for why a column exists.
+  - `V2__Seed.sql` — the global catalogs (roles, order-point types, payment types,
+    self-pay types, VAT rates, the QR template) and the SUPER operator
+    `office@yammer.ro`. Idempotent, so a re-run is harmless. Tenant data belongs in
+    `db-seeds/` or the backoffice, never here.
+- From here on the rule holds again: **never edit an applied migration**, add a
+  `V<n>__*.sql`. Editing one that a database already ran stops the app on a checksum
+  mismatch until someone runs repair.
+- The API must run against a database built from these two scripts; the pre-2026-09-20
+  dump in `~/Projects/yammer-old/db-dumps/` is the last snapshot of the old one.
 
 ## Deployment (GCP, Cloud Run)
 
