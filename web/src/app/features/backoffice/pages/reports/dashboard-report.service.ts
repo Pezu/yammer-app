@@ -87,6 +87,20 @@ export interface Dashboard {
   finalReport: FinalReportRow[];
 }
 
+/** What a dashboard action covers: one service day, or a date range. */
+export interface Period {
+  shiftId?: string;
+  from?: string;
+  to?: string;
+}
+
+function periodParams(locationId: string, period: Period): HttpParams {
+  const base = new HttpParams().set('locationId', locationId);
+  return period.shiftId
+    ? base.set('shiftId', period.shiftId)
+    : base.set('from', period.from ?? '').set('to', period.to ?? '');
+}
+
 @Injectable({ providedIn: 'root' })
 export class DashboardReportService {
   private readonly http = inject(HttpClient);
@@ -98,14 +112,29 @@ export class DashboardReportService {
     return this.http.get<Dashboard>(this.baseUrl, { params });
   }
 
-  /** One waiter's statement as a PDF: their payments by table, each with its type and product lines. */
-  waiterPdf(locationId: string, username: string, from: string, to: string): Observable<Blob> {
-    const params = new HttpParams().set('locationId', locationId).set('from', from).set('to', to);
+  /** One service day — the API matches rows on the shift id, not on a time window. */
+  loadShift(locationId: string, shiftId: string): Observable<Dashboard> {
+    const params = new HttpParams().set('locationId', locationId).set('shiftId', shiftId);
+    return this.http.get<Dashboard>(this.baseUrl, { params });
+  }
+
+  /**
+   * One waiter's statement as a PDF: their payments by table, each with its type and product
+   * lines. Scoped to a service day (`shiftId`) or to a date range.
+   */
+  waiterPdf(locationId: string, username: string, period: Period): Observable<Blob> {
+    const params = periodParams(locationId, period);
     return this.http.get(`${this.baseUrl}/waiter/${encodeURIComponent(username)}/pdf`, { params, responseType: 'blob' });
   }
 
   /** Print the final report (one slip per waiter) on one of the location's thermal printers. */
-  printFinal(locationId: string, from: string, to: string, printerId: string): Observable<void> {
-    return this.http.post<void>(`${this.baseUrl}/final/print`, { locationId, from, to, printerId });
+  printFinal(locationId: string, period: Period, printerId: string): Observable<void> {
+    return this.http.post<void>(`${this.baseUrl}/final/print`, {
+      locationId,
+      printerId,
+      shiftId: period.shiftId ?? null,
+      from: period.shiftId ? null : period.from,
+      to: period.shiftId ? null : period.to,
+    });
   }
 }

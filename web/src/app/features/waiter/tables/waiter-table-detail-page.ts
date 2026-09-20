@@ -83,7 +83,7 @@ export class WaiterTableDetailPage {
     () =>
       !this.loading() &&
       !this.error() &&
-      (this.bill()?.sessionOpen ?? false) &&
+      (this.bill()?.inService ?? false) &&
       this.bill()!.keepOpen !== false &&
       this.bill()!.lines.every((l) => l.paid),
   );

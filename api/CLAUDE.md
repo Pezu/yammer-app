@@ -66,26 +66,26 @@ Run from `api/`.
   must be in the same location (UI offers only SERVICE-type points);
   `menu_id`/`printer_id`/`cash_register_id` are plain UUIDs (their combos are
   wired to `/menu/menus` and `/integrations`; FK migrations still pending).
-- **Table sessions** (V24): assigning a table OPENS a `table_session` for its order
-  point (or joins the one already open — at most one open per point, enforced by a
-  partial unique index). Orders and payments are stamped with the session; the
-  bill and the waiter's paid/unpaid views cover ONLY the current open session.
-  Unassigning is refused (409) whenever the point has an open session — an open
-  table is left ONLY by closing it. The close point is `POST /order-points/{id}/close`
-  (any authenticated user, tenant-checked): 409 while unpaid lines remain,
-  otherwise closes the session (closed_by/closed_at) AND clears every assignment
-  on the point, freeing the table.
+- **Table rounds** (V45; `TableRoundService`): a table has no session row — **the
+  assignment is the sitting**. A table takes orders while somebody is assigned to it, and
+  its current round started at the earliest active assignment (`order_point_assignment
+  .assigned_at`). The bill covers that round, plus anything older still unpaid — money owed
+  is never hidden by a re-assignment. Leaving a table (`DELETE /order-points/{id}/assign`)
+  is refused (409) while it owes anything; the last waiter out ends the round and the
+  never-accepted customer DRAFTs die with it. `POST /order-points/{id}/close` frees the
+  table outright (every assignment dropped), same 409 guard. `table_session` and every `session_id`
+  column were dropped in V46.
 - **Ordering** (`/orders`, any authenticated user, tenant-checked via AccessGuard):
   `POST` places an order (line names+prices snapshotted; `order_no` = per-client
   max+1; status always ORDERED until the delivery/payment flows are ported) —
-  requires the point's OPEN session (400 otherwise) and stamps it on the order.
-  `GET ?orderPointId=` lists the current session's orders newest-first.
+  requires somebody to be assigned to the point (400 otherwise).
+  `GET ?orderPointId=` lists the current round's orders newest-first.
   `GET /order-points/{id}/menu` bundles the point + its default menu tree + the
   location's menus (switcher) + all orderable products (search) for the waiter
-  ordering screen. `GET /orders/bill?orderPointId=` = the current session's
+  ordering screen. `GET /orders/bill?orderPointId=` = the table's current round as a
   combined bill (lines aggregated per product+price, split paid/unpaid, + the
-  point's accepted paymentTypeIds + `sessionOpen`; empty when no session is
-  open). `POST /orders/pay {orderPointId, paymentTypeId, mode, tip,
+  point's accepted paymentTypeIds + `inService`; empty when nobody works the table
+  and nothing is owed). `POST /orders/pay {orderPointId, paymentTypeId, mode, tip,
   amount?, items?}` — the type MUST be one configured on the order point. Modes:
   FULL (everything unpaid), PARTIAL (selected product quantities; lines split as
   in the old PaymentSplitService — original stays unpaid reduced, new paid line
@@ -102,6 +102,36 @@ Run from `api/`.
   `DELETE /orders/{id}` only when nothing is paid. All in `OrderReportService`.
 - `GET /payments?locationId=` — the payments report (ADMIN/SUPER): table, waiter
   (display name), amount, tip, total, payment type, newest first.
+- **Waiter's own lists** (`OrderPointAssignmentService`, any authenticated user, their
+  assigned tables only — SERVICE stations excluded): `GET /order-points/orders?status=`
+  (undelivered orders, one board status or both) and `GET /order-points/payments`
+  (what those tables collected during the open **service day** — matched on `payment.shift_id` —
+  newest first, minus PROTOCOL/PO settlements and softPOS-declined ones) — the waiter
+  Orders/Payments pages; `GET /order-points/my-stats` is scoped the same way (no date
+  parameters anywhere on the waiter side). `POST
+  /order-points/payments/{id}/retry-fiscal` re-issues a FAILED receipt through the
+  same guarded path as the backoffice button; resolving an UNKNOWN stays ADMIN-only.
+- **Service day / shift** (`ShiftService`, `/shifts`, ADMIN/SUPER): a location trades in
+  service days a manager opens and closes on the backoffice **Shifts** page —
+  `GET /shifts?locationId=` (all, newest first), `GET /shifts/current`, `GET
+  /shifts/open-tables` (the table names blocking a close), `POST /shifts/open {locationId,
+  nickname?}`, `POST /shifts/close {locationId, printerId?}`, `PUT /shifts/{id} {nickname}`.
+  At most one open shift per location (partial unique index); each carries an optional
+  manager's nickname. **Every order and payment is stamped with `shift_id`** (V44) when it is
+  created, and every report matches on that id — never on a time window, because a day runs
+  across midnight and closes by hand. Serving with no day open would leave rows unattributed,
+  so `ShiftService.requireOpenShiftId` opens one implicitly on the first order/payment
+  (recorded against whoever rang it up); reads (`openShiftId`) never open one. **A day cannot close while any non-SERVICE point still owes
+  money** (409 naming the tables) — otherwise its bills would spill into the next service
+  and the slips would be wrong. Closing cashes up — one row per waiter, card/cash/tips/
+  protocol — stamps `closed_at` and, with a printerId, sends the same per-waiter thermal
+  slips as the dashboard's final report. Orders and
+  payments are NOT stamped with a shift id: the window over `created_at` is the scope.
+  `ShiftService.windowFor(locationId)` is what the waiter screens report on — open shift →
+  since it opened; closed today → since the close (settled money never reappears); nothing →
+  the current **business day**, which starts at `BUSINESS_DAY_CUTOFF_HOUR` (06:00), so
+  after-midnight trade counts as the night before. That constant becomes a per-location
+  column the day two clients disagree.
 - **Kanban statuses**: orders move ORDERED → READY → DELIVERED (or CANCELED) via
   `PATCH /orders/{id}/status` (any authenticated user, tenant-checked). The
   service board (`GET /order-points/service-board`) shows ORDERED/READY orders
@@ -111,7 +141,7 @@ Run from `api/`.
   pay allocation, or the settle checks.
 - **Customer approval** (`ApprovalService` / `CustomerAccessService`): a customer
   device scanning a table QR calls `POST /public/order-points/{opId}/join`
-  ({token?}) — a valid token for the CURRENT open session resumes as-is
+  ({token?}) — a token issued in the table's CURRENT round resumes as-is
   (approval survives browser restarts; the token lives in the customer's
   localStorage), anything else creates a PENDING `customer_session` for the
   assigned waiter. `GET /public/order-points/{opId}?token=` reports
@@ -172,6 +202,8 @@ Run from `api/`.
 - `GET /reports/not-paid?locationId=&from=&to=` — not-paid report (ADMIN/SUPER):
   settlements taken with the PROTOCOL or PO payment types in the inclusive date
   range, newest first, each with the product lines it covered (`NotPaidReportService`).
+- The dashboard, its final-report print and the per-waiter PDF all take **either**
+  `shiftId` (one service day, rows matched on the id) **or** `from`+`to` (a date range).
 - `GET /reports/dashboard/waiter/{username}/pdf?locationId=&from=&to=` — one waiter's
   statement as an A4 PDF (`WaiterStatementPdfService`, iText): their payments grouped by
   table, each with time/type/amount/tip/discount and the products it settled, plus a
@@ -322,6 +354,17 @@ Same model as the old project:
 - `V34__Integration_device_direct.sql`: `integration.device_name`; MOBILE rows folded into their
   devices' `device_id`, `bridge_id` dropped.
 - `V33__Card_payments_fiscalized.sql`: PENDING card payments → SUCCESS + fiscal FAILED (re-issuable).
+- `V42__Location_shift.sql`: `location_shift` (the service day: opened_by/at, closed_by/at)
+  with a partial unique index enforcing at most one OPEN shift per location.
+- `V43__Shift_nickname.sql`: `location_shift.nickname` (the manager's optional label).
+- `V44__Order_payment_shift.sql`: `orders.shift_id` + `payment.shift_id` (FK → location_shift,
+  indexed), backfilled from the shifts that were running when each row was created.
+- `V45__Assignment_round.sql`: `order_point_assignment.assigned_at` (the round's start) and
+  `customer_session.order_point_id` (backfilled from `table_session`, whose FK is now
+  nullable).
+- `V46__Drop_table_session.sql`: drops `table_session` and the `session_id` columns on
+  orders/payment/online_payment plus `customer_session.table_session_id` — nothing has read
+  them since V45.
 - The old DB had 30 migrations; this baseline restarts at V1, so the API must run
   against a **fresh database volume**, not the old one.
 

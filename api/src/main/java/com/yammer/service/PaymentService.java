@@ -72,6 +72,14 @@ public class PaymentService {
         return rows(payments);
     }
 
+    /**
+     * Report rows for payments the caller has already scoped itself (the waiter's own
+     * tables) — no location guard here, the caller does the access check.
+     */
+    public List<PaymentReportRow> rowsFor(List<PaymentEntity> payments) {
+        return rows(payments);
+    }
+
     /** Report rows for the given payments (table name, waiter display name, type name, fiscal state). */
     private List<PaymentReportRow> rows(List<PaymentEntity> payments) {
 
@@ -122,6 +130,7 @@ public class PaymentService {
      * committing concurrently (FAILED → SUCCESS) makes it match 0 rows instead of clobbering
      * the SUCCESS. The stamped fiscalSentAt restarts the sweeper's deadline from now.
      */
+    @Transactional // the class default is read-only; the guarded UPDATE needs to write
     public void retryFiscal(UUID paymentId) {
         PaymentEntity payment = paymentRepository.findById(paymentId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Payment not found: " + paymentId));
@@ -142,6 +151,7 @@ public class PaymentService {
      * (optionally with the receipt number) or not printed (re-enables retry + authorizes the
      * bridge to clear its print-intent).
      */
+    @Transactional // the class default is read-only; the guarded UPDATE needs to write
     public void resolveUnknownFiscal(UUID paymentId, boolean printed, String receiptNumber) {
         PaymentEntity payment = paymentRepository.findById(paymentId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Payment not found: " + paymentId));

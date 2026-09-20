@@ -72,17 +72,32 @@ public class WaiterStatementPdfService {
 
     @Transactional(readOnly = true)
     public byte[] statement(UUID locationId, String username, LocalDate from, LocalDate to) {
-        LocationEntity location = accessGuard.requireAccessibleLocation(locationId);
         if (to.isBefore(from)) {
             LocalDate t = to;
             to = from;
             from = t;
         }
-        LocalDateTime start = from.atStartOfDay();
-        LocalDateTime end = to.plusDays(1).atStartOfDay();
+        String period = from.equals(to) ? from.toString() : from + " – " + to;
+        return statement(locationId, username, from.atStartOfDay(), to.plusDays(1).atStartOfDay(), period);
+    }
 
-        List<PaymentEntity> payments = paymentRepository.findByLocationIdAndCreatedAtBetween(locationId, start, end)
-                .stream()
+    /** The statement of one service day: payments matched on their shift id, not on the clock. */
+    @Transactional(readOnly = true)
+    public byte[] statementForShift(UUID locationId, String username, UUID shiftId, String period) {
+        return render(locationId, username, period, paymentRepository.findByShiftId(shiftId));
+    }
+
+    /** The same statement over an arbitrary window, titled with {@code period}. */
+    @Transactional(readOnly = true)
+    public byte[] statement(UUID locationId, String username, LocalDateTime start, LocalDateTime end, String period) {
+        return render(locationId, username, period,
+                paymentRepository.findByLocationIdAndCreatedAtBetween(locationId, start, end));
+    }
+
+    private byte[] render(UUID locationId, String username, String period, List<PaymentEntity> candidates) {
+        LocationEntity location = accessGuard.requireAccessibleLocation(locationId);
+
+        List<PaymentEntity> payments = candidates.stream()
                 .filter(p -> username.equals(p.getCreatedBy()) && !"FAILED".equals(p.getStatus()))
                 .sorted(Comparator.comparing(PaymentEntity::getCreatedAt))
                 .toList();
@@ -123,7 +138,6 @@ public class WaiterStatementPdfService {
             doc.setFont(regular).setFontSize(9.5f);
 
             doc.add(new Paragraph(text("Waiter statement — " + waiter)).setFont(bold).setFontSize(16));
-            String period = from.equals(to) ? from.toString() : from + " – " + to;
             doc.add(new Paragraph(text(location.getName() + "  ·  " + period))
                     .setFontColor(MUTED).setMarginBottom(12));
 

@@ -28,9 +28,9 @@ public class PaymentEntity {
     @Column(name = "order_point_id", nullable = false)
     private UUID orderPointId;
 
-    /** The table session this payment settled lines of. */
-    @Column(name = "session_id")
-    private UUID sessionId;
+    /** The service day this belongs to; reports and the cash-up match on it. */
+    @Column(name = "shift_id")
+    private UUID shiftId;
 
     @Column(nullable = false, precision = 10, scale = 2)
     private BigDecimal amount;

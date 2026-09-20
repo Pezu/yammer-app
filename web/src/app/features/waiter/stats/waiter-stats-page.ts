@@ -1,4 +1,4 @@
-import { Component, computed, effect, inject, signal } from '@angular/core';
+import { Component, computed, inject, signal } from '@angular/core';
 import { DecimalPipe, NgTemplateOutlet } from '@angular/common';
 import { TableStats, WaiterOrderPointService } from '../tables/waiter-order-point.service';
 import { I18nService } from '../../../core/i18n.service';
@@ -7,14 +7,13 @@ import { ComboBox } from '../../../shared/combo-box';
 /**
  * /waiter/stats — the waiter's own takings, as in the old app: a grand "All tables" card plus
  * one card per table with Paid card / Paid cash / Total, Tip card / Tip cash / Tip and Unpaid;
- * a Protocol view lists comped tables. Scoped to one day (today by default).
+ * a Protocol view lists comped tables. Scoped to the location's open service day.
  */
 @Component({
   selector: 'app-waiter-stats-page',
   imports: [DecimalPipe, NgTemplateOutlet, ComboBox],
   template: `
     <header class="page-head">
-      <input type="date" class="day" [value]="day()" (change)="day.set($any($event.target).value)" [attr.aria-label]="t('stats.day')" />
       @if (protocolRows().length) {
         <div class="view-combo">
           <app-combo-box [options]="viewOptions()" [value]="view()" (valueChange)="view.set($any($event))" />
@@ -91,15 +90,6 @@ import { ComboBox } from '../../../shared/combo-box';
         justify-content: space-between;
         gap: 0.75rem;
         padding: 0.85rem 1rem 0.6rem;
-      }
-      .day {
-        padding: 0.45rem 0.6rem;
-        font: inherit;
-        font-size: 0.9rem;
-        color: var(--text);
-        border: 1px solid var(--border);
-        border-radius: 8px;
-        background: #fff;
       }
       .view-combo {
         min-width: 9rem;
@@ -186,7 +176,6 @@ export class WaiterStatsPage {
   readonly rows = signal<TableStats[]>([]);
   readonly loading = signal(true);
   readonly error = signal<string | null>(null);
-  readonly day = signal(today());
   readonly view = signal<'paid' | 'protocol'>('paid');
   readonly viewOptions = computed(() => [
     { id: 'paid', name: this.t('stats.paid') },
@@ -215,16 +204,13 @@ export class WaiterStatsPage {
   });
 
   constructor() {
-    effect(() => {
-      const day = this.day();
-      if (day) this.load(day);
-    });
+    this.load();
   }
 
-  private load(day: string): void {
+  private load(): void {
     this.loading.set(true);
     this.error.set(null);
-    this.service.myStats(day, day).subscribe({
+    this.service.myStats().subscribe({
       next: (rows) => {
         this.rows.set(rows);
         if (this.view() === 'protocol' && !rows.some((r) => r.protocol)) this.view.set('paid');
@@ -236,10 +222,4 @@ export class WaiterStatsPage {
       },
     });
   }
-}
-
-function today(): string {
-  const d = new Date();
-  const p = (n: number) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
 }

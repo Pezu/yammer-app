@@ -65,7 +65,7 @@ web/src/app/
 │   │                                 #   section when non-empty; split units tinted + half-circle icon).
 │   │                                 #   Menu is
 │   │                                 #   always browsable; ordering 409s with "ask a waiter" while
-│   │                                 #   the table has no open session. (No Orders history / pay-now
+│   │                                 #   no waiter works the table. (No Orders history / pay-now
 │   │                                 #   flow yet — those come with the customer-identity port.)
 │   │                                 # Approval flow: first scan auto-joins the open session (token in
 │   │                                 #   localStorage so re-scans resume it), "waiting for waiter"
@@ -80,20 +80,29 @@ web/src/app/
 │   │                                 #   payment-return page polls /public/payments/{ref}/status.
 │   ├── waiter/approvals/             # hamburger → Approvals: pending customer joins + APPROVAL
 │   │                                 #   orders on MY tables, Approve/Deny, 10s polling
+│   ├── waiter/orders/                # hamburger → Orders: the undelivered orders at MY tables,
+│   │                                 #   one card each (table, who ordered, time, lines, total);
+│   │                                 #   Ready/Ordered combo kept in the URL (?tab=), Delivered
+│   │                                 #   button on READY cards (optimistic)
+│   ├── waiter/payments/              # hamburger → Payments: what MY tables collected during the
+│   │                                 #   open service day (no dates on the waiter surface; no
+│   │                                 #   protocol/PO), compact table + fiscal dot; a FAILED
+│   │                                 #   receipt has a Retry button, an UNKNOWN one says to see a
+│   │                                 #   manager; the status filter is kept in the URL (?status=)
 │   ├── waiter/waiter-page.ts         # /waiter shell — topbar + hamburger menu (Logout last) + outlet
 │   ├── waiter/tables/                # /waiter/tables — the waiter's ASSIGNED tiles + a "+" tile
 │   │                                 #   opening the assign picker (full TABLE/BAR board with
 │   │                                 #   status: multi-user points show "N assigned" and always
 │   │                                 #   accept; single-user show Free/Yours/Taken — <name>).
 │   │                                 #   The picker refreshes its tiles in place (no flash).
-│   │                                 #   Assigning OPENS the table session (unassign is refused
-│   │                                 #   with a 409 message while the session is open — only
-│   │                                 #   Close table frees it). Tapping a tile → /waiter/tables/:id = the
-│   │                                 #   session's combined bill; header = back + name; sticky footer = Pay (only while
+│   │                                 #   Assigning STARTS the table's round (the assignment is the
+│   │                                 #   sitting); leaving is refused with a 409 while anything is
+│   │                                 #   unsettled. Tapping a tile → /waiter/tables/:id = the
+│   │                                 #   round's combined bill; header = back + name; sticky footer = Pay (only while
 │   │                                 #   something is due) + Close table (tabs only, once all is paid) + Order; Unpaid/Paid view combo
 │   │                                 #   (default Unpaid), the pay sheet, and — once everything
-│   │                                 #   is paid — the "Close table" button, the ONLY way to end
-│   │                                 #   the session (frees the table, back to the tiles).
+│   │                                 #   is paid — the "Close table" button, which frees the table
+│   │                                 #   (drops every assignment, ending the round).
 │   │                                 #   → /waiter/tables/:id/order (menu drill-down +
 │   │                                 #   search + cart, ported from old yammer minus payments;
 │   │                                 #   menus cached in waiter-menu-cache.service via localStorage)
@@ -113,7 +122,14 @@ web/src/app/
 │           ├── integrations/         # "Peripherals" — cash registers / printers, each TCP (ip) or Mobile:
 │           │                         #   pick the connected phone it is attached to (name remembered for
 │           │                         #   when it is offline; online dot). The phone is pure routing.
-│           ├── order-points/         # list + batch "add multiple" modal (type/count/self-pay/…)
+│           ├── shifts/               # Configuration → Shifts: the location's service days.
+│           │                         #   "+" starts one (optional nickname, inline), the open row picks
+│           │                         #   its cash-up printer inline and closes with "Close & cash up" —
+│           │                         #   refused while any table is still open (the blockers are listed
+│           │                         #   above the table and re-checked every 15 s); closing prints one
+│           │                         #   thermal slip per waiter. The open day is the window the waiter's
+│           │                         #   own Payments/Statistics pages report on.
+           ├── order-points/         # list + batch "add multiple" modal (type/count/self-pay/…)
 │           ├── self-pay-types/       # catalog CRUD (SUPER-only; ONLINE/CHECK — how a customer
 │           │                         #   self-pays at an order point; cloned from payment-types)
 │           ├── reports/              # Orders report (paginated + per-column filter combos, right-hand
@@ -130,7 +146,10 @@ web/src/app/
 │           │                         #   date range, each unfolding to its product lines)
 │           │                         #   + Dashboard (KPIs, timeline, tables/products/waiters/payment
 │           │                         #   types, final report → thermal print / Excel; each waiter row
-│           │                         #   has a PDF statement: payments by table + type + product lines)
+│           │                         #   has a PDF statement: payments by table + type + product lines).
+│           │                         #   The period combo picks a SERVICE DAY (the open one by
+│           │                         #   default, newest first) or "Custom range…", which reveals the
+│           │                         #   date inputs + quick chips; print/PDF/export follow it
 │           ├── order-point-types/    # catalog CRUD (SUPER-only; cloned from roles)
 │           ├── payment-types/        # catalog CRUD (SUPER-only; cloned from order-point-types)
 │           ├── roles/                # roles CRUD (verbatim; SUPER-only)

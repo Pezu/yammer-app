@@ -2,10 +2,9 @@ package com.yammer.controller;
 
 import com.yammer.dto.AssignableOrderPointResponse;
 import com.yammer.dto.OrderPointResponse;
-import org.springframework.format.annotation.DateTimeFormat;
-import java.time.LocalDate;
 import com.yammer.dto.TableStatsResponse;
 import com.yammer.dto.OrderReportRow;
+import com.yammer.dto.PaymentReportRow;
 import com.yammer.service.ApprovalService;
 import com.yammer.service.OrderPointAssignmentService;
 import java.util.List;
@@ -76,6 +75,25 @@ public class OrderPointAssignmentController {
         assignmentService.selectStation(id);
     }
 
+    /** Waiter Orders page: the caller's undelivered orders, optionally one board status. */
+    @GetMapping("/orders")
+    public List<OrderReportRow> myOrders(@RequestParam(required = false) String status) {
+        return assignmentService.myOrders(status);
+    }
+
+    /** Waiter Payments page: what the caller's tables collected during the open service day. */
+    @GetMapping("/payments")
+    public List<PaymentReportRow> myPayments() {
+        return assignmentService.myPayments();
+    }
+
+    /** Re-issue a FAILED fiscal receipt from the waiter's Payments page (409 unless FAILED). */
+    @PostMapping("/payments/{id}/retry-fiscal")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void retryFiscal(@PathVariable UUID id) {
+        assignmentService.retryFiscal(id);
+    }
+
     /** Service kanban: undelivered orders routed to the caller's service stations. */
     @GetMapping("/service-board")
     public List<OrderReportRow> serviceBoard() {
@@ -92,14 +110,10 @@ public class OrderPointAssignmentController {
     public record SelfOrderModeRequest(String mode) {
     }
 
-    /** The waiter's own takings per table for a day range (defaults to today). */
+    /** The waiter's own takings per table during the location's open service day. */
     @GetMapping("/my-stats")
-    public List<TableStatsResponse> myStats(
-            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
-            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to) {
-        LocalDate f = from == null ? LocalDate.now() : from;
-        LocalDate t = to == null ? f : to;
-        return assignmentService.myStats(f, t);
+    public List<TableStatsResponse> myStats() {
+        return assignmentService.myStats();
     }
 
     /** Print the table's unpaid bill as a proforma on its thermal printer. */
@@ -109,7 +123,7 @@ public class OrderPointAssignmentController {
         assignmentService.printProforma(id);
     }
 
-    /** Close the table's session (only when fully settled) and free the table. */
+    /** Free the table: drop every assignment, ending its round (only when fully settled). */
     @PostMapping("/{id}/close")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void close(@PathVariable UUID id) {

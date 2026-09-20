@@ -48,7 +48,7 @@
             </tr>
           </thead>
           <tbody>
-            @for (row of rows(); track row.sessionId) {
+            @for (row of rows(); track row.orderPointId) {
               <tr>
                 <td>{{ row.orderPointName }}</td>
                 <td>{{ row.openedBy }}</td>

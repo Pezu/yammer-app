@@ -34,10 +34,6 @@ public class OnlinePaymentEntity {
     @Column(name = "order_point_id", nullable = false)
     private UUID orderPointId;
 
-    /** The table session that was open when the payment started. */
-    @Column(name = "session_id")
-    private UUID sessionId;
-
     /** The (approved) customer device paying, carried to the order on confirm. */
     @Column(name = "customer_session_id")
     private UUID customerSessionId;

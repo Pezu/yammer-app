@@ -11,6 +11,6 @@ public interface CustomerSessionRepository extends JpaRepository<CustomerSession
 
     Optional<CustomerSessionEntity> findByToken(UUID token);
 
-    List<CustomerSessionEntity> findByTableSessionIdInAndStatusOrderByCreatedAtAsc(
+    List<CustomerSessionEntity> findByOrderPointIdInAndStatusOrderByCreatedAtAsc(
             Collection<UUID> tableSessionIds, String status);
 }

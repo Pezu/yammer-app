@@ -79,7 +79,6 @@ public class OnlinePaymentService {
 
         OnlinePaymentEntity intent = new OnlinePaymentEntity();
         intent.setOrderPointId(op.getId());
-        intent.setSessionId(customer.getTableSessionId());
         intent.setCustomerSessionId(customer.getId());
         intent.setAmount(amount);
         intent.setItems(writeItems(lines));
@@ -172,7 +171,7 @@ public class OnlinePaymentService {
         List<ResolvedLine> lines = readItems(intent.getItems());
 
         OnlineOrderResult result = orderService.createPaidOnlineOrder(
-                op, lines, intent.getSessionId(), intent.getCustomerSessionId());
+                op, lines, intent.getCustomerSessionId());
 
         intent.setStatus(OnlinePaymentStatus.PAID);
         intent.setOrderId(result.orderId());

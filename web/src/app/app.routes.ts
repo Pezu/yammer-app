@@ -85,6 +85,11 @@ export const routes: Routes = [
           ),
       },
       {
+        path: 'shifts',
+        loadComponent: () =>
+          import('./features/backoffice/pages/shifts/shifts-page').then((m) => m.ShiftsPage),
+      },
+      {
         // "Peripherals" in the UI — printers and cash registers (the old Integrations page).
         path: 'peripherals',
         loadComponent: () =>
@@ -199,6 +204,18 @@ export const routes: Routes = [
         loadComponent: () =>
           import('./features/waiter/approvals/waiter-approvals-page').then(
             (m) => m.WaiterApprovalsPage,
+          ),
+      },
+      {
+        path: 'orders',
+        loadComponent: () =>
+          import('./features/waiter/orders/waiter-orders-page').then((m) => m.WaiterOrdersPage),
+      },
+      {
+        path: 'payments',
+        loadComponent: () =>
+          import('./features/waiter/payments/waiter-payments-page').then(
+            (m) => m.WaiterPaymentsPage,
           ),
       },
       {

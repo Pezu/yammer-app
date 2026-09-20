@@ -64,22 +64,43 @@ public class DashboardReportService {
     private final UserRepository userRepository;
     private final AccessGuard accessGuard;
 
+    /** Whole days, inclusive — the date-range view of the dashboard. */
     public DashboardResponse dashboard(UUID locationId, LocalDate from, LocalDate to) {
-        accessGuard.requireAccessibleLocation(locationId);
         if (to.isBefore(from)) {
             LocalDate t = to;
             to = from;
             from = t;
         }
-        LocalDateTime start = from.atStartOfDay();
-        LocalDateTime end = to.plusDays(1).atStartOfDay();
+        return dashboard(locationId, from.atStartOfDay(), to.plusDays(1).atStartOfDay());
+    }
 
-        List<OrderEntity> orders = orderRepository.findByLocationIdAndCreatedAtBetween(locationId, start, end)
-                .stream().filter(o -> !NOT_BILLABLE.contains(o.getStatus())).toList();
+    public DashboardResponse dashboard(UUID locationId, LocalDateTime start, LocalDateTime end) {
+        accessGuard.requireAccessibleLocation(locationId);
+        return build(locationId,
+                orderRepository.findByLocationIdAndCreatedAtBetween(locationId, start, end),
+                paymentRepository.findByLocationIdAndCreatedAtBetween(locationId, start, end),
+                start, end);
+    }
+
+    /**
+     * One service day: rows are matched on their shift id, not on a time window — a shift runs
+     * across midnight and closes at an arbitrary moment, and what was rung up in it stays in it.
+     * {@code start}/{@code end} only lay out the timeline's buckets.
+     */
+    public DashboardResponse dashboardForShift(UUID locationId, UUID shiftId, LocalDateTime start, LocalDateTime end) {
+        accessGuard.requireAccessibleLocation(locationId);
+        return build(locationId, orderRepository.findByShiftId(shiftId), paymentRepository.findByShiftId(shiftId),
+                start, end);
+    }
+
+    private DashboardResponse build(UUID locationId, List<OrderEntity> allOrders, List<PaymentEntity> allPayments,
+                                    LocalDateTime start, LocalDateTime end) {
+        List<OrderEntity> orders = allOrders.stream()
+                .filter(o -> !NOT_BILLABLE.contains(o.getStatus())).toList();
         List<OrderItemEntity> items = orders.isEmpty() ? List.of()
                 : orderItemRepository.findByOrderIdIn(orders.stream().map(OrderEntity::getId).toList());
-        List<PaymentEntity> payments = paymentRepository.findByLocationIdAndCreatedAtBetween(locationId, start, end)
-                .stream().filter(p -> !"FAILED".equals(p.getStatus())).toList();
+        List<PaymentEntity> payments = allPayments.stream()
+                .filter(p -> !"FAILED".equals(p.getStatus())).toList();
 
         Map<UUID, OrderEntity> orderById = orders.stream().collect(Collectors.toMap(OrderEntity::getId, o -> o));
         items = items.stream().filter(i -> orderById.containsKey(i.getOrderId())).toList(); // billable orders only
@@ -305,6 +326,11 @@ public class DashboardReportService {
     /** The final report rows as the thermal slip expects them (one per waiter). */
     public List<FinalRow> finalReport(UUID locationId, LocalDate from, LocalDate to) {
         return dashboard(locationId, from, to).finalReport();
+    }
+
+    /** The same per-waiter rows for one service day (matched on shift id). */
+    public List<FinalRow> finalReportForShift(UUID locationId, UUID shiftId, LocalDateTime start, LocalDateTime end) {
+        return dashboardForShift(locationId, shiftId, start, end).finalReport();
     }
 
 }

@@ -3,17 +3,16 @@ package com.yammer.service;
 import com.yammer.dto.AssignableOrderPointResponse;
 import com.yammer.dto.OrderPointResponse;
 import com.yammer.dto.OrderReportRow;
+import com.yammer.dto.PaymentReportRow;
 import com.yammer.entity.OrderEntity;
 import com.yammer.entity.OrderPointAssignmentEntity;
 import com.yammer.entity.OrderPointEntity;
 import com.yammer.entity.OrderPointTypeEntity;
-import com.yammer.entity.TableSessionEntity;
 import com.yammer.entity.UserEntity;
 import com.yammer.repository.OrderPointAssignmentRepository;
 import com.yammer.repository.OrderPointRepository;
 import java.util.HashMap;
 import java.util.ArrayList;
-import java.time.LocalDate;
 import java.math.BigDecimal;
 import com.yammer.repository.PaymentTypeRepository;
 import com.yammer.repository.PaymentRepository;
@@ -25,7 +24,6 @@ import com.yammer.repository.LocationRepository;
 import com.yammer.dto.OrderPointBillResponse;
 import com.yammer.repository.OrderPointTypeRepository;
 import com.yammer.repository.OrderRepository;
-import com.yammer.repository.TableSessionRepository;
 import com.yammer.repository.UserRepository;
 import com.yammer.security.AccessGuard;
 import com.yammer.security.CurrentUserProvider;
@@ -53,7 +51,7 @@ public class OrderPointAssignmentService {
     private final OrderPointRepository orderPointRepository;
     private final OrderPointTypeRepository orderPointTypeRepository;
     private final OrderRepository orderRepository;
-    private final TableSessionRepository sessionRepository;
+    private final TableRoundService roundService;
     private final UserRepository userRepository;
     private final CurrentUserProvider currentUser;
     private final AccessGuard accessGuard;
@@ -62,6 +60,8 @@ public class OrderPointAssignmentService {
     private final OrderPointService orderPointService;
     private final BridgeService bridgeService;
     private final PaymentRepository paymentRepository;
+    private final PaymentService paymentService;
+    private final ShiftService shiftService;
     private final PaymentTypeRepository paymentTypeRepository;
     private final LocationRepository locationRepository;
     private final ClientRepository clientRepository;
@@ -100,6 +100,81 @@ public class OrderPointAssignmentService {
         List<OrderEntity> orders = orderRepository.findByOrderPointIdInAndStatusInOrderByCreatedAtDesc(
                 names.keySet(), OrderService.BOARD_STATUSES);
         return orderReportService.assembleRows(orders, names);
+    }
+
+    /**
+     * The waiter's Orders page: the undelivered (ORDERED/READY) orders at the caller's own
+     * tables, newest first. {@code status} narrows the list to one board status; null (or
+     * anything else) returns both.
+     */
+    @Transactional(readOnly = true)
+    public List<OrderReportRow> myOrders(String status) {
+        String wanted = status == null ? null : status.trim().toUpperCase();
+        Set<String> statuses = OrderService.BOARD_STATUSES.contains(wanted)
+                ? Set.of(wanted)
+                : OrderService.BOARD_STATUSES;
+        Map<UUID, String> names = new LinkedHashMap<>();
+        myTables().forEach(p -> names.put(p.getId(), p.getName()));
+        if (names.isEmpty()) {
+            return List.of();
+        }
+        List<OrderEntity> orders = orderRepository.findByOrderPointIdInAndStatusInOrderByCreatedAtDesc(
+                names.keySet(), statuses);
+        return orderReportService.assembleRows(orders, names);
+    }
+
+    /**
+     * The waiter's Payments page: what was collected at the caller's own tables during the
+     * location's OPEN service day — matched on the payment's shift id, never on a time window
+     * (see {@link ShiftService}) — newest first. Protocol/PO settlements are left out (no money, no receipt), as are
+     * softPOS-declined (FAILED) payments — their lines went back to unpaid.
+     */
+    @Transactional(readOnly = true)
+    public List<PaymentReportRow> myPayments() {
+        List<OrderPointEntity> tables = myTables();
+        List<UUID> pointIds = tables.stream().map(OrderPointEntity::getId).toList();
+        UUID shiftId = pointIds.isEmpty() ? null : shiftService.openShiftId(locationOf(tables)).orElse(null);
+        if (shiftId == null) {
+            return List.of(); // no day open: nothing has been rung up into one
+        }
+        Set<UUID> notPaidTypes = paymentTypeRepository.findAll().stream()
+                .filter(t -> NotPaidReportService.isNotPaid(t.getType()))
+                .map(PaymentTypeEntity::getId)
+                .collect(Collectors.toSet());
+        List<PaymentEntity> payments = paymentRepository
+                .findByShiftIdAndOrderPointIdInOrderByCreatedAtDesc(shiftId, pointIds).stream()
+                .filter(p -> !"FAILED".equals(p.getStatus()) && !notPaidTypes.contains(p.getPaymentTypeId()))
+                .toList();
+        return paymentService.rowsFor(payments);
+    }
+
+    /**
+     * Re-issue a FAILED fiscal receipt from the waiter's Payments page. The guarded re-arm
+     * (and the access check on the payment's order point) lives in {@link PaymentService}.
+     */
+    public void retryFiscal(UUID paymentId) {
+        paymentService.retryFiscal(paymentId);
+    }
+
+    /** The location the caller works in: their home location, else the one their tables sit in. */
+    private UUID locationOf(List<OrderPointEntity> tables) {
+        UUID home = requireUser().getLocationId();
+        if (home != null) {
+            return home;
+        }
+        return tables.isEmpty() ? null : tables.get(0).getLocationId();
+    }
+
+    /** The caller's assigned order points except SERVICE stations — i.e. their tables. */
+    private List<OrderPointEntity> myTables() {
+        UserEntity me = requireUser();
+        List<UUID> assigned = assignmentRepository.findByUserId(me.getId()).stream()
+                .map(OrderPointAssignmentEntity::getOrderPointId)
+                .toList();
+        return orderPointRepository.findAllById(assigned).stream()
+                .filter(p -> !isServicePoint(p))
+                .sorted((a, b) -> OrderPointService.compareNames(a.getName(), b.getName()))
+                .toList();
     }
 
     /** The order points assigned to the current user, naturally ordered. */
@@ -213,7 +288,8 @@ public class OrderPointAssignmentService {
 
     /**
      * Assign the current user to the point (idempotent). Single-user points refuse a
-     * second user. Assignment opens the table session (or joins the one already open).
+     * second user. Taking a free table starts its round — the assignment is the sitting —
+     * and joining a worked table joins the round already running there.
      */
     public void assign(UUID orderPointId) {
         OrderPointEntity point = accessGuard.requireAccessibleOrderPoint(orderPointId);
@@ -225,14 +301,8 @@ public class OrderPointAssignmentService {
             OrderPointAssignmentEntity assignment = new OrderPointAssignmentEntity();
             assignment.setOrderPointId(orderPointId);
             assignment.setUserId(me.getId());
+            assignment.setAssignedAt(LocalDateTime.now());
             assignmentRepository.save(assignment);
-        }
-        if (!isServicePoint(point)
-                && sessionRepository.findByOrderPointIdAndClosedAtIsNull(orderPointId).isEmpty()) {
-            TableSessionEntity session = new TableSessionEntity();
-            session.setOrderPointId(orderPointId);
-            session.setOpenedBy(me.getUsername());
-            sessionRepository.save(session);
         }
     }
 
@@ -259,10 +329,9 @@ public class OrderPointAssignmentService {
      * ones plus any table where the user took a payment in the period.
      */
     @Transactional(readOnly = true)
-    public List<TableStatsResponse> myStats(LocalDate from, LocalDate to) {
+    public List<TableStatsResponse> myStats() {
         UserEntity me = requireUser();
-        LocalDateTime start = from.atStartOfDay();
-        LocalDateTime end = to.plusDays(1).atStartOfDay();
+        UUID shiftId = shiftService.openShiftId(me.getLocationId()).orElse(null);
         Map<UUID, String> typeName = paymentTypeRepository.findAll().stream()
                 .collect(Collectors.toMap(PaymentTypeEntity::getId, PaymentTypeEntity::getType));
         Set<UUID> protocolTypes = typeName.entrySet().stream()
@@ -270,9 +339,11 @@ public class OrderPointAssignmentService {
 
         Set<UUID> assigned = assignmentRepository.findByUserId(me.getId()).stream()
                 .map(OrderPointAssignmentEntity::getOrderPointId).collect(Collectors.toSet());
-        List<PaymentEntity> mine = paymentRepository
-                .findByCreatedByAndCreatedAtGreaterThanEqualAndCreatedAtLessThan(me.getUsername(), start, end)
-                .stream().filter(p -> !"FAILED".equals(p.getStatus())).toList();
+        // this service day's takings of MINE; with no day open there is nothing to show
+        List<PaymentEntity> mine = shiftId == null ? List.of()
+                : paymentRepository.findByShiftId(shiftId).stream()
+                        .filter(p -> me.getUsername().equals(p.getCreatedBy()) && !"FAILED".equals(p.getStatus()))
+                        .toList();
 
         Set<UUID> pointIds = new java.util.HashSet<>(assigned);
         mine.forEach(p -> pointIds.add(p.getOrderPointId()));
@@ -333,9 +404,9 @@ public class OrderPointAssignmentService {
     }
 
     /**
-     * Remove the current user's assignment (no-op if not assigned). Refused (409)
-     * whenever the point has an OPEN session — an open table is left only by closing
-     * it ({@link #closeTable}), which clears the assignments itself.
+     * Leave the table (no-op if not assigned). Allowed only with nothing left to settle —
+     * a waiter cannot walk away from money owed. The last one out ends the round, taking
+     * the never-accepted customer drafts with it.
      */
     public void unassign(UUID orderPointId) {
         OrderPointEntity point = accessGuard.requireAccessibleOrderPoint(orderPointId);
@@ -343,30 +414,27 @@ public class OrderPointAssignmentService {
         if (!assignmentRepository.existsByOrderPointIdAndUserId(orderPointId, me.getId())) {
             return;
         }
-        if (!isServicePoint(point)
-                && sessionRepository.findByOrderPointIdAndClosedAtIsNull(orderPointId).isPresent()) {
+        if (!isServicePoint(point) && roundService.hasUnsettled(orderPointId)) {
             throw new ResponseStatusException(
-                    HttpStatus.CONFLICT, "Table session is open — close the table to free it");
+                    HttpStatus.CONFLICT, "Table is not fully settled — settle it before leaving");
         }
         assignmentRepository.deleteByOrderPointIdAndUserId(orderPointId, me.getId());
+        if (!isServicePoint(point) && assignmentRepository.countByOrderPointId(orderPointId) == 0) {
+            orderService.deleteDrafts(orderPointId); // the round is over
+        }
     }
 
     /**
-     * The ONLY way a table session ends: close it once everything is paid (409 while
-     * unpaid lines remain) and free the table by clearing every assignment on it.
+     * Free the table outright: every assignment goes, so the round ends and the next party
+     * starts fresh. Refused (409) while anything is unsettled.
      */
     public void closeTable(UUID orderPointId) {
         accessGuard.requireAccessibleOrderPoint(orderPointId);
-        UserEntity me = requireUser();
-        TableSessionEntity session = sessionRepository.findByOrderPointIdAndClosedAtIsNull(orderPointId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.CONFLICT, "No open session"));
-        if (orderService.sessionHasUnpaid(session.getId())) {
+        requireUser();
+        if (roundService.hasUnsettled(orderPointId)) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Table is not fully settled");
         }
-        orderService.deleteDrafts(session.getId()); // never-accepted customer orders die with the table
-        session.setClosedBy(me.getUsername());
-        session.setClosedAt(LocalDateTime.now());
-        sessionRepository.save(session);
+        orderService.deleteDrafts(orderPointId); // never-accepted customer orders die with the round
         assignmentRepository.deleteByOrderPointId(orderPointId);
     }
 

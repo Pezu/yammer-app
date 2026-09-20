@@ -29,9 +29,9 @@ public class OrderEntity {
     @Column(name = "order_point_id", nullable = false)
     private UUID orderPointId;
 
-    /** The table session this order belongs to. */
-    @Column(name = "session_id")
-    private UUID sessionId;
+    /** The service day this belongs to; reports and the cash-up match on it. */
+    @Column(name = "shift_id")
+    private UUID shiftId;
 
     /** The customer device that placed this order (null for waiter orders). */
     @Column(name = "customer_session_id")

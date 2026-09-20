@@ -40,6 +40,13 @@ public interface PaymentRepository extends JpaRepository<PaymentEntity, UUID> {
             """)
     Object[] totalsByLocationId(@Param("locationId") UUID locationId);
 
+    /** Everything taken during one service day (the cash-up and the shift-scoped dashboard). */
+    List<PaymentEntity> findByShiftId(UUID shiftId);
+
+    /** One service day's payments at the given order points, newest first (a waiter's tables). */
+    List<PaymentEntity> findByShiftIdAndOrderPointIdInOrderByCreatedAtDesc(
+            UUID shiftId, java.util.Collection<UUID> orderPointIds);
+
     /** Payments a user took in [from, to) (their own collections, any table). */
     List<PaymentEntity> findByCreatedByAndCreatedAtGreaterThanEqualAndCreatedAtLessThan(
             String createdBy, java.time.LocalDateTime from, java.time.LocalDateTime to);

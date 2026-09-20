@@ -5,15 +5,15 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * The current session's combined bill: its orders' lines aggregated per product, split
+ * The table's current round: its orders' lines aggregated per product, split
  * into unpaid and already-paid lines. {@code paymentTypeIds} = the payment types accepted
- * at this order point (the pay modal offers exactly these). {@code sessionOpen} tells the
- * UI whether a table session is running (Close table is offered when open + fully paid).
+ * at this order point (the pay modal offers exactly these). {@code inService} tells the
+ * UI whether a waiter works the table (Close table is offered while worked + fully paid).
  */
 public record OrderPointBillResponse(
         String orderPointName,
         List<UUID> paymentTypeIds,
-        boolean sessionOpen,
+        boolean inService,
         String selfOrderMode,
         /* the point runs a tab; false = pay as you order (the waiter pays right after ordering) */
         boolean keepOpen,

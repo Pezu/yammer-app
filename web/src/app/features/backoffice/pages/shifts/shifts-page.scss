@@ -1,0 +1,67 @@
+@use '../../../../shared/styles/crud-table';
+
+:host {
+  display: block;
+}
+
+.when-col {
+  width: 14%;
+  white-space: nowrap;
+}
+
+.who-col {
+  width: 12%;
+}
+
+.state-col {
+  width: 8%;
+}
+
+/* tables still trading: what keeps the day from closing */
+.blockers {
+  margin: 0 0 1rem;
+  padding: 0.6rem 0.9rem;
+  color: #8a5300;
+  background: rgba(245, 158, 11, 0.1);
+  border: 1px solid rgba(245, 158, 11, 0.4);
+  border-radius: 8px;
+  font-size: 0.85rem;
+}
+.blockers .names {
+  font-weight: 700;
+}
+
+.badge {
+  display: inline-block;
+  padding: 0.15rem 0.5rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--muted);
+  background: var(--page-bg);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+}
+.badge.open {
+  color: #1b5e20;
+  background: rgba(46, 125, 50, 0.1);
+  border-color: rgba(46, 125, 50, 0.35);
+}
+
+.row-open td {
+  background: rgba(46, 125, 50, 0.04);
+}
+
+.btn.close-day {
+  padding: 0.3rem 0.7rem;
+  font-size: 0.78rem;
+  white-space: nowrap;
+}
+
+.printer-col {
+  width: 13%;
+}
+
+/* the printer picker sits inside its cell, like the per-row combos elsewhere */
+.cell-combo {
+  min-width: 0;
+}

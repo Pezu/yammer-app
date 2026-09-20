@@ -25,7 +25,7 @@ export interface CustomerOrderPoint {
   name: string;
   clientId: string | null;
   /** A waiter has opened the table — ordering is only allowed while open. */
-  sessionOpen: boolean;
+  inService: boolean;
   selfOrderMode: SelfOrderMode;
   /** This device's approval state at the CURRENT session (from the stored token). */
   customerStatus: CustomerStatus;

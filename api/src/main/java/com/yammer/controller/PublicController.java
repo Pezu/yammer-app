@@ -16,9 +16,9 @@ import com.yammer.entity.OrderPointEntity;
 import com.yammer.repository.LocationRepository;
 import com.yammer.repository.OrderPointRepository;
 import com.yammer.repository.SelfPayTypeRepository;
-import com.yammer.repository.TableSessionRepository;
 import com.yammer.service.CustomerAccessService;
 import com.yammer.service.MenuService;
+import com.yammer.service.TableRoundService;
 import com.yammer.service.OrderPointService;
 import com.yammer.service.OnlinePaymentService;
 import com.yammer.service.OrderService;
@@ -55,7 +55,7 @@ public class PublicController {
 
     private final StorageService storageService;
     private final OrderPointRepository orderPointRepository;
-    private final TableSessionRepository sessionRepository;
+    private final TableRoundService roundService;
     private final LocationRepository locationRepository;
     private final MenuService menuService;
     private final OrderService orderService;
@@ -72,7 +72,7 @@ public class PublicController {
             @PathVariable UUID opId, @RequestParam(required = false) UUID token) {
         OrderPointEntity op = orderPointRepository.findById(opId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Order point not found"));
-        boolean sessionOpen = sessionRepository.findByOrderPointIdAndClosedAtIsNull(op.getId()).isPresent();
+        boolean inService = roundService.inService(op.getId()); // a waiter works this table
         UUID clientId = locationRepository.findById(op.getLocationId())
                 .map(LocationEntity::getClientId)
                 .orElse(null);
@@ -80,7 +80,7 @@ public class PublicController {
                 ? List.of()
                 : menuService.getTreeUnchecked(op.getMenuId());
         return new CustomerOrderPointResponse(
-                op.getId(), op.getName(), clientId, sessionOpen, op.getSelfOrderMode(),
+                op.getId(), op.getName(), clientId, inService, op.getSelfOrderMode(),
                 customerAccessService.statusAt(opId, token), selfPaysOnline(op), menu, slotsOf(op));
     }
 

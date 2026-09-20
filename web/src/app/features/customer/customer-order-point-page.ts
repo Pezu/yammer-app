@@ -85,7 +85,7 @@ import { ComboBox } from '../../shared/combo-box';
         @if (orderError()) {
           <div class="order-err" role="alert">{{ orderError() }}</div>
         }
-        @if (o.sessionOpen && o.selfOrderMode !== 'DISALLOW') {
+        @if (o.inService && o.selfOrderMode !== 'DISALLOW') {
           @if (customerStatus() === 'PENDING') {
             <div class="approval-note" role="status">
               <span class="spinner"></span>
@@ -94,7 +94,7 @@ import { ComboBox } from '../../shared/combo-box';
           } @else if (customerStatus() === 'DENIED') {
             <div class="order-err" role="alert">{{ t('cust.denied') }}</div>
           }
-        } @else if (o.sessionOpen && o.selfOrderMode === 'DISALLOW') {
+        } @else if (o.inService && o.selfOrderMode === 'DISALLOW') {
           <div class="approval-note" role="status">{{ t('cust.selfOrderOff') }}</div>
         }
 
@@ -850,7 +850,7 @@ export class CustomerOrderPointPage implements OnDestroy {
   readonly canOrder = computed(() => {
     const o = this.op();
     return (
-      !!o && o.sessionOpen && o.selfOrderMode !== 'DISALLOW' && this.customerStatus() === 'APPROVED'
+      !!o && o.inService && o.selfOrderMode !== 'DISALLOW' && this.customerStatus() === 'APPROVED'
     );
   });
 
@@ -1008,7 +1008,7 @@ export class CustomerOrderPointPage implements OnDestroy {
    * we poll until the waiter decides.
    */
   private ensureJoined(op: CustomerOrderPoint): void {
-    if (!op.sessionOpen || op.selfOrderMode === 'DISALLOW') return;
+    if (!op.inService || op.selfOrderMode === 'DISALLOW') return;
     if (op.customerStatus === 'NONE') {
       this.service.join(this.opId, this.storedToken()).subscribe({
         next: (res) => {

@@ -16,7 +16,6 @@ import com.yammer.repository.OrderPointRepository;
 import com.yammer.repository.OrderPointTypeRepository;
 import com.yammer.repository.PaymentTypeRepository;
 import com.yammer.repository.SelfPayTypeRepository;
-import com.yammer.repository.TableSessionRepository;
 import com.yammer.security.AccessGuard;
 import java.util.ArrayList;
 import java.util.List;
@@ -46,7 +45,7 @@ public class OrderPointService {
     private final ProductRepository productRepository;
     private final MenuService menuService;
     private final AccessGuard accessGuard;
-    private final TableSessionRepository tableSessionRepository;
+    private final TableRoundService roundService;
 
     /** The order point plus its menu tree (for the waiter ordering screen). */
     @Transactional(readOnly = true)
@@ -182,12 +181,12 @@ public class OrderPointService {
         return OrderPointResponse.from(orderPointRepository.save(entity));
     }
 
-    /** Delete an order point. Refused (409) while it has an open table session — its orders would go with it. */
+    /** Delete an order point. Refused (409) while it is being worked or still owes money. */
     public void delete(UUID id) {
         OrderPointEntity entity = accessGuard.requireAccessibleOrderPoint(id);
-        if (tableSessionRepository.findByOrderPointIdAndClosedAtIsNull(id).isPresent()) {
+        if (roundService.inService(id) || roundService.hasUnsettled(id)) {
             throw new ResponseStatusException(HttpStatus.CONFLICT,
-                    "Order point has an open session — close the table first");
+                    "Order point is in service — free the table first");
         }
         orderPointRepository.delete(entity);
     }

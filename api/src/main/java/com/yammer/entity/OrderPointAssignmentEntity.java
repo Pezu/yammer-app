@@ -6,6 +6,7 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import java.time.LocalDateTime;
 import java.util.UUID;
 import lombok.Getter;
 import lombok.Setter;
@@ -26,4 +27,11 @@ public class OrderPointAssignmentEntity {
 
     @Column(name = "user_id", nullable = false)
     private UUID userId;
+
+    /**
+     * When this waiter took the table. The earliest active assignment dates the table's
+     * current round — what used to be the table session's opened_at.
+     */
+    @Column(name = "assigned_at", nullable = false, updatable = false)
+    private LocalDateTime assignedAt;
 }

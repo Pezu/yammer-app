@@ -75,6 +75,34 @@ export interface BillLine {
   originalPrice: number | null;
 }
 
+/** One card of the waiter's Orders page: an undelivered order at one of their tables. */
+export interface WaiterActiveOrder {
+  id: string;
+  orderNo: number | null;
+  orderPointId: string;
+  orderPointName: string;
+  createdBy: string | null;
+  createdAt: string;
+  status: 'ORDERED' | 'READY';
+  items: { id: string; menuItemId: string | null; name: string; price: number | null; quantity: number }[];
+  total: number;
+}
+
+/** One row of the waiter's Payments page (the backoffice report row, scoped to their tables). */
+export interface WaiterPayment {
+  id: string;
+  orderPointName: string;
+  waiter: string;
+  amount: number;
+  tip: number;
+  total: number;
+  /** The payment type's code — CASH / CARD / ONLINE / … (drives the row's icon). */
+  paymentType: string;
+  createdAt: string;
+  fiscalStatus: 'NONE' | 'PENDING' | 'SUCCESS' | 'FAILED' | 'UNKNOWN';
+  receiptNumber: string | null;
+}
+
 /** One table on the Statistics page: this waiter's collections there, unpaid, protocol. */
 export interface TableStats {
   orderPointId: string;
@@ -105,8 +133,8 @@ export interface OrderPointBill {
   orderPointName: string;
   /** Payment types accepted at this order point — the pay sheet offers exactly these. */
   paymentTypeIds: string[];
-  /** Whether a table session is running; Close table is offered when open + fully paid. */
-  sessionOpen: boolean;
+  /** Whether a waiter works this table; Close table is offered while worked + fully paid. */
+  inService: boolean;
   /** Customer self-ordering at this table: ALLOW / CONFIRM (waiter approves) / DISALLOW. */
   /** Runs a tab; false = pay as you order (pay sheet opens right after an order). */
   keepOpen: boolean;
@@ -179,11 +207,35 @@ export class WaiterOrderPointService {
     });
   }
 
-  /** Close the table's session (only when fully settled) and free the table. */
-  /** The waiter's own takings per table for a day (Statistics page). */
-  myStats(from: string, to: string): Observable<TableStats[]> {
-    const params = new HttpParams().set('from', from).set('to', to);
-    return this.http.get<TableStats[]>(`${environment.apiUrl}/order-points/my-stats`, { params });
+  /** Undelivered orders at the waiter's tables; without a status, both ORDERED and READY. */
+  myOrders(status?: 'ORDERED' | 'READY'): Observable<WaiterActiveOrder[]> {
+    const params = status ? new HttpParams().set('status', status) : new HttpParams();
+    return this.http.get<WaiterActiveOrder[]>(`${environment.apiUrl}/order-points/orders`, {
+      params,
+    });
+  }
+
+  /** Move an order to a new status (the Orders page marks a READY order DELIVERED). */
+  setOrderStatus(orderId: string, status: string): Observable<void> {
+    return this.http.patch<void>(`${environment.apiUrl}/orders/${orderId}/status`, { status });
+  }
+
+  /** Payments taken at the waiter's tables during the open service day, newest first. */
+  myPayments(): Observable<WaiterPayment[]> {
+    return this.http.get<WaiterPayment[]>(`${environment.apiUrl}/order-points/payments`);
+  }
+
+  /** Re-issue a FAILED fiscal receipt (409 unless it is still FAILED). */
+  retryFiscal(paymentId: string): Observable<void> {
+    return this.http.post<void>(
+      `${environment.apiUrl}/order-points/payments/${paymentId}/retry-fiscal`,
+      {},
+    );
+  }
+
+  /** The waiter's own takings per table during the open service day (Statistics page). */
+  myStats(): Observable<TableStats[]> {
+    return this.http.get<TableStats[]>(`${environment.apiUrl}/order-points/my-stats`);
   }
 
   /** Print the unpaid bill as a proforma on the table's thermal printer (best-effort). */
@@ -191,6 +243,7 @@ export class WaiterOrderPointService {
     return this.http.post<void>(`${environment.apiUrl}/order-points/${orderPointId}/proforma`, {});
   }
 
+  /** Close the table's session (only when fully settled) and free the table. */
   closeTable(orderPointId: string): Observable<void> {
     return this.http.post<void>(`${environment.apiUrl}/order-points/${orderPointId}/close`, {});
   }

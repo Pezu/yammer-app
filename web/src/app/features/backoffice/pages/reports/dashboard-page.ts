@@ -1,11 +1,13 @@
 import { Component, OnDestroy, computed, effect, inject, input, signal } from '@angular/core';
 import { DecimalPipe } from '@angular/common';
-import { Dashboard, DashboardBucket, DashboardReportService } from './dashboard-report.service';
+import { Dashboard, DashboardBucket, DashboardReportService, Period } from './dashboard-report.service';
+import { Shift, ShiftService } from '../shifts/shift.service';
 import { Client, ClientService } from '../clients/client.service';
 import { Location, LocationService, defaultLocation } from '../locations/location.service';
 import { Integration, IntegrationService } from '../integrations/integration.service';
 import { AuthService } from '../../../../core/auth.service';
 import { ComboBox } from '../../../../shared/combo-box';
+import { roDateTime } from '../../../../shared/tz';
 
 /** A chart-ready point: x/y in SVG units plus the bucket it came from. */
 interface Pt {
@@ -40,6 +42,7 @@ export class DashboardPage implements OnDestroy {
   private readonly clientService = inject(ClientService);
   private readonly locationService = inject(LocationService);
   private readonly integrationService = inject(IntegrationService);
+  private readonly shiftService = inject(ShiftService);
   private readonly auth = inject(AuthService);
 
   readonly isSuper = this.auth.isSuper;
@@ -57,6 +60,28 @@ export class DashboardPage implements OnDestroy {
   readonly locationFilter = signal<string>('');
   readonly from = signal<string>(today());
   readonly to = signal<string>(today());
+
+  // --- period: one service day (the open one by default) or a custom date range ---
+
+  /** CUSTOM, or the id of the shift being shown. */
+  readonly periodId = signal<string>(CUSTOM);
+  readonly shifts = signal<Shift[]>([]);
+  readonly customRange = computed(() => this.periodId() === CUSTOM);
+  readonly periodOptions = computed(() => [
+    ...this.shifts().map((s) => ({ id: s.id, name: shiftLabel(s) })),
+    { id: CUSTOM, name: 'Custom range…' },
+  ]);
+  /** What the dashboard (and its print/export actions) currently covers. */
+  readonly period = computed<Period>(() =>
+    this.customRange() ? { from: this.from(), to: this.to() } : { shiftId: this.periodId() },
+  );
+  /** Filename/label stamp for the current period. */
+  readonly periodTag = computed(() => {
+    const shift = this.shifts().find((s) => s.id === this.periodId());
+    return shift
+      ? shiftLabel(shift).replace(/[^\w.-]+/g, '_')
+      : `${this.from()}_${this.to()}`;
+  });
   readonly headerLocationOptions = computed(() =>
     this.locationsFor(this.isSuper() ? this.clientFilter() : this.ownClientId()),
   );
@@ -84,10 +109,17 @@ export class DashboardPage implements OnDestroy {
     });
     effect(() => {
       const locationId = this.locationFilter();
-      const from = this.from();
-      const to = this.to();
-      if (locationId && from && to) {
-        this.load(locationId, from, to);
+      if (locationId) {
+        this.loadShifts(locationId);
+      } else {
+        this.shifts.set([]);
+      }
+    });
+    effect(() => {
+      const locationId = this.locationFilter();
+      const period = this.period();
+      if (locationId && (period.shiftId || (period.from && period.to))) {
+        this.load(locationId, period);
       } else {
         this.data.set(null);
       }
@@ -98,7 +130,7 @@ export class DashboardPage implements OnDestroy {
       if (every > 0) {
         this.refreshTimer = setInterval(() => {
           const locationId = this.locationFilter();
-          if (locationId && !this.loading()) this.load(locationId, this.from(), this.to(), true);
+          if (locationId && !this.loading()) this.load(locationId, this.period(), true);
         }, every * 1000);
       }
     });
@@ -146,10 +178,28 @@ export class DashboardPage implements OnDestroy {
     }
   }
 
-  private load(locationId: string, from: string, to: string, silent = false): void {
+  /** The location's service days; the open one becomes the selected period. */
+  private loadShifts(locationId: string): void {
+    this.shiftService.list(locationId).subscribe({
+      next: (shifts) => {
+        this.shifts.set(shifts);
+        const active = shifts.find((s) => s.open) ?? shifts[0];
+        this.periodId.set(active ? active.id : CUSTOM);
+      },
+      error: () => {
+        this.shifts.set([]);
+        this.periodId.set(CUSTOM);
+      },
+    });
+  }
+
+  private load(locationId: string, period: Period, silent = false): void {
     if (!silent) this.loading.set(true);
     this.error.set(null);
-    this.reportService.load(locationId, from, to).subscribe({
+    const request$ = period.shiftId
+      ? this.reportService.loadShift(locationId, period.shiftId)
+      : this.reportService.load(locationId, period.from!, period.to!);
+    request$.subscribe({
       next: (data) => {
         this.data.set(data);
         this.loading.set(false);
@@ -240,7 +290,7 @@ export class DashboardPage implements OnDestroy {
     if (!locationId || !printerId || this.printing()) return;
     this.printing.set(true);
     this.notice.set(null);
-    this.reportService.printFinal(locationId, this.from(), this.to(), printerId).subscribe({
+    this.reportService.printFinal(locationId, this.period(), printerId).subscribe({
       next: () => {
         this.printing.set(false);
         this.notice.set('Final report sent to the printer.');
@@ -262,12 +312,12 @@ export class DashboardPage implements OnDestroy {
     if (!locationId || this.exportingWaiter()) return;
     this.exportingWaiter.set(username);
     this.error.set(null);
-    this.reportService.waiterPdf(locationId, username, this.from(), this.to()).subscribe({
+    this.reportService.waiterPdf(locationId, username, this.period()).subscribe({
       next: (blob) => {
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `waiter-${waiter.replace(/[^\w.-]+/g, '_')}-${this.from()}_${this.to()}.pdf`;
+        a.download = `waiter-${waiter.replace(/[^\w.-]+/g, '_')}-${this.periodTag()}.pdf`;
         a.click();
         URL.revokeObjectURL(url);
         this.exportingWaiter.set(null);
@@ -292,10 +342,19 @@ export class DashboardPage implements OnDestroy {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `final-report-${this.from()}_${this.to()}.xls`;
+    a.download = `final-report-${this.periodTag()}.xls`;
     a.click();
     URL.revokeObjectURL(url);
   }
+}
+
+/** The "no shift, pick your own dates" option of the period combo. */
+const CUSTOM = 'custom';
+
+/** A service day in the period combo: its nickname or when it opened, marked while running. */
+function shiftLabel(s: Shift): string {
+  const name = s.nickname?.trim() || roDateTime(s.openedAt);
+  return s.open ? `${name} · open` : name;
 }
 
 function today(): string {

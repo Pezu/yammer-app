@@ -31,8 +31,9 @@ public class CustomerSessionEntity {
     @Column(nullable = false, updatable = false)
     private UUID id;
 
-    @Column(name = "table_session_id", nullable = false)
-    private UUID tableSessionId;
+    /** The table this customer sits at; the token is valid for that table's current round. */
+    @Column(name = "order_point_id", nullable = false)
+    private UUID orderPointId;
 
     /** Generated in code (not by the DB default) so it can be returned without a refresh. */
     @Column(nullable = false, updatable = false)

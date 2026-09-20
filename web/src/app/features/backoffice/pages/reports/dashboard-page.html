@@ -11,17 +11,24 @@
         <app-combo-box [options]="headerLocationOptions()" [value]="locationFilter()" (valueChange)="locationFilter.set($event)" placeholder="Select a location…" searchPlaceholder="Search locations…" noMatchLabel="No locations" />
       </div>
     }
-    <div class="range">
-      <input type="date" class="input date" [value]="from()" (change)="from.set($any($event.target).value)" aria-label="From" />
-      <span class="dash">–</span>
-      <input type="date" class="input date" [value]="to()" (change)="to.set($any($event.target).value)" aria-label="To" />
-      <div class="quick">
-        <button type="button" class="chip" (click)="quick('today')">Today</button>
-        <button type="button" class="chip" (click)="quick('yesterday')">Yesterday</button>
-        <button type="button" class="chip" (click)="quick('week')">7 days</button>
-        <button type="button" class="chip" (click)="quick('month')">Month</button>
+    @if (locationFilter()) {
+      <div class="header-combo period">
+        <app-combo-box [options]="periodOptions()" [value]="periodId()" (valueChange)="periodId.set($event)" placeholder="Service day…" searchPlaceholder="Search days…" noMatchLabel="No service days" />
       </div>
-    </div>
+    }
+    @if (customRange()) {
+      <div class="range">
+        <input type="date" class="input date" [value]="from()" (change)="from.set($any($event.target).value)" aria-label="From" />
+        <span class="dash">–</span>
+        <input type="date" class="input date" [value]="to()" (change)="to.set($any($event.target).value)" aria-label="To" />
+        <div class="quick">
+          <button type="button" class="chip" (click)="quick('today')">Today</button>
+          <button type="button" class="chip" (click)="quick('yesterday')">Yesterday</button>
+          <button type="button" class="chip" (click)="quick('week')">7 days</button>
+          <button type="button" class="chip" (click)="quick('month')">Month</button>
+        </div>
+      </div>
+    }
   </div>
 </header>
 

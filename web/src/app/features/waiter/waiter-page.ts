@@ -41,6 +41,14 @@ import { ApprovalService } from './approvals/approval.service';
               <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"></path><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path></svg>
               <span>{{ t('menu.approvals') }}</span>
             </button>
+            <button type="button" class="menu-item" (click)="goToOrders()">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11H3v10h6z"></path><path d="M14 3H8v18h6z"></path><path d="M21 7h-6v14h6z"></path></svg>
+              <span>{{ t('menu.orders') }}</span>
+            </button>
+            <button type="button" class="menu-item" (click)="goToPayments()">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"></rect><line x1="2" y1="10" x2="22" y2="10"></line></svg>
+              <span>{{ t('menu.payments') }}</span>
+            </button>
             <button type="button" class="menu-item" (click)="goToStats()">
               <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"></path><rect x="7" y="11" width="3" height="6"></rect><rect x="12" y="7" width="3" height="10"></rect><rect x="17" y="13" width="3" height="4"></rect></svg>
               <span>{{ t('menu.stats') }}</span>
@@ -274,6 +282,16 @@ export class WaiterPage implements OnDestroy {
   goToApprovals(): void {
     this.menuOpen.set(false);
     this.router.navigateByUrl('/waiter/approvals');
+  }
+
+  goToOrders(): void {
+    this.menuOpen.set(false);
+    this.router.navigateByUrl('/waiter/orders');
+  }
+
+  goToPayments(): void {
+    this.menuOpen.set(false);
+    this.router.navigateByUrl('/waiter/payments');
   }
 
   goToStats(): void {

@@ -7,7 +7,9 @@ import com.yammer.entity.LocationEntity;
 import com.yammer.repository.IntegrationRepository;
 import com.yammer.security.AccessGuard;
 import com.yammer.service.BridgeService;
+import com.yammer.dto.ShiftResponse;
 import com.yammer.service.DashboardReportService;
+import com.yammer.service.ShiftService;
 import com.yammer.service.WaiterStatementPdfService;
 import jakarta.validation.constraints.NotNull;
 import java.time.LocalDate;
@@ -40,15 +42,40 @@ public class DashboardReportController {
     private final WaiterStatementPdfService statementPdfService;
     private final BridgeService bridgeService;
     private final IntegrationRepository integrationRepository;
+    private final ShiftService shiftService;
     private final AccessGuard accessGuard;
 
-    /** Everything on the dashboard for one location and an inclusive date range (server-local days). */
+    /**
+     * Everything on the dashboard for one location, over one service day ({@code shiftId} —
+     * the usual case, an open day running up to now) or an inclusive date range.
+     */
     @GetMapping
     public DashboardResponse dashboard(
             @RequestParam UUID locationId,
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to) {
+            @RequestParam(required = false) UUID shiftId,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to) {
+        if (shiftId != null) {
+            ShiftService.Window w = shiftWindow(locationId, shiftId);
+            return reportService.dashboardForShift(locationId, shiftId, w.from(), w.to());
+        }
+        requireRange(from, to);
         return reportService.dashboard(locationId, from, to);
+    }
+
+    /** The shift's window, once it is confirmed to belong to this location. */
+    private ShiftService.Window shiftWindow(UUID locationId, UUID shiftId) {
+        ShiftResponse shift = shiftService.get(shiftId);
+        if (!shift.locationId().equals(locationId)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "That service day belongs to another location");
+        }
+        return shiftService.windowOf(shiftId);
+    }
+
+    private static void requireRange(LocalDate from, LocalDate to) {
+        if (from == null || to == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Pass either shiftId or from+to");
+        }
     }
 
     /**
@@ -59,18 +86,30 @@ public class DashboardReportController {
     public ResponseEntity<byte[]> waiterPdf(
             @PathVariable String username,
             @RequestParam UUID locationId,
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to) {
-        byte[] pdf = statementPdfService.statement(locationId, username, from, to);
+            @RequestParam(required = false) UUID shiftId,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to) {
         String safe = username.replaceAll("[^A-Za-z0-9._-]", "_");
+        byte[] pdf;
+        String suffix;
+        if (shiftId != null) {
+            ShiftService.Window w = shiftWindow(locationId, shiftId);
+            String period = ShiftService.label(shiftService.get(shiftId));
+            pdf = statementPdfService.statementForShift(locationId, username, shiftId, period);
+            suffix = w.from().toLocalDate().toString();
+        } else {
+            requireRange(from, to);
+            pdf = statementPdfService.statement(locationId, username, from, to);
+            suffix = from + "_" + to;
+        }
         return ResponseEntity.ok()
                 .contentType(MediaType.APPLICATION_PDF)
                 .header(HttpHeaders.CONTENT_DISPOSITION,
-                        "attachment; filename=\"waiter-" + safe + "-" + from + "_" + to + ".pdf\"")
+                        "attachment; filename=\"waiter-" + safe + "-" + suffix + ".pdf\"")
                 .body(pdf);
     }
 
-    public record PrintFinalRequest(@NotNull UUID locationId, @NotNull LocalDate from, @NotNull LocalDate to,
+    public record PrintFinalRequest(@NotNull UUID locationId, UUID shiftId, LocalDate from, LocalDate to,
                                     @NotNull UUID printerId) {
     }
 
@@ -83,12 +122,22 @@ public class DashboardReportController {
         IntegrationEntity printer = integrationRepository.findById(request.printerId())
                 .filter(i -> i.getLocationId().equals(request.locationId()))
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Printer not found"));
-        List<FinalRow> rows = reportService.finalReport(request.locationId(), request.from(), request.to());
+        List<FinalRow> rows;
+        String period;
+        if (request.shiftId() != null) {
+            ShiftService.Window w = shiftWindow(request.locationId(), request.shiftId());
+            rows = reportService.finalReportForShift(request.locationId(), request.shiftId(), w.from(), w.to());
+            period = ShiftService.label(shiftService.get(request.shiftId()));
+        } else {
+            requireRange(request.from(), request.to());
+            rows = reportService.finalReport(request.locationId(), request.from(), request.to());
+            period = request.from().equals(request.to())
+                    ? request.from().toString() : request.from() + " - " + request.to();
+        }
         if (rows.isEmpty()) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Nothing to print for this period");
         }
-        String title = location.getName() + " " + (request.from().equals(request.to())
-                ? request.from().toString() : request.from() + " - " + request.to());
+        String title = location.getName() + " " + period;
         bridgeService.sendWaiterReport(printer, title, rows);
     }
 }

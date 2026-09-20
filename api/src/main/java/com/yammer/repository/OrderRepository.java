@@ -10,17 +10,31 @@ import org.springframework.data.repository.query.Param;
 
 public interface OrderRepository extends JpaRepository<OrderEntity, UUID> {
 
+    /** Every order rung up during one service day (the shift-scoped dashboard). */
+    List<OrderEntity> findByShiftId(UUID shiftId);
+
     List<OrderEntity> findByOrderPointIdOrderByCreatedAtDesc(UUID orderPointId);
 
     List<OrderEntity> findByOrderPointIdOrderByCreatedAtAsc(UUID orderPointId);
 
-    List<OrderEntity> findBySessionIdOrderByCreatedAtAsc(UUID sessionId);
-
-    List<OrderEntity> findBySessionIdOrderByCreatedAtDesc(UUID sessionId);
-
-    List<OrderEntity> findBySessionIdIn(Collection<UUID> sessionIds);
-
     List<OrderEntity> findByOrderPointIdInOrderByCreatedAtDesc(Collection<UUID> orderPointIds);
+
+    /** A table's orders since its round started (rides the (order_point_id, created_at) index). */
+    List<OrderEntity> findByOrderPointIdAndCreatedAtGreaterThanEqualOrderByCreatedAtAsc(
+            UUID orderPointId, java.time.LocalDateTime from);
+
+    /**
+     * Billable orders at these tables that still carry an unpaid line — what a table owes,
+     * whatever round it came from. DRAFT/CANCELED mirror {@code OrderService.NOT_BILLABLE}.
+     */
+    @Query("""
+            select distinct o from OrderEntity o, OrderItemEntity i
+            where i.orderId = o.id and i.paymentId is null
+              and o.orderPointId in :orderPointIds
+              and o.status not in ('DRAFT', 'CANCELED')
+            order by o.createdAt asc
+            """)
+    List<OrderEntity> findUnsettledByOrderPointIdIn(@Param("orderPointIds") Collection<UUID> orderPointIds);
 
     List<OrderEntity> findByOrderPointIdInAndStatusInOrderByCreatedAtDesc(
             Collection<UUID> orderPointIds, Collection<String> statuses);

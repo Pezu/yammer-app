@@ -20,7 +20,6 @@ import com.yammer.entity.OrderPointEntity;
 import com.yammer.entity.PaymentEntity;
 import com.yammer.entity.PaymentTypeEntity;
 import com.yammer.entity.ProductEntity;
-import com.yammer.entity.TableSessionEntity;
 import com.yammer.repository.LocationRepository;
 import com.yammer.repository.MenuItemRepository;
 import com.yammer.repository.OrderItemRepository;
@@ -29,7 +28,6 @@ import com.yammer.repository.OrderRepository;
 import com.yammer.repository.PaymentRepository;
 import com.yammer.repository.PaymentTypeRepository;
 import com.yammer.repository.ProductRepository;
-import com.yammer.repository.TableSessionRepository;
 import com.yammer.security.AccessGuard;
 import com.yammer.security.CurrentUserProvider;
 import com.yammer.security.UserPrincipal;
@@ -69,7 +67,7 @@ public class OrderService {
     public static final String DRAFT = "DRAFT";
     private static final Set<String> NOT_BILLABLE = Set.of(DRAFT, "CANCELED");
 
-    private static boolean billable(OrderEntity order) {
+    static boolean billable(OrderEntity order) {
         return !NOT_BILLABLE.contains(order.getStatus());
     }
 
@@ -77,7 +75,7 @@ public class OrderService {
     private final OrderRepository orderRepository;
     private final OrderItemRepository orderItemRepository;
     private final PaymentRepository paymentRepository;
-    private final TableSessionRepository sessionRepository;
+    private final TableRoundService roundService;
     private final LocationRepository locationRepository;
     private final OrderPointRepository orderPointRepository;
     private final MenuItemRepository menuItemRepository;
@@ -86,16 +84,18 @@ public class OrderService {
     private final CurrentUserProvider currentUser;
     private final CustomerAccessService customerAccessService;
     private final PaymentTypeRepository paymentTypeRepository;
+    private final ShiftService shiftService;
 
     /**
      * Places an order at the point, snapshotting line names + prices. Always ORDERED for now.
-     * Orders belong to the point's OPEN table session — assigning the table opens one.
+     * A table takes orders while someone is assigned to it (the assignment is the sitting).
      */
     public OrderResponse place(PlaceOrderRequest request) {
         UserPrincipal me = currentUser.require();
         OrderPointEntity op = accessGuard.requireAccessibleOrderPoint(request.orderPointId());
-        TableSessionEntity session = sessionRepository.findByOrderPointIdAndClosedAtIsNull(op.getId())
-                .orElseThrow(() -> badRequest("No open session — assign yourself to the table first"));
+        if (!roundService.inService(op.getId())) {
+            throw badRequest("Nobody works this table — assign yourself to it first");
+        }
         LocationEntity location = locationRepository.findById(op.getLocationId())
                 .orElseThrow(() -> new ResponseStatusException(
                         HttpStatus.NOT_FOUND, "Order point not found: " + request.orderPointId()));
@@ -108,7 +108,7 @@ public class OrderService {
         OrderEntity order = new OrderEntity();
         order.setOrderNo(orderRepository.maxOrderNoForClient(location.getClientId()) + 1);
         order.setOrderPointId(op.getId());
-        order.setSessionId(session.getId());
+        order.setShiftId(shiftService.requireOpenShiftId(op.getLocationId(), me.username()));
         order.setCreatedBy(me.username());
         order.setCreatedAt(LocalDateTime.now());
         // Paid on the spot = served on the spot (a bar): it never goes through the service board.
@@ -133,7 +133,7 @@ public class OrderService {
                     .reduce(BigDecimal.ZERO, BigDecimal::add);
             PayRequest pay = new PayRequest(op.getId(), request.paymentTypeId(), PaymentMode.FULL,
                     request.tip() == null ? BigDecimal.ZERO : request.tip(), null, null);
-            PaymentEntity payment = createPayment(pay, gross, net, op.getDiscountPercent(), me, session);
+            PaymentEntity payment = createPayment(pay, gross, net, op.getDiscountPercent(), me);
             savedItems.forEach(i -> i.setPaymentId(payment.getId()));
             savedItems = orderItemRepository.saveAll(savedItems);
         } else {
@@ -146,7 +146,7 @@ public class OrderService {
      * Places a PUBLIC customer order (QR page, no authentication). Only menu-item ids +
      * quantities come from the client — name/price are resolved from the table's menu
      * (product names fresh from the catalog, as the customer saw them). Requires the
-     * table's session to be OPEN (409 otherwise), an APPROVED customer session (403),
+     * table to be in service — someone assigned to it (409 otherwise) — an APPROVED customer session (403),
      * and a self-order mode other than DISALLOW. Under CONFIRM the order enters the
      * DRAFT status — no order number yet, invisible everywhere but the Approvals page.
      */
@@ -154,8 +154,9 @@ public class OrderService {
         OrderPointEntity op = orderPointRepository.findById(orderPointId)
                 .orElseThrow(() -> new ResponseStatusException(
                         HttpStatus.NOT_FOUND, "Order point not found: " + orderPointId));
-        TableSessionEntity session = sessionRepository.findByOrderPointIdAndClosedAtIsNull(op.getId())
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.CONFLICT, "Table is not open"));
+        if (!roundService.inService(op.getId())) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "No waiter works this table yet");
+        }
         if ("DISALLOW".equals(op.getSelfOrderMode())) {
             throw new ResponseStatusException(
                     HttpStatus.FORBIDDEN, "Self ordering is not allowed at this table");
@@ -174,7 +175,7 @@ public class OrderService {
         boolean draft = "CONFIRM".equals(op.getSelfOrderMode());
         order.setOrderNo(draft ? null : orderRepository.maxOrderNoForClient(location.getClientId()) + 1);
         order.setOrderPointId(op.getId());
-        order.setSessionId(session.getId());
+        order.setShiftId(shiftService.requireOpenShiftId(op.getLocationId(), "Customer"));
         order.setCustomerSessionId(customer.getId());
         order.setCreatedBy("Customer");
         order.setCreatedAt(LocalDateTime.now());
@@ -319,22 +320,14 @@ public class OrderService {
      * items, settled by an ONLINE-type SUCCESS payment. Paid orders skip approval.
      */
     public OnlineOrderResult createPaidOnlineOrder(
-            OrderPointEntity op, List<ResolvedLine> lines, UUID storedSessionId, UUID customerSessionId) {
+            OrderPointEntity op, List<ResolvedLine> lines, UUID customerSessionId) {
         LocationEntity location = locationRepository.findById(op.getLocationId())
                 .orElseThrow(() -> new ResponseStatusException(
                         HttpStatus.NOT_FOUND, "Order point not found: " + op.getId()));
-        // Attach to the CURRENT open session; a table closed mid-payment falls back to
-        // the session the payment started on (the money is real — never drop the order).
-        UUID sessionId = sessionRepository.findByOrderPointIdAndClosedAtIsNull(op.getId())
-                .map(TableSessionEntity::getId)
-                .orElse(storedSessionId);
-        if (sessionId == null) {
-            log.warn("Online order for {} confirmed with no table session", op.getName());
-        }
-
+        UUID shiftId = shiftService.requireOpenShiftId(op.getLocationId(), "Customer");
         PaymentEntity payment = new PaymentEntity();
         payment.setOrderPointId(op.getId());
-        payment.setSessionId(sessionId);
+        payment.setShiftId(shiftId);
         payment.setAmount(totalOf(lines));
         payment.setTip(BigDecimal.ZERO);
         payment.setPaymentTypeId(paymentTypeRepository.findByTypeIgnoreCase("ONLINE")
@@ -350,7 +343,7 @@ public class OrderService {
         OrderEntity order = new OrderEntity();
         order.setOrderNo(orderRepository.maxOrderNoForClient(location.getClientId()) + 1);
         order.setOrderPointId(op.getId());
-        order.setSessionId(sessionId);
+        order.setShiftId(shiftId);
         order.setCustomerSessionId(customerSessionId);
         order.setCreatedBy("Customer");
         order.setCreatedAt(LocalDateTime.now());
@@ -377,9 +370,9 @@ public class OrderService {
     }
 
     /**
-     * The table's combined bill for the CURRENT open session: its orders' lines
-     * aggregated per product (first-seen order, keyed by menu item + price so a
-     * price change starts a new line). No open session → an empty bill.
+     * The table's combined bill for the current ROUND: its orders' lines aggregated per
+     * product (first-seen order, keyed by menu item + price so a price change starts a new
+     * line). Nobody assigned and nothing owed → an empty bill.
      */
     @Transactional(readOnly = true)
     public OrderPointBillResponse billByOrderPoint(UUID orderPointId) {
@@ -399,11 +392,7 @@ public class OrderService {
 
     private OrderPointBillResponse billFor(OrderPointEntity op) {
         UUID orderPointId = op.getId();
-        Optional<TableSessionEntity> session = sessionRepository.findByOrderPointIdAndClosedAtIsNull(orderPointId);
-        List<OrderEntity> orders = session
-                .map(s -> orderRepository.findBySessionIdOrderByCreatedAtDesc(s.getId()))
-                .orElse(List.of())
-                .stream()
+        List<OrderEntity> orders = roundService.roundOrders(orderPointId).stream()
                 .filter(OrderService::billable)
                 .toList();
         Map<UUID, LocalDateTime> orderCreatedAt = orders.stream()
@@ -442,7 +431,7 @@ public class OrderService {
             }
         }
         return new OrderPointBillResponse(
-                op.getName(), op.getPaymentTypeIds(), session.isPresent(), op.getSelfOrderMode(),
+                op.getName(), op.getPaymentTypeIds(), roundService.inService(orderPointId), op.getSelfOrderMode(),
                 op.isKeepOpen(), op.getDiscountPercent(), List.copyOf(lines.values()), total, unpaidTotal);
     }
 
@@ -460,14 +449,9 @@ public class OrderService {
         if (op.getPaymentTypeIds() == null || !op.getPaymentTypeIds().contains(request.paymentTypeId())) {
             throw badRequest("Payment type not accepted at this order point");
         }
-        TableSessionEntity session = sessionRepository.findByOrderPointIdAndClosedAtIsNull(op.getId())
-                .orElseThrow(() -> badRequest("Nothing to pay"));
-        // Unpaid lines of the open session in deterministic allocation order: oldest
-        // order first, then line id as a stable tie-break (order_item carries no timestamp).
-        List<OrderEntity> orders = orderRepository.findBySessionIdOrderByCreatedAtAsc(session.getId())
-                .stream()
-                .filter(OrderService::billable)
-                .toList();
+        // The table's unpaid lines in deterministic allocation order: oldest order first,
+        // then line id as a stable tie-break (order_item carries no timestamp).
+        List<OrderEntity> orders = roundService.unsettledOrders(op.getId());
         Map<UUID, LocalDateTime> createdAt = orders.stream()
                 .collect(Collectors.toMap(OrderEntity::getId, OrderEntity::getCreatedAt));
         List<OrderItemEntity> unpaid = orders.isEmpty()
@@ -484,9 +468,9 @@ public class OrderService {
         }
         BigDecimal discount = op.getDiscountPercent();
         switch (request.mode()) {
-            case FULL -> payFull(request, me, session, unpaid, discount);
-            case PARTIAL -> payPartial(request, me, session, unpaid, discount);
-            case AMOUNT -> payAmount(request, me, session, unpaid); // a fixed sum: taken as is, no discount
+            case FULL -> payFull(request, me, unpaid, discount);
+            case PARTIAL -> payPartial(request, me, unpaid, discount);
+            case AMOUNT -> payAmount(request, me, unpaid); // a fixed sum: taken as is, no discount
         }
         return billByOrderPoint(op.getId());
     }
@@ -494,11 +478,10 @@ public class OrderService {
     // --- full ---
 
     private void payFull(
-            PayRequest request, UserPrincipal me, TableSessionEntity session, List<OrderItemEntity> unpaid,
-            BigDecimal discount) {
+            PayRequest request, UserPrincipal me, List<OrderItemEntity> unpaid, BigDecimal discount) {
         BigDecimal gross = unpaid.stream().map(this::lineTotal).reduce(BigDecimal.ZERO, BigDecimal::add);
         BigDecimal net = unpaid.stream().map(i -> discountedLineTotal(i, discount)).reduce(BigDecimal.ZERO, BigDecimal::add);
-        PaymentEntity payment = createPayment(request, gross, net, discount, me, session);
+        PaymentEntity payment = createPayment(request, gross, net, discount, me);
         unpaid.forEach(i -> i.setPaymentId(payment.getId()));
         orderItemRepository.saveAll(unpaid);
     }
@@ -512,8 +495,7 @@ public class OrderService {
     }
 
     private void payPartial(
-            PayRequest request, UserPrincipal me, TableSessionEntity session, List<OrderItemEntity> unpaid,
-            BigDecimal discount) {
+            PayRequest request, UserPrincipal me, List<OrderItemEntity> unpaid, BigDecimal discount) {
         if (request.items() == null || request.items().isEmpty()) {
             throw badRequest("Partial payment requires at least one item");
         }
@@ -564,7 +546,7 @@ public class OrderService {
         // covered the ORIGINAL stays unpaid with its quantity reduced; a NEW line is
         // inserted under the same order for the paid quantity.
         PaymentEntity payment = createPayment(request, amount.setScale(2, RoundingMode.HALF_UP),
-                net.setScale(2, RoundingMode.HALF_UP), discount, me, session);
+                net.setScale(2, RoundingMode.HALF_UP), discount, me);
         for (Alloc alloc : planByLine.values()) {
             OrderItemEntity line = alloc.line();
             if (alloc.coveredQty() == line.getQuantity()) {
@@ -581,13 +563,13 @@ public class OrderService {
     // --- amount: a fixed sum allocated oldest-first; the last unit may be partially paid ---
 
     private void payAmount(
-            PayRequest request, UserPrincipal me, TableSessionEntity session, List<OrderItemEntity> unpaid) {
+            PayRequest request, UserPrincipal me, List<OrderItemEntity> unpaid) {
         if (request.amount() == null || request.amount().signum() <= 0) {
             throw badRequest("Amount must be positive");
         }
         BigDecimal unpaidTotal = unpaid.stream().map(this::lineTotal).reduce(BigDecimal.ZERO, BigDecimal::add);
         BigDecimal remaining = request.amount().min(unpaidTotal).setScale(2, RoundingMode.HALF_UP);
-        PaymentEntity payment = createPayment(request, remaining, remaining, null, me, session);
+        PaymentEntity payment = createPayment(request, remaining, remaining, null, me);
 
         for (OrderItemEntity line : unpaid) {
             if (remaining.signum() == 0) {
@@ -642,16 +624,22 @@ public class OrderService {
      * table's discount (per unit, see {@link DiscountMath}); the stored amount is the net and
      * the payment keeps the percentage and the money not charged. PROTOCOL / PO are never discounted.
      */
+    /** The open service day of the point's location — opened on the spot if there is none. */
+    private UUID shiftOf(UUID orderPointId, String actor) {
+        return orderPointRepository.findById(orderPointId)
+                .map(op -> shiftService.requireOpenShiftId(op.getLocationId(), actor))
+                .orElse(null);
+    }
+
     private PaymentEntity createPayment(
-            PayRequest request, BigDecimal gross, BigDecimal net, BigDecimal discount,
-            UserPrincipal me, TableSessionEntity session) {
+            PayRequest request, BigDecimal gross, BigDecimal net, BigDecimal discount, UserPrincipal me) {
         String typeName = paymentTypeRepository.findById(request.paymentTypeId())
                 .map(PaymentTypeEntity::getType).orElse("");
         boolean discounted = discount != null && discount.signum() > 0 && !NotPaidReportService.isNotPaid(typeName);
         BigDecimal amount = discounted ? net : gross;
         PaymentEntity payment = new PaymentEntity();
         payment.setOrderPointId(request.orderPointId());
-        payment.setSessionId(session.getId());
+        payment.setShiftId(shiftOf(request.orderPointId(), me.username()));
         payment.setAmount(amount);
         payment.setDiscountPercent(discounted ? discount : null);
         payment.setDiscountAmount(discounted ? gross.subtract(amount).max(BigDecimal.ZERO) : BigDecimal.ZERO);
@@ -727,9 +715,9 @@ public class OrderService {
         eventPublisher.publishEvent(new OrderChangedEvent(saved, "ORDER_" + wanted));
     }
 
-    /** Delete the session's DRAFT orders — they were never accepted (called when the table closes). */
-    public void deleteDrafts(UUID sessionId) {
-        List<OrderEntity> drafts = orderRepository.findBySessionIdOrderByCreatedAtAsc(sessionId).stream()
+    /** Delete the table's DRAFT orders — never accepted, they die when the table is freed. */
+    public void deleteDrafts(UUID orderPointId) {
+        List<OrderEntity> drafts = orderRepository.findByOrderPointIdOrderByCreatedAtAsc(orderPointId).stream()
                 .filter(o -> DRAFT.equals(o.getStatus()))
                 .toList();
         if (drafts.isEmpty()) {
@@ -740,25 +728,13 @@ public class OrderService {
         orderRepository.deleteAll(drafts);
     }
 
-    /** Whether the session still has unsettled lines (the guard against closing it). */
-    @Transactional(readOnly = true)
-    public boolean sessionHasUnpaid(UUID sessionId) {
-        List<UUID> orderIds = orderRepository.findBySessionIdOrderByCreatedAtAsc(sessionId).stream()
-                .filter(OrderService::billable)
-                .map(OrderEntity::getId)
-                .toList();
-        return !orderIds.isEmpty() && !orderItemRepository.findByOrderIdInAndPaymentIdIsNull(orderIds).isEmpty();
-    }
-
-    /** Orders of the point's current open session (newest first). */
+    /** The table's round of orders, newest first. */
     @Transactional(readOnly = true)
     public List<OrderResponse> listByOrderPoint(UUID orderPointId) {
         OrderPointEntity op = accessGuard.requireAccessibleOrderPoint(orderPointId);
-        List<OrderEntity> orders = sessionRepository.findByOrderPointIdAndClosedAtIsNull(orderPointId)
-                .map(s -> orderRepository.findBySessionIdOrderByCreatedAtDesc(s.getId()))
-                .orElse(List.of())
-                .stream()
+        List<OrderEntity> orders = roundService.roundOrders(orderPointId).stream()
                 .filter(o -> !DRAFT.equals(o.getStatus()))
+                .sorted(java.util.Comparator.comparing(OrderEntity::getCreatedAt).reversed())
                 .toList();
         Map<UUID, List<OrderItemEntity>> itemsByOrder = orderItemRepository
                 .findByOrderIdIn(orders.stream().map(OrderEntity::getId).toList())

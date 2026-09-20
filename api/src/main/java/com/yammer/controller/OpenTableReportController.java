@@ -19,7 +19,7 @@ public class OpenTableReportController {
 
     private final OpenTableReportService reportService;
 
-    /** One location's open table sessions with their outstanding amounts. */
+    /** One location's tables in service, with their outstanding amounts. */
     @GetMapping
     public List<OpenTableReportRow> report(@RequestParam UUID locationId) {
         return reportService.report(locationId);
