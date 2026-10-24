@@ -1,0 +1,394 @@
+# Test plan — Epic #1 "Codebase audit: UX/UI, architecture and defect findings, then fixes"
+
+Owner: `qa`. Status: Phase 1 (strategy). The per-story scenario tables in §8 are filled in as
+`ba` publishes the stories; everything before §8 is settled now and does not depend on them.
+
+---
+
+## 1. What this plan has to achieve
+
+This epic is not a feature. It is a sweep of findings over code that **already runs in
+production**, turned into stories whose fixes touch the most dangerous parts of the product:
+money arithmetic, the fiscal outbox, tenant isolation, the service day and the role model. The
+dominant risk is therefore **not** "the new thing does not work" — a fix is usually small and
+obviously right in isolation. The dominant risk is **regression**: a fix that is correct for its
+own story and quietly wrong for a bill, a receipt or another tenant.
+
+So this plan is built around three things rather than a flat scenario list:
+
+1. an **invariant register** (§3) — the properties that must hold after *every* fix, whatever the
+   story was about;
+2. a **verification rule per finding** (§4) — what each fix must prove, at which test level, and
+   whether it is automated or verified by hand;
+3. a **fixed regression suite with concrete amounts** (§9) — re-run whenever a story touches the
+   invariant area it belongs to, so "it still adds up" is a check and not an opinion.
+
+Scope: the whole repository as it stands on `origin/develop` — `api/`, `web/` (backoffice,
+waiter, service board, customer page), `db-seeds/`, the documented bridge contract. Out of scope:
+executing anything against the bridge hardware or production (§6), and the Android app itself
+(`bridge/mobile`) beyond its wire protocol, which is exercised through a stub (§6.4).
+
+## 2. Test basis
+
+A scenario is written against a document, never against observed behaviour — in an audit epic the
+observed behaviour is exactly what is under suspicion.
+
+| Source | Used for |
+|---|---|
+| `CLAUDE.md` §5 ("Yammer rules that are gates") | the invariant register |
+| `api/CLAUDE.md` | endpoint contracts, roles per endpoint, payment and fiscal lifecycle, service day |
+| `web/CLAUDE.md` | which surface a screen belongs to, i18n rule, shared-table rule |
+| `docs/epics/codebase-audit/requirement.md` (`ba`) | the stories and their acceptance criteria |
+| `docs/epics/codebase-audit/design.md` (`architect-a` / `architect-b`) | the agreed shape of each fix, and which invariant it is near |
+| `docs/epics/codebase-audit/ux.md` (`ux`) | screen states and RO/EN copy — the expected result for every UI scenario |
+| `api/src/main/resources/db/migration/V1__Initial_schema.sql`, `V2__Seed.sql` | seeded catalogs, roles, the five role names |
+
+**Where the basis contradicts itself, the scenario is blocked and goes back to the author.** Two
+such contradictions are already open; both are listed as findings in §11 (F-1, F-2).
+
+## 3. Invariant register
+
+Every story is mapped to the invariants it comes near (§8). The invariants it touches have their
+regression block (§9) re-run before sign-off.
+
+| # | Invariant | Where it lives | How it is proven |
+|---|---|---|---|
+| **I1** | A non-SUPER caller only reaches rows of its own client; a cross-tenant id answers **404, never 403 or 200**; a non-SUPER writer gets `clientId` forced to its own | `security/AccessGuard.java`, each service | L3 two-tenant curl sweep (R-T*) + e2e for whatever the story touches |
+| **I2** | Money arithmetic: gross vs net, per-unit discount rounding, PARTIAL line splitting, AMOUNT oldest-first allocation with a split last unit, display re-join of settled fragments, tip never part of a line's value | `OrderService.pay/payFull/payPartial/payAmount`, `util/DiscountMath`, `OrderService.mergeSettledSplits` | L1 unit tests with the §9 amounts + L3 payment calls + L5 e2e on the waiter bill |
+| **I3** | A settled order line is never re-split or re-priced | `payPartial` (price-keyed allocation), `payAmount` (`originalPrice` kept on both halves) | L1 + L3: re-pay attempts over already-settled lines |
+| **I4** | The fiscal outbox: `NONE / PENDING / SUCCESS / FAILED / UNKNOWN`, **`SUCCESS` terminal**, no automatic retry, `requestId` = payment id, one send per payment, device pinned on first accept, bridge budget 90 s **<** result deadline 180 s | `repository/PaymentRepository` guarded UPDATEs, `BridgeService`, `FiscalResultSweeper`, `PaymentService` | L2 persistence test on the guarded UPDATEs (**new level, §4**) + L3 with the bridge stub (§6.4) |
+| **I5** | Service day over dates: every order and payment carries `shift_id`; waiter and service surfaces scope to the open shift and have no date input; a day cannot close while a non-SERVICE point owes money (409 naming the tables); with no shift, the business day starts at 06:00 | `ShiftService`, `OrderService.shiftOf`, waiter endpoints | L1 (partly covered) + L3 + L4 on the waiter surfaces |
+| **I6** | Role model: `SUPER / ADMIN / WAITER / SERVICE / WATCHER` plus the anonymous customer; each endpoint reachable by exactly the documented set | `SecurityConfig`, `@PreAuthorize`, service-level checks | L3 role matrix (R-R1), run as a full sweep once per epic and per story that touches auth |
+| **I7** | The assignment is the sitting: a round starts at the earliest active assignment, the bill covers the round plus anything older unpaid, leaving or closing is refused with 409 while anything is owed, never-accepted DRAFTs die with the round | `TableRoundService`, `OrderPointAssignmentService` | L1 (covered) + L3 + L5 e2e on two-waiter cases |
+| **I8** | Live push: the service board updates without a reload; routing is the caller's assigned SERVICE station, else every SERVICE point of its home location; the registry is in-memory and the api is single-instance | `ws/`, `OrderNotificationService` | L4 two-browser manual check, every time (not automatable cheaply) |
+| **I9** | Waiter and customer text goes through `t()` with both RO and EN present; backoffice, login and service board stay English | `core/i18n/translations.ts` | L4 manual in both languages + a `ux` review; no automated text assertions |
+
+## 4. Test levels, and what is automated
+
+| Level | What it is | Where it lives | Who runs it |
+|---|---|---|---|
+| **L1** | Pure unit test, no Spring context (Mockito) | `api/src/test/java/...` | developer in the fix PR; `qa` reviews it covers the story |
+| **L2** | **Persistence slice test against a real Postgres** — *does not exist yet*, see G-1 in §11 | `api/src/test/java/...` + a test datasource | `backend-*` once the story that introduces it lands |
+| **L3** | API scenario with `curl` against the integration stack: status code, payload, error reason, auth, tenancy | run by hand, commands pasted into the test report | `qa` |
+| **L4** | UI flow in a real browser (`playwright` MCP): phone viewport for waiter/customer, desktop for the backoffice; console + network clean, keyboard reachable, both languages where I9 applies | — | `qa` |
+| **L5** | Playwright e2e — *`web/e2e/` does not exist yet*, see G-2 | `web/e2e/` | added by `qa` through the normal PR flow |
+
+**The rule for automating (CLAUDE.md §5 point 6):** a scenario gets an automated test when it
+protects **money, a permission, tenant isolation or a rule that is easy to break silently**, or
+when it is the regression test for a Critical/Major bug — then the test must fail on the
+pre-fix code. Everything else is verified by hand: copy and translations, static display,
+layout, ordering of a list, anything the framework already guarantees.
+
+Preference between L1/L2/L5 for the same property: **lowest level that can actually fail.** The
+fiscal state machine is the clear example — it is implemented as `where`-guarded JPQL UPDATEs, so
+a Mockito test proves nothing about it and it needs L2 (see G-1).
+
+## 5. Entry and exit criteria
+
+**Entry to `stage:in-qa`** (otherwise the story goes straight back with a comment):
+
+- `stage:dev-verified`, the PR squashed into `develop`, CI green;
+- acceptance criteria present and testable (reviewed by `qa` in Phase 1 — §7);
+- for UI findings, `ux.md` carries the screen state and the RO/EN copy the fix produces;
+- the PR contains the test the fix deserves under the §4 rule (a bug fix: one test that fails on
+  the old code);
+- the finding's story says **which invariants of §3 it comes near** — that is what selects the
+  regression blocks.
+
+**Exit — `stage:qa-passed`:**
+
+- every acceptance criterion executed on the integration stack built from `origin/develop` **after**
+  the fix was merged (never on the author's worktree stack);
+- the regression blocks of §9 for the touched invariants: green;
+- no open `sev:critical` or `sev:major` against the story; `sev:minor` may remain if logged and
+  accepted by the lead;
+- evidence in `test-report.md`: scenario id, result, request/response or screenshot, and the
+  `develop` commit SHA it ran against;
+- for a waiter/customer surface: checked in **RO and EN**;
+- for a UI change: `ux` has signed the PR off (that is a merge gate, but `qa` does not pass a
+  story whose screen disagrees with `ux.md`).
+
+**Epic exit:** every accepted finding either `stage:qa-passed` or explicitly deferred by the lead;
+the full role matrix (R-R1) and the two-tenant sweep (R-T*) re-run once against the final
+`develop`; the e2e suite in `web/e2e/` green; `test-report.md` complete.
+
+## 6. Environment
+
+### 6.1 The stack
+
+There is no staging. All execution happens on the **integration stack built from
+`origin/develop`** (CLAUDE.md §7):
+
+```bash
+git fetch origin && git worktree add .worktrees/develop origin/develop   # once
+cd .worktrees/develop && \
+COMPOSE_PROJECT_NAME=yammer-develop DB_PORT=6100 GCS_PORT=5100 API_PORT=8700 WEB_PORT=4900 \
+docker compose -f docker-compose.local.yml up -d --build
+```
+
+- web `http://localhost:4900`, api `http://localhost:8700`, Postgres `localhost:6100`,
+  fake GCS `localhost:5100`.
+- **Never the base ports** (8080 / 4200 / 5432 / 4443) — those are Radu's own servers.
+- The stack is rebuilt (`down -v` then `up -d --build`) before each story's execution run, so a
+  result is always attributable to one `develop` SHA. The SHA is recorded per scenario.
+- Production is never a test environment, for any reason.
+
+### 6.2 What the local stack cannot do, and how that is used
+
+| Limitation | Consequence | Turned into a test path |
+|---|---|---|
+| No bridge connected | CASH/CARD payments stay `PENDING` | the `PENDING → sweeper → FAILED` path is directly testable (R-F1); FAILED is then the entry state for the retry scenarios |
+| Netopia disabled (`NETOPIA_ENABLED=false`) | ONLINE self-pay returns 503 by design | R-R-ONLINE: the customer page must show a usable error, not a dead button; the IPN-confirm path (order created only on IPN) is **not** executable locally and is covered by L1/L2 instead — recorded as a residual risk (§12) |
+| fake-gcs instead of GCS | logo/image upload works, signed URLs differ | image scenarios are display-only, L4 |
+| `BRIDGE_API_KEY=local-compose-bridge-key` | a scripted WebSocket client **can** connect as a bridge | the fiscal result paths OK / ERROR / UNKNOWN become testable (§6.4) |
+
+### 6.3 Seed and fixtures
+
+`V2__Seed.sql` gives the global catalogs and the single SUPER operator. Everything tenant-shaped
+is built per run. The fixture below is the baseline for every scenario id in §9; it is created
+through the API (so it also exercises the create paths) by a script kept with the test report.
+
+| id | Fixture | Content |
+|---|---|---|
+| **TD-1** | Two tenants | Client **A** "Rendezvous" and client **B** "Glo" — B exists *only* so that every A id can be probed as B (I1) |
+| **TD-2** | Users | per client: `admin@<c>`, `waiter1@<c>`, `waiter2@<c>` (two waiters: the concurrency cases), `service@<c>`, `watcher@<c>`; plus the seeded SUPER |
+| **TD-3** | Location + points | A: one active location, SERVICE point `S1`, bar `B1`, tables `T1.1`, `T1.2`, `T2.1`; `T2.1` carries `discount_percent = 10.00`; all points accept CASH/CARD/PROTOCOL/PO; B: one location with `T1.1` |
+| **TD-4** | Money catalogue | Aqua Panna **11.00**, Prosecco **22.00**, Pizza Margherita **42.00**, Espresso **9.99** — the §9 amounts are computed from exactly these |
+| **TD-5** | Peripherals | one `MOBILE` cash register bound to the stub bridge's device id, one TCP printer with an unroutable ip (the "peripheral absent" path) |
+| **TD-6** | Empty and large | a location with no points (empty states), and a table with 60 order lines across 12 orders (list/bill/PDF paging and the thermal slip) |
+
+**Dependency:** `CLAUDE.md` §7 refers to `scripts/env-up.sh` and `scripts/seed-tenant.sh`; neither
+exists in the repo yet. Until `devops` provides them, `qa` builds TD-1…TD-6 with a local curl
+script and keeps it next to the test report. This is a convenience, not a blocker.
+
+### 6.4 The bridge stub
+
+The fiscal invariants (I4) are the highest-value, least-covered area, and all of them turn on
+frames coming *back* from a bridge. A small scripted WebSocket client — connect to
+`ws://localhost:8700/ws/bridge` with `X-Bridge-Key: local-compose-bridge-key`, announce
+`{type:HELLO, deviceId, deviceName}`, then reply to a `RECEIPT` with a chosen
+`RECEIPT_RESULT` (`OK` / `ERROR` / `UNKNOWN`), or with nothing at all — makes OK, ERROR, UNKNOWN,
+double-result, late-result and silence all reachable without hardware. It also lets a scenario
+assert the **content** of the `RECEIPT` frame (`requestId` = payment id, `fiscal:true`, the lines,
+the VAT per line, the tip as `exempt:true`) rather than only the resulting status. The stub is
+test code, so `qa` owns it; it lands with the first fiscal story, under `web/e2e/fixtures/` or
+`scripts/`, wherever `devops` prefers.
+
+## 7. Testability review of the acceptance criteria (Phase 1 duty)
+
+Each story's criteria are reviewed against this checklist before `stage:ready`; concrete
+rewrites go to `ba` by message, not as a comment in this file.
+
+1. **Given/When/Then with a named actor role**, not "the user" — I6 means the role *is* the test.
+2. **Money criteria carry concrete amounts**, including the expected rounding and which of
+   gross / net / tip / discount the asserted number is. "The total is correct" is not a criterion.
+3. **An observable result**: a status code, a field value, a named screen state from `ux.md`, a
+   stored row. "Works as expected", "is consistent", "is improved" cannot be executed.
+4. **A tenancy criterion says 404**, never "is denied" (403 would be a defect, so the word must
+   be in the criterion).
+5. **Waiter/customer copy is given in RO and EN**, else the I9 check has nothing to compare to.
+6. **Time-scoped criteria name the service day**, not a date — including the after-midnight case
+   where they differ.
+7. **A fiscal criterion names the state** (`PENDING / SUCCESS / FAILED / UNKNOWN`) and whether a
+   retry is allowed from it, since the guard is per-state.
+8. **A refactor-only finding still needs an observable criterion** — "behaviour is unchanged" is
+   testable only if the story says *which* behaviour, i.e. which §9 blocks must stay green.
+
+## 8. Traceability: acceptance criterion → scenarios
+
+Filled in per story once `ba` publishes them. One sub-section per story, in this shape; scenario
+ids are `S<issue>-<n>`, and the regression blocks come from the story's invariant column.
+
+### Template
+
+**Story #<n> — <title>** · invariants touched: <I…> · regression blocks: <R…>
+
+| AC | Scenario | Level | Automated | Result |
+|---|---|---|---|---|
+| AC1 | S<n>-1 happy path, role <R> | L3 + L4 | e2e / manual | |
+| AC1 | S<n>-2 boundary: <the edge the AC implies> | L1 | yes | |
+| AC2 | S<n>-3 validation: <rule> rejected with <status + reason> | L3 | yes | |
+| — | S<n>-4 tenancy: same call as client B → 404 | L3 | yes | |
+| — | S<n>-5 roles: WAITER / SERVICE / WATCHER / customer on the same endpoint | L3 | yes | |
+| — | S<n>-6 empty + large data | L4 | no | |
+| — | S<n>-7 double submit / two actors at once (where the story allows it) | L3 | yes | |
+| — | S<n>-8 RO + EN copy (waiter/customer surfaces only) | L4 | no | |
+
+### Stories
+
+*(empty — waiting on `ba`; this section is the only part of the plan that changes per story)*
+
+## 9. Regression suite
+
+Fixed scenarios with fixed numbers, derived from TD-3/TD-4. A story re-runs the blocks of the
+invariants it touches; the whole suite runs once at epic exit. Every amount below was computed
+from the code as it stands on `develop`, so a diverging result is either the fix working or a
+regression — never ambiguity about what the number should be.
+
+### R-M — money (I2, I3)
+
+| id | Scenario | Expected |
+|---|---|---|
+| **R-M1** | `T1.1`: order 3 × Pizza (126.00). Pay **PARTIAL** 2 × Pizza, CASH | payment `amount = 84.00`; bill: unpaid 1 × 42.00, paid 2 × 42.00; the original line stays unpaid with `quantity = 1`, a new paid line carries `quantity = 2` |
+| **R-M2** | `T1.1`: order #1 3 × Pizza (126.00) at 19:05, order #2 2 × Prosecco (44.00) at 19:20 → owed 170.00. Pay **AMOUNT 150.00**, CASH | payment `amount = 150.00`; order #1 fully settled, one Prosecco settled at 22.00, the next unit split into a **paid 2.00** and an **unpaid 20.00**, both carrying `originalPrice = 22.00`; table owes **20.00**; both halves render as partial (tint + half-circle) on the waiter bill and the customer Order view |
+| **R-M3** | Continue R-M2: pay **FULL** (20.00), CASH | nothing owed; the Paid view shows **2 × Prosecco at 22.00** as one whole line with no partial marker, and 3 × Pizza at 42.00 — the settled-split re-join |
+| **R-M4** | Fresh `T1.1`: 1 × Aqua Panna (11.00). Pay **AMOUNT 20.00** | payment `amount = 11.00` (allocation capped at the unpaid total), nothing owed, no change/overpayment row anywhere — pins the current deliberate behaviour |
+| **R-M5** | `T2.1` (discount 10%): 1 × Pizza. Pay **FULL**, CASH | payment `amount = 37.80`, `discount_percent = 10.00`, `discount_amount = 4.20`; nothing owed |
+| **R-M6** | `T2.1` (discount 10%): 1 × Pizza. Pay **AMOUNT 37.80**, CASH | **current** behaviour: allocation runs on the gross 42.00, so no full unit is covered — the unit splits into a paid 37.80 and an **unpaid 4.20** and the table still owes 4.20. This is finding **F-5**; the scenario's expected result is whatever the story decides, and it stays in the suite either way |
+| **R-M7** | `T1.1`: 3 × Pizza (126.00). Pay **FULL** CARD with **tip 10.00** | payment `amount = 126.00`, `tip = 10.00`; Payments report total 136.00; the waiter cash-up shows card 126.00 and tips 10.00 separately; the `RECEIPT` frame carries 3 priced lines plus one `exempt:true` line of 10.00 |
+| **R-M8** | `T1.1`: 2 × Prosecco (44.00). Pay **FULL PROTOCOL** | `status = SUCCESS`, `fiscal_status = NONE`, no `RECEIPT` frame; absent from the waiter Payments page; present in the Not-paid report with its two product lines and in the final report's protocol column; **not** in the waiter's own total |
+| **R-M9** | `T2.1` (discount 10%): 3 × Espresso (9.99). Pay **FULL**, CASH | per-unit discount 8.99 (9.99 × 0.90 = 8.991 → HALF_UP) → payment `amount = 26.97`, `discount_amount = 3.00` |
+| **R-M10** | After R-M1, attempt **PARTIAL** on the already-paid 2 × Pizza, and **AMOUNT 200.00** on the fully settled table | both refused (400 "Nothing to pay" / quantity exceeds unpaid); **no settled line is re-split or re-priced** (I3) |
+
+### R-F — fiscal outbox (I4)
+
+| id | Scenario | Expected |
+|---|---|---|
+| **R-F1** | CASH payment, no bridge connected | `fiscal_status = PENDING`, `requestId` = the payment id, one send attempt; the waiter Payments page and the backoffice Fiscal column both show PENDING with no Retry; after the 180 s deadline the sweeper moves it to **FAILED** and Retry appears |
+| **R-F2** | Retry from each state (stub connected) | `FAILED` → re-armed to PENDING; `PENDING`, `SUCCESS`, `UNKNOWN`, `NONE` → **409**, status untouched |
+| **R-F3** | Stub replies `RECEIPT_RESULT OK` with a receipt number | `SUCCESS` + receipt number shown; `fiscal_device` pinned to the stub's device id |
+| **R-F4** | Stub replies `OK`, then `ERROR` and `UNKNOWN` for the same `requestId` | stays **SUCCESS** with the original receipt number — `SUCCESS` is terminal |
+| **R-F5** | Stub replies `UNKNOWN` | `UNKNOWN`; waiter page says to see a manager (no Retry for a waiter); `resolve-unknown {printed:true}` → SUCCESS; from any other state → **409** |
+| **R-F6** | Stub replies `UNKNOWN`, operator resolves "not printed", then retries | `FAILED` + `fiscal_reprint_authorized` set; the next `RECEIPT` frame carries `clearIntent` |
+| **R-F7** | Two stub bridges connected, TCP-configured register | the receipt is sent to **exactly one** of them and pinned; a MOBILE register sends only to its own `device_id` |
+| **R-F8** | Budget invariant | configuration check: `bridge.fiscal-result-timeout-seconds` (180) stays strictly above the bridge's 90 s job budget; any story changing either number fails this block unless both move together |
+
+### R-T — tenancy (I1)
+
+| id | Scenario | Expected |
+|---|---|---|
+| **R-T1** | As `admin@B`, call every client-A id: `/locations/{A}`, `/order-points?locationId={A}`, `/orders?orderPointId={A}`, `/orders/bill`, `/orders/pay`, `/shifts?locationId={A}`, `/payments?locationId={A}`, `/reports/*?locationId={A}`, `/products`, `/menu/menus/{A}/tree`, `/integrations`, `/users/{A-user}`, `/users/{A-user}/qr`, `/locations/{A}/qr` | **404** every time — never 403, never a payload, never an empty 200 that implies existence |
+| **R-T2** | As `admin@B`, create a user / location / product sending `clientId` = A | the row is forced onto B; A never grows a row |
+| **R-T3** | As `admin@B`, try to grant SUPER or edit a SUPER account | refused; SUPER accounts invisible in the list |
+| **R-T4** | As `waiter1@B`, assign to an A table and pay on it | 404 at the assign step; no payment, no shift opened on A's location |
+| **R-T5** | Public endpoints with an A order-point id, unauthenticated | by design no tenant check: `/public/order-points/{A}` serves name, clientId and the menu — assert it leaks **nothing beyond that** (no waiter names, no bill, no other table), and the bill endpoint still demands an APPROVED token (403 otherwise) |
+
+### R-S — service day (I5)
+
+| id | Scenario | Expected |
+|---|---|---|
+| **R-S1** | No open shift; a waiter takes an order | a shift is opened implicitly, attributed to that waiter; the order and any payment carry its `shift_id`; a pure read (`/shifts/current`) opens nothing |
+| **R-S2** | Close the day while `T1.1` owes money | **409** naming `T1.1`; the Shifts page lists the blockers above the table and re-checks them |
+| **R-S3** | Close the day with only `S1` (SERVICE) assigned | allowed — service stations never block |
+| **R-S4** | Close the day, then look at the waiter's Payments and Statistics | the settled money does not reappear; the pages show the window the open day defines, and carry **no date input anywhere** |
+| **R-S5** | Order at 00:30 with the evening's day still open | it lands in the open day; the dashboard for that day includes it |
+| **R-S6** | Order at 00:30 with no day open at all | it lands in the business day that started at 06:00 the previous morning |
+| **R-S7** | Dashboard and final report by `shiftId` vs by `from`+`to` over the same trade | the same totals, from both parameter shapes |
+
+### R-R — roles and permissions (I6)
+
+**R-R1** — the full matrix. For each of SUPER / ADMIN / WAITER / SERVICE / WATCHER / anonymous
+customer, every endpoint group in `api/CLAUDE.md` is called with a valid token for that role and
+asserted against the documented set: allowed → 2xx; not allowed → **403** when the row is in the
+caller's own tenant, **404** when the id belongs to another one (I1 wins over I6); unauthenticated
+→ 401 everywhere except the `permitAll` set in `SecurityConfig`: `GET /`, `/auth/login`,
+`/auth/login/qr`, `/actuator/**` (only `health` and `info` are exposed), `/error`,
+`GET /clients/*/logo`, `GET /qr-templates/*/image`, `/public/**` and `/ws/**` (whose handshake
+authenticates from `?token=`). Particular attention to the roles no one exercises daily:
+
+- **WATCHER**: can reach the dashboard read-only and *nothing* that writes; cannot reach the
+  waiter or service surfaces; `/watcher` is its only home.
+- **SERVICE**: the board and status changes, not payments, not reports.
+- **WAITER**: own assigned tables only — another waiter's table is not readable, and
+  `retry-fiscal` is allowed while `resolve-unknown` is not.
+- **anonymous customer**: `/public/**` only, and inside it only the own session's bill.
+
+**R-R2** — login: every role can sign in with a password (see F-1), a user with no role gets the
+same 401 as bad credentials, 10 failures in 15 min → 429 on both the IP and the username key,
+QR login is not role-restricted, and a reset QR token invalidates the previous one.
+
+### R-A — rounds, assignment, approvals (I7)
+
+| id | Scenario | Expected |
+|---|---|---|
+| **R-A1** | `waiter1` assigns `T1.1` at 19:00, `waiter2` joins at 20:00 | the round starts at 19:00; the bill covers both waiters' orders |
+| **R-A2** | `waiter1` leaves while 20.00 is owed; then after it is settled | 409 first, allowed second; the last waiter out ends the round |
+| **R-A3** | `POST /close` on a table that owes | 409; on a settled one, every assignment is dropped and never-accepted DRAFTs are deleted |
+| **R-A4** | Two waiters assign the same single-user point at once; then the same `POST /assign` twice | one wins, the other gets 409; the repeat is idempotent, not a second row |
+| **R-A5** | Two devices pay the same bill at the same time (FULL + FULL, FULL + AMOUNT) | the table is not settled twice: the second call sees nothing (or only the remainder) to pay, and no line carries two payment ids |
+| **R-A6** | Customer joins by QR under CONFIRM; orders; waiter approves / denies | DRAFT invisible to bill, kanban, waiter order list and reports; on approve it gets the next per-client number and goes ORDERED and appears on the board; on deny it is gone |
+| **R-A7** | Customer re-scans after a browser restart, inside the round and after it ended | inside: resumes APPROVED from the stored token; after: a fresh PENDING join |
+
+### R-P — live push (I8)
+
+**R-P1** — two browsers: a SERVICE user on the board, a waiter placing an order. The card appears
+without a reload, within a couple of seconds; the status change moves it in the other direction;
+with the socket killed, polling still refreshes it; on reconnect there are no duplicate cards.
+Routing: a station-assigned SERVICE user sees only its station's points; an unassigned one sees
+every SERVICE point of its home location.
+
+### R-U — surfaces (I9 and the house rules)
+
+**R-U1** — waiter and customer pages in **RO** and **EN**: no raw `t('…')` key on screen, no
+English fallback inside a Romanian page, and the strings match `ux.md`. Backoffice, login and
+service board stay English.
+**R-U2** — every table on a touched backoffice page still uses the shared `_crud-table` panel and
+looks identical to the Clients page; no native `<select>` has appeared; no hard-coded hex.
+**R-U3** — phone viewport (390 × 844) for waiter and customer, desktop for the backoffice: no
+horizontal scroll, sticky footers reachable, console and network clean.
+
+## 10. Defect management
+
+A bug becomes a GitHub issue: `bug` + `sev:*` + the owning role label, body `Part of #<story>`,
+the engineer whose PR introduced it, the environment and `develop` SHA, preconditions, exact
+steps, expected vs actual, evidence. The story goes to `stage:reopened` and the developer gets a
+message with the number. Every Critical or Major bug also gets an automated test (L1/L2/L5) that
+fails on the pre-fix code.
+
+| Severity | In this product |
+|---|---|
+| **critical** | money is wrong or lost; a fiscal receipt is double-printed or silently not printed; one tenant sees another's data; a role reaches something it must not; a surface is unusable with no workaround |
+| **major** | a documented rule is broken with a workaround (a 409 guard that does not fire, a day that closes over an open table, a report that disagrees with the payments it sums); a screen state that contradicts `ux.md` and misleads the user |
+| **minor** | wrong or untranslated copy, a layout or ordering defect, a confusing but harmless state |
+| **trivial** | cosmetic, no user consequence |
+
+## 11. Coverage baseline and gaps (this epic's QA findings)
+
+What the repository protects today, as of `develop` @ `628c193`. Ten test classes in
+`api/src/test`, all pure Mockito/static unit tests, plus one Spring smoke test; **one** web spec;
+no e2e; no CI.
+
+Covered: the service-day cash-up and close guard (`ShiftServiceTest`, 6 tests), table rounds
+(`TableRoundServiceTest`, 6), the display-only re-join of settled splits
+(`OrderServiceBillMergeTest`, 4), per-unit discount rounding (`DiscountMathTest`, 2), split-slot
+naming (`OrderPointServiceSplitTest`, 2), and report/PDF rendering
+(`DashboardReportServiceTest`, `NotPaidReportServiceTest`, `WaiterStatementPdfServiceTest`,
+`QrPdfServiceTest`).
+
+The gaps below are offered to `ba` as findings in their own right.
+
+| # | Gap | Evidence | Why it matters |
+|---|---|---|---|
+| **G-1** | **The fiscal state machine has no test and cannot have one at the current test level.** Every transition — `SUCCESS` terminal, ERROR only from PENDING, retry only from FAILED, resolve only from UNKNOWN, first-writer-wins device pinning — is a `where` clause in a JPQL UPDATE. The only test dependency is `spring-boot-starter-test`; there is no Testcontainers, no embedded DB, no `src/test/resources`, no `@DataJpaTest` | `api/src/main/java/com/yammer/repository/PaymentRepository.java:71-128`; `api/pom.xml` test deps; `ls api/src/test/resources` → absent | the strongest money/fiscal invariant in the product is enforced by text nothing executes in tests |
+| **G-2** | **No e2e layer at all**: `web/e2e/` does not exist and Playwright is not a dependency of `web/package.json` | `web/package.json` devDependencies | nothing guards a money, permission or tenancy flow end to end; every such check is manual today |
+| **G-3** | **The web surfaces are untested**: one spec, `app.spec.ts`, asserting the root component is truthy | `web/src/app/app.spec.ts` | the waiter bill, the pay sheet, the split rendering, the i18n dictionaries and the role-based home all carry real logic with zero tests |
+| **G-4** | **`OrderService.pay` — PARTIAL and AMOUNT allocation — has no test.** No test constructs an `OrderService`; the one OrderService test exercises the static display-only merge | `grep -rl "new OrderService" api/src/test` → nothing; `OrderService.java:497` (`payPartial`), `:565` (`payAmount`) | the line splitting and the oldest-first amount allocation, including the partially-paid unit, are the most dangerous arithmetic in the product |
+| **G-5** | **Tenant isolation has no test.** `AccessGuard` appears in tests only as a mock that is told to succeed; the 404-not-403 rule and the forced `clientId` on non-SUPER writes are unexercised | `AccessGuard.java`; `mock(AccessGuard.class)` in 5 test classes | an I1 regression would ship silently |
+| **G-6** | **No permission test anywhere** — no `@PreAuthorize` rule, no `SecurityConfig` URL rule, nothing about WATCHER or SERVICE, is asserted | `api/src/test` has no web-layer (MockMvc) test at all | I6 is documentation only |
+| **G-7** | **No CI.** `CLAUDE.md` §2 and §3 promise `ci.yml` on pull requests (build, tests, release gate); `.github/workflows/` contains only `deploy.yml` | `ls .github/workflows/` | "green CI" is a merge gate with nothing behind it; `mvn test` and `npm test` only run when someone remembers |
+| **G-8** | **The only Spring test needs a live database**, so it cannot run unattended (and would be the first thing to break a CI job) | `YammerApplicationTests`; `api/CLAUDE.md` "the context-load smoke test needs the DB up" | blocks G-7; the fix for G-1 (a test datasource) fixes this too |
+| **G-9** | **`BridgeService` (523 lines), `OnlinePaymentService`, `ApprovalService`, `CustomerAccessService`, `OrderPointAssignmentService` (445 lines), `UserService`, `JwtService`, `LoginAttemptService`, `FiscalResultSweeper` have no tests** — including the single-user-point 409, the Netopia IPN-only order creation, the DRAFT approval flow and the login throttle | `api/src/test/.../service/` holds 9 classes against 36 services | each is an invariant area with no net |
+| **G-10** | **Nothing covers concurrency**: two waiters on one point, two devices paying one bill, a duplicated POST. The guards exist (unique index on the open shift, `allow_multiple_users`, the guarded UPDATEs) but no test drives two actors | — | these are exactly the field failures a POS sees |
+| **G-11** | **The i18n dictionaries are not checked.** The RO dictionary is typed against EN, so a *missing* key fails the build; an **untranslated** value (English text left in the RO map) does not | `web/src/app/core/i18n/translations.ts` | a one-line test (no RO value identical to its EN value, allow-listed exceptions) would hold I9 |
+| **G-12** | **No test asserts a sent bridge frame's content** — `requestId` = payment id, `fiscal:true`, the lines, per-line VAT, the tip as `exempt:true` | `BridgeService.java` | the receipt could be wrong in a way every status check still calls SUCCESS |
+
+### Findings found while reading, outside test code
+
+| # | Finding | Evidence |
+|---|---|---|
+| **F-1** | `api/CLAUDE.md` says "**Login is restricted to ADMIN and SUPER** — other roles get the same 401 … (see `AuthService.ALLOWED_LOGIN_ROLES`)". That constant does not exist; `AuthService.login` admits **any** user with at least one role, which is what `web/CLAUDE.md` describes. Stale documentation on an auth rule — the test basis contradicts itself about who may sign in | `api/src/main/java/com/yammer/service/AuthService.java:18-47`; `grep -rn ALLOWED_LOGIN_ROLES api/src/main` → nothing |
+| **F-2** | `api/CLAUDE.md` contains both "**Every order and payment is stamped with `shift_id` (V44)**" and, a few lines later, "Orders and payments are **NOT** stamped with a shift id: the window over `created_at` is the scope", then describes `windowFor(locationId)`. The code stamps `shift_id` (`OrderService.shiftOf`) — so the second paragraph and the `windowFor` description are the stale half. Directly ambiguous for every I5 scenario | `api/CLAUDE.md` service-day section; `OrderService.java:628` |
+| **F-3** | `AuthController.clientIp` trusts the first `X-Forwarded-For` hop unconditionally, so a caller can rotate the header to defeat the IP throttle. For `/auth/login` the username key still throttles; for `/auth/login/qr` **only** the IP key is used, so the documented QR-login throttle is bypassable (practical impact limited by the 122-bit token) | `AuthController.java:50-77` |
+| **F-4** | `CLAUDE.md` §7 documents `scripts/env-up.sh` and `scripts/seed-tenant.sh`; there is no `scripts/` directory | repo root |
+| **F-5** | **AMOUNT mode ignores the order point's discount.** `payFull`/`payPartial` charge the net price; `payAmount` allocates against the gross `lineTotal` and records `discount = null`. On `T2.1` (10%), a bill of one 42.00 pizza is 37.80 under FULL but paying AMOUNT 37.80 covers no whole unit, splits the unit, and leaves 4.20 owed — the same customer pays the gross price and the table looks unsettled. Candidate `sev:major` money defect; needs a product decision (`ba` + architects) rather than a QA verdict | `OrderService.java:471-473` and `:565-578` (`createPayment(request, remaining, remaining, null, me)`) |
+| **F-6** | `OrderService.createPayment` resolves the payment type from the repository twice into `typeName` and `type` | `OrderService.java:636-653` — trivial |
+
+## 12. Risks
+
+| Risk | Handling |
+|---|---|
+| The IPN-confirmed ONLINE payment path (order created only on the Netopia notify) is not executable locally | covered at L1/L2 plus a stubbed notify POST; the real gateway path stays a production-first risk and is called out at sign-off |
+| The bridge is stubbed, not real hardware; the register's own behaviour (paper out, USB detached mid-print) is not reproduced | the stub covers the wire contract; hardware behaviour is a human gate (CLAUDE.md §9) |
+| No CI (G-7): a merged fix can break another story's unit tests without anyone noticing until I run the suite | `qa` runs `mvn test` and `npm test` against `develop` before each execution round and reports a red suite as a blocker |
+| The single-instance assumption (I8) cannot be falsified locally with one api container | reviewed by reading, not by test; any story touching the WS registries is escalated to the architects |
+| Fixtures are hand-built until `devops` ships the seed scripts (F-4) | the curl script is kept with the test report so a run is reproducible |
