@@ -474,6 +474,16 @@ every SERVICE point of its home location.
 **R-U1** — waiter and customer pages in **RO** and **EN**: no raw `t('…')` key on screen, no
 English fallback inside a Romanian page, and the strings match `ux.md`. Backoffice, login and
 service board stay English.
+
+**R-U1 does NOT assert the Romanian "de" rule mechanically.** Romanian takes *de* before a full
+noun from 20 up — `20 de produse`, `20 de ore`, `20 de ospătari` — but **an abbreviated unit takes
+none**: `acum 20 min` is correct and `acum 20 de min` is wrong. So the rule applies to
+`cust.itemMany` (produse), `time.hoursAgo` (ore) and `tables.assignedMany` (ospătari), and
+**`time.minAgo` is the exception** because it renders the abbreviation (`'acum {n} min'`,
+`translations.ts:357`). A check that applied *de* to every `…Many`/count key would demand the wrong
+string for `time.minAgo` and **fail correct code** — the same shape as the R-S8 delta it replaced.
+`ux` found this in #38's AC5 and `ux.md` §8 carries the exception with its reason; assert against
+that list, never against the bare numeral rule.
 **R-U2** — every table on a touched backoffice page still uses the shared `_crud-table` panel and
 looks identical to the Clients page; no native `<select>` has appeared; no hard-coded hex.
 **R-U3** — phone viewport (390 × 844) for waiter and customer, desktop for the backoffice: no
