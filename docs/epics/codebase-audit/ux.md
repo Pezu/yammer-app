@@ -65,6 +65,21 @@ rule: `42` → `42`, `42.5` → `42,50`.
 Applies to: waiter table detail, pay sheet, order page, orders, payments, stats; customer menu,
 cart bar, bill; payment-return.
 
+**The two surfaces round differently, and that is deliberate** (asked by `qa`, so stating it
+rather than leaving it to be discovered):
+
+| stored value | waiter surface (RO) | customer page (RO) |
+|---|---|---|
+| `42` | `42,00` | `42` |
+| `42.5` | `42,50` | `42,50` |
+| `1500` | `1.500,00` | `1.500` |
+| `1500.5` | `1.500,50` | `1.500,50` |
+
+The waiter keeps a fixed two decimals (`1.2-2`) because the columns are read as columns and must
+align — the existing behaviour, only re-separated. The drop-the-`.00` rule stays **customer-only**,
+where a menu price reads as a price and not as an accounting figure. Same separators on both: `.`
+for thousands, `,` for decimals.
+
 ### UX-C2 — The theme has no `--success` / `--warn`, so 29 off-token colours were invented · **major** (house rule)
 
 `CLAUDE.md` §5: "theme tokens, no hard-coded hex". Counted across `web/src/app`: **29 distinct
@@ -160,10 +175,14 @@ to a Romanian waiter.
 
 **Spec.** New keys in §8. `alt` on the client logo becomes the client name
 (`[alt]="op()!.clientName"` — see UX-Q9 for the API ask) and falls back to `''` for the
-placeholder, since a decorative logo needs no alt text. The proforma error keeps the server
-message only when the server provides a localized one; otherwise `t('detail.proformaFailed')`.
+placeholder, since a decorative logo needs no alt text. The proforma error shows
+`t('detail.proformaFailed')` and **nothing from the server**: nothing in the API marks a message as
+localized, so "use it when it is localized" is not a rule anyone — implementer or tester — can
+evaluate. A server string may be logged, never rendered.
 
 ### UX-C6 — Legal pages do not exist; the links land on the staff login · **major**
+
+*Also reported independently as `qa`'s **F-10**, together with UX-Q10. One disposition — see §11.*
 
 `shared/site-footer.component.ts` renders six legal links (`/legal/termeni`, `/confidentialitate`,
 `/livrare`, `/anulare`, `/gdpr`, `/contact`) and the customer drawer repeats them. `app.routes.ts`
@@ -173,9 +192,18 @@ card-accepting site; today a guest who taps "Politica de confidențialitate" is 
 login.
 
 **Spec.** A public `/legal/:doc` route rendering the six documents (static content, bilingual
-headings, the site footer, a back link to the order point when `?op=` is present). Content is the
-BA's/the human's to supply — `ux` specs only the shell. Until the content exists, the route must
-exist and say so rather than bouncing to `/login`. Same for the wildcard: see UX-Q10.
+headings, the site footer, a back link to the order point when `?op=` is present).
+
+**Decided at the human gate** (`ba`, D8): the **route, the six shells and the not-found page ship
+this epic**, each carrying a minimal factual placeholder; the real content follows later from the
+human as **one Yammer-level set**, not per tenant. So the shell is built against Yammer as the
+document owner, and UX-Q15 (RO-only labels) resolves when that content arrives rather than being
+guessed now. The placeholder must read as deliberately provisional and never as a legal statement:
+one line per page naming the document and saying the text is being prepared — not Lorem, not an
+empty page, and not a promise ("Termenii și condițiile sunt în pregătire. Pentru orice întrebare,
+contactează-ne." / "The terms and conditions are being prepared. Please contact us with any
+question."). The wildcard still needs UX-Q10's not-found page so a bad QR never lands on
+`/login`.
 
 ### UX-C7 — The footer's legal links are 7px and the company line 6.7px · **major** (a11y)
 
@@ -189,6 +217,8 @@ is ~10px tall — far under the 24px floor of WCAG 2.5.8, and the text is simply
 it is `margin-top: auto` so no layout breaks. The `.pay-label` (0.62rem/8.7px) goes to `0.7rem`.
 
 ### UX-C8 — One tenant's identity is baked into the shipped app · **major** (tenancy)
+
+*Also reported independently as `qa`'s **F-9**. One disposition, not two — see §11.*
 
 Three places, all verified:
 
@@ -407,8 +437,11 @@ up`.
 and the `<rect>` tooltips are `<title>` only. The totals are already in the legend and the tiles,
 so the loss is bounded.
 
-**Spec.** `[attr.aria-label]` summarising the series instead of a static string, e.g.
-`"Sales chart — ordered 4,210.00 RON, paid 3,980.00 RON over 14 buckets"`. No data table.
+**Spec.** `[attr.aria-label]` summarising the series. Exact format, since on an English surface
+with no `t()` indirection this string *is* user-facing text — in the Amount tab:
+`Sales chart: ordered {ordered} RON, paid {paid} RON, over {n} intervals`; in the Orders tab:
+`Orders chart: {total} orders over {n} intervals`. Amounts use the same `1.2-2` formatting as the
+legend. No data table.
 
 ### UX-B9 — 13 editable columns on Order Points · **minor**
 
@@ -416,9 +449,10 @@ With the 250px sidebar, Order Points gives each of 13 columns ~79px, six of whic
 headers are abbreviated to "Disc. %" and "Multiple users" wraps. UX-C9 stops it from breaking the
 page, but the row is still hard to read and to edit.
 
-**Spec.** No redesign in this epic. Two cheap steps: group the three boolean flags
-(Self pay / Multiple users / Keep open) into one "Flags" column of small labelled ticks, and
-right-align + fix the width of "Disc. %" with a `%` suffix in the cell. Anything further is a
+**Spec — the two cheap steps only, approved at the human gate** (`ba`, D10: tweaks this epic,
+redesign deferred), and they fold into §10 group 13 (backoffice polish) rather than standing alone: group the three
+boolean flags (Self pay / Multiple users / Keep open) into one "Flags" column of small labelled
+ticks, and right-align + fix the width of "Disc. %" with a `%` suffix in the cell. Anything further is a
 story of its own.
 
 
@@ -531,7 +565,10 @@ been open. To find out who owes money the waiter must enter each table in turn a
 **Spec.** Each tile gains, under the name:
 - the amount still due, as the dominant secondary line, in `--text` 0.85rem/700 — omitted entirely
   when nothing is due (an untouched table stays visually quiet);
-- a right-aligned badge row: `N` in `--success-soft` when N orders are READY for that table, `!`
+- a right-aligned badge row **pinned to the tile's top-right** — deliberately *not* bottom-right,
+  which UX-W4 reserves for the 44px split button; the two findings live in different story groups
+  (§10 #7 and #9) and would otherwise be built into the same corner: `N` in `--success-soft` when N
+  orders are READY for that table, `!`
   in `--warn-soft` when a customer at that table is pending approval;
 - the open-round age as `timeAgo` in `--muted` 0.7rem, bottom-left — only once the round is open.
 
@@ -837,12 +874,17 @@ Every card looks identical. An order that arrived 3 seconds ago and one that has
 minutes are distinguished only by a 10px grey "25 min ago". In a kitchen that is the difference
 between a service and a complaint.
 
-**Spec.** Two purely visual states, computed from `createdAt` on the existing render:
-- **new** — under 60 s in ORDERED: 2px `--primary` left border on the card and the card
-  background at `--primary` 4%, fading out by a CSS transition once the card re-renders older.
+**Spec.** Two purely visual states, derived from `createdAt` by a signal that `service-page.ts`
+**recomputes on its own 8 s tick** — the existing `POLL_MS` interval, not "on render": a board
+that only re-evaluates when a message arrives would hold a stale highlight for minutes on a quiet
+service, which is both wrong and untestable.
+- **new** — under 60 s in ORDERED: 2px `--success` left border on the card and the card background
+  at `--success` 4%. It clears on the first tick at or after T+60s, so the observable expectation
+  is "gone by T+68s at the latest" (60 s + one tick).
 - **late** — the elapsed-time chip turns `--warn` text on `--warn-soft` at 10 minutes and
   `--danger` text on `--danger` 10% at 20 minutes, in the ORDERED column only (a READY ticket is
-  the waiter's problem, and UX-W10 is what fixes that).
+  the waiter's problem, and UX-W10 is what fixes that). The 8 s tick is noise against these
+  thresholds.
 Thresholds are constants in `service-page.ts`, not settings.
 
 ### UX-S3 — No loading state and no empty column · **major**
@@ -952,9 +994,19 @@ re-picked.
 2. It opens the cart sheet (UX-Q1) in a confirm state: the lines, `cust.totalDue`, a line
    `cust.onlinePayNote` ("You will be taken to the secure Netopia page to pay by card." /
    "Vei fi dus la pagina securizată Netopia pentru plata cu cardul."), then the pay button.
-3. Clear the cart **only** after the gateway confirms — i.e. on the payment-return page when
-   `status === 'PAID'`, keyed by the order point id. An abandoned payment therefore returns the
-   guest to an intact cart.
+3. Clear the cart **only** once the payment is known to have succeeded — but not *only* on the
+   return page. The cart is re-keyed from the order point id to the **payment intent reference**
+   (`yammer.cart.<opId>.<ref>` while an intent is open) and cleared whenever
+   `/public/payments/{ref}/status` reports `PAID`, **from wherever that is observed**: the return
+   page, or the next load of the order-point page while a stored `ref` exists. An abandoned payment
+   therefore returns the guest to an intact cart, *and* a guest who pays and closes the tab before
+   the return page loads does not come back to a cart full of items they have already bought.
+   Belt-and-braces: if the bill already contains an order matching the stored intent, clear
+   regardless.
+
+   `qa` found this hole in the first version of the spec, which cleared only on the return page —
+   the failure mode is a guest re-ordering and paying twice for the same round, which is the exact
+   money the rule exists to protect.
 Whether the point self-pays ONLINE must be readable on the public order-point payload —
 **architects, Q5.**
 
@@ -1078,10 +1130,12 @@ keep redirecting to `/login`.
 The waiter app searches products across all menus; the guest gets quick-nav chips for top-level
 categories only. On a 120-item menu on a phone, finding "Aperol" is a long scroll.
 
-**Spec.** Not in this epic unless the BA wants it — recorded as an improvement, not a defect. If
-accepted: the existing search field pattern from the waiter order page, in the sticky topbar,
-`t('cust.search')` ("Search the menu…" / "Caută în meniu…"), filtering the flat `products()` list
-the page already computes, with `order.noMatches`-style empty copy.
+**Deferred at the human gate** (`ba`, D9) — parked as backlog issue **#10**, which references the
+spec below. Recorded as an improvement, not a defect, so nothing in this epic depends on it.
+
+**Spec, for whenever #10 is picked up:** the existing search field pattern from the waiter order
+page, in the sticky topbar, `t('cust.search')` ("Search the menu…" / "Caută în meniu…"), filtering
+the flat `products()` list the page already computes, with `order.noMatches`-style empty copy.
 
 ### UX-Q12 — Language sits in the middle of the navigation · **trivial**
 
@@ -1264,7 +1318,7 @@ Existing entries to correct:
 |---|---|---|
 | `stats.comped` | EN `Comped` (jargon), RO identical to `stats.protocol` | EN → `Protocol / PO`, RO stays `Protocol / PO` |
 | `pay.tip` / `payments.tip` / `stats.tip` | RO alternates `Bacșiș` and `Tips` for the same thing | all three RO → `Bacșiș` |
-| `pay.customPct` / `pay.percent` | both RO `Procent` for two different controls | `pay.customPct` RO → `Procent %`, `pay.percent` RO → `Procent` |
+| `pay.customPct` / `pay.percent` | both RO `Procent` for two different controls | `pay.customPct` RO → `Procent personalizat` (the chip that reveals the typed value), `pay.percent` RO → `Procent` (the input's own placeholder). `ba` confirmed the contrast to preserve is *preset choice* vs *typed value*; wording is mine. |
 | `detail.proforma` | EN `Proforma` (noun) vs RO `Printează nota` (verb) | EN → `Print bill`, RO stays |
 | `tables.assignedMany` | RO `{n} alocați` — masculine, for feminine `mese` | see the note below: EN and RO are both ambiguous about *what* is counted |
 | `cust.denied` | terminal — says what happened, never what to do next (UX-Q7) | EN → `The waiter declined access at this table — please order with your waiter.`, RO → `Ospătarul a refuzat accesul la această masă — comandă, te rog, prin ospătar.` |
@@ -1308,12 +1362,50 @@ The failures worth tracking separately, all specced above:
 | Content-authored contrast | UX-B12 the Menu page's free colour picker, which no token can constrain |
 | Platform insets | UX-C15 content under the status bar and home indicator in the installed PWA |
 
-Contrast against the tokens is fine where it was checked: `--muted` #64748b on white is 4.76:1
-(passes AA for body text), `--primary` #3454d1 on white 6.3:1, white on `--primary` 6.3:1, white
-on `--danger` #ea4d4d 3.3:1 — the last one **fails** AA for normal text, so white text on a
-`--danger` fill (the approvals badge, `confirm-dialog`'s danger button, `.method` variants) should
-use `font-weight: 700` at ≥18.66px to qualify as large text, or `--danger` should darken to
-`#d93a3a` (4.0:1) / `#c62828` (5.0:1). Recorded as part of the UX-C2 token conversation.
+### Contrast
+
+**The criterion, not a remembered number:** normal text needs **≥4.5:1**, large text (≥18.66px
+bold or ≥24px) needs **≥3:1**, and a UI component's boundary or a meaningful graphic needs
+**≥3:1** against what is behind it (1.4.11). Any hex a story picks is measured against those
+thresholds at implementation time, with the tool named in the PR.
+
+Measured for this register with the sRGB/WCAG formula (script in the PR thread; `qa` reproduced
+these independently after my first pass quoted two of them wrongly — see the note below):
+
+| pair | ratio | verdict |
+|---|---|---|
+| `--text` #283c50 on white | 11.34:1 | passes |
+| `--primary` #3454d1 on white, and white on `--primary` | 6.30:1 | passes |
+| `--muted` #64748b on white | 4.76:1 | passes (normal text) |
+| **white on `--danger` #ea4d4d** | **3.71:1** | **fails** normal text; passes large |
+| white on #d93a3a | 4.55:1 | passes |
+| white on #c62828 | 5.62:1 | passes |
+
+So white text on a `--danger` fill (the approvals badge, `confirm-dialog`'s danger button, the
+`.method` variants) is either ≥18.66px/700 to qualify as large text, **or** `--danger` darkens —
+and `#d93a3a` is already sufficient at 4.55:1, so there is no need to go as dark as `#c62828`.
+
+**Correction.** My first pass stated 3.3:1 and 4.0:1 for the two danger values. Both were wrong
+(3.71 and 4.55), and the error mattered: it made the recommendation self-contradictory, implying
+`#d93a3a` still failed when it passes. The finding itself is unchanged — `--danger` fails for
+normal white text either way — but the remedy is now the lighter of the two options.
+
+**And a trap in my own UX-C2 proposal, found by measuring it.** I picked `--success: #10b981` and
+`--warn: #f59e0b` because they are the values the tree already uses most — not because they work.
+As text on white they are **2.54:1** and **2.15:1**: they fail normal text, fail large text, and
+fail even the 3:1 component threshold, so a dot or a border in them is invisible to the standard
+too. Revised proposal, taken from values *also* already in the tree and chosen on measurement:
+
+| token | value | text on white | white on it |
+|---|---|---|---|
+| `--success` | `#1f7a3d` | 5.37:1 | 5.37:1 |
+| `--warn` | `#92610a` | 5.33:1 | 5.33:1 |
+
+Both pass in both directions, which matters because these get used for a label, a border and a
+filled button on different screens. The soft tints stay low-alpha versions of the new bases
+(`rgba(31,122,61,.12)`, `rgba(146,97,10,.14)`) and only ever sit behind `--text`. **UX-C2's
+proposed values are superseded by this table** — the familiar bright greens survive only as
+decorative fills behind dark text, never as a label or an outline.
 
 ## 10. Suggested story split
 
@@ -1342,7 +1434,8 @@ Phase-2 stories, ordered by value per unit of work. Each is independently shippa
     UX-B12 (the colour picker), UX-B15. Separate from polish because these change what a user can
     believe, not how it looks.
 13. **Backoffice polish** — UX-B1, UX-B2, UX-B3, UX-B4, UX-B5, UX-B6, UX-B7, UX-B8, UX-B16,
-    UX-C9, UX-C18.
+    UX-C9, UX-C18, plus UX-B9's two approved tweaks (the three booleans into one Flags column, a
+    fixed `Disc. %` width).
 14. **Smaller waiter/customer items** — UX-W11, UX-W12, UX-W13, UX-W16, UX-W17, UX-W19, UX-W20,
     UX-W21, UX-W24, UX-Q6 (Q6), UX-Q7 (Q7), UX-Q8, UX-Q12, UX-Q13, UX-Q14 (Q8), UX-Q16 (Q11),
     UX-Q18.
@@ -1350,9 +1443,12 @@ Phase-2 stories, ordered by value per unit of work. Each is independently shippa
 
 Deferred by default, recorded rather than dropped:
 
-- **UX-B9** — Order Points density (13 editable columns); a story of its own.
-- **UX-Q11** — customer menu search; a feature, the BA's call.
-- **UX-Q15** — legal label language on the EN customer page.
+- **UX-B9** — the Order Points *redesign* (13 editable columns). **Settled at the human gate**
+  (D10): the two cheap tweaks ship in group 13, the redesign is deferred.
+- **UX-Q11** — customer menu search. **Deferred at the human gate** (D9) and parked as backlog
+  issue **#10**, which references the spec in the finding.
+- **UX-Q15** — legal label language on the EN customer page. Resolves when the human's legal
+  content arrives (D8: one Yammer-level set); not a decision anyone can take before then.
 - **Waiter WebSocket push** (from Q2/UX-W3) — `OrderNotificationService` routes by SERVICE-station
   assignment and has no notion of a table's waiters, so pushing to waiters is a new api story. The
   15 s poll makes it unnecessary for now; recorded so the option is on the record rather than
@@ -1361,3 +1457,20 @@ Deferred by default, recorded rather than dropped:
   picked the wrong half of a table. Architect-b assesses it as feasible (same location, same table
   round) but money-path work needing design care. Until it exists, UX-Q6 is a warned recovery
   path, not an undo, and the waiter resolves mis-slotted orders at the table.
+
+---
+
+## 11. Findings also reported by someone else
+
+`ba`'s disposition register requires each finding to have exactly one disposition, so where two of
+us found the same thing independently it is recorded here rather than counted twice. These are
+confirmations, not conflicts — `qa` verified both against the files before adding them, and a
+second pair of eyes on a tenancy and a compliance finding raises confidence rather than noise.
+
+| this register | also | subject | suggested owner at triage |
+|---|---|---|---|
+| UX-C8 | `qa` F-9 | one tenant's identity baked into the shipped app (footer legal line, PWA manifest, iOS meta tag) | `ux` — the remedy is a copy/manifest spec plus one API field (Q1) |
+| UX-C6 + UX-Q10 | `qa` F-10 | `/legal/:doc` unrouted, so legal links and bad QR codes land on the staff login | `ux` — shells, placeholder and not-found copy are specced in §2 and §6 |
+
+Asked `ba` for an "also reported as" column so the cross-reference survives in `requirement.md`;
+if `ba` would rather not carry it, this table is the record.
