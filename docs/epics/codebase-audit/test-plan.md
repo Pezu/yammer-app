@@ -321,11 +321,24 @@ authenticates from `?token=`). Particular attention to the roles no one exercise
   scopes to assignments is the waiter's own **list** surfaces: `/order-points/orders`,
   `/order-points/payments`, `/order-points/my-stats`, `/approvals`, and
   `PUT /order-points/{id}/self-order-mode`. Cross-tenant → 404.
-- **WAITER, fiscal**: `retry-fiscal` is reachable; `resolve-unknown` is ADMIN-only.
-  `PaymentService.retryFiscal` is tenant-scoped but **not** assignment-scoped, so a waiter
-  retrying a colleague's FAILED payment in the same tenant succeeds today — *pending the
-  architects' **A15** decision*; the scenario asserts current behaviour and is re-pointed when
-  that decision lands, so Phase 4 files no false bug.
+- **WAITER, fiscal**: the waiter's `POST /order-points/payments/{id}/retry-fiscal` is reachable;
+  the backoffice `POST /payments/{id}/retry-fiscal` and `resolve-unknown` are ADMIN/SUPER
+  (`PaymentController` carries `@PreAuthorize("hasAnyRole('ADMIN','SUPER')")` at class level — the
+  two retry endpoints are different doors to the same `PaymentService.retryFiscal`, so a scenario
+  must name which one it calls). That service method is tenant-scoped but **not**
+  assignment-scoped, so a waiter retrying a colleague's FAILED payment in the same tenant
+  succeeds today — *pending the architects' **A15** decision*; the scenario asserts current
+  behaviour and is re-pointed when that decision lands, so Phase 4 files no false bug.
+- **Any authenticated role can re-issue a fiscal receipt.** `OrderPointAssignmentController` is
+  annotated `@PreAuthorize("isAuthenticated()")` at class level
+  (`OrderPointAssignmentController.java:30`) and its `retryFiscal` delegates straight to
+  `PaymentService.retryFiscal` (`:91-95`, `OrderPointAssignmentService.java:155-157`), whose only
+  check is `AccessGuard.requireAccessibleOrderPoint`. So **SERVICE and WATCHER can also trigger a
+  fiscal re-print** for any payment in their tenant. For WATCHER that is a write action by a role
+  documented as read-only, which is a role-boundary breach rather than a scoping nit — the matrix
+  asserts it per role (scenario **R-R1f**) and it is wider than A15's waiter-vs-waiter framing.
+  Raised to the architects; graded against the `sev:critical` clause "a role reaches something it
+  must not" if that definition lands.
 - **anonymous customer**: `/public/**` only, and inside it only the own session's bill.
 
 **R-R3** — the **global** catalogs are not tenant-scoped and must not be probed as if they were:
@@ -346,13 +359,23 @@ by posting to `/public/payments/netopia/notify` directly. The architects' regist
 **critical** finding here (the notify endpoint is unauthenticated and the amount check is
 skippable), so this block exists before any story does.
 
+Two details that decide how that finding is graded, both verified in
+`OnlinePaymentService.handleIpn` (`:111-153`): the amount check is `if (paidAmount != null && …)`,
+so an IPN that simply **omits** the amount is never checked against the intent — the bypass needs
+no matching value, only an absent field; and the only thing identifying the payer is the intent
+reference, which the customer's **own browser already holds** (the return page polls
+`/public/payments/{ref}/status` with it). So this is not "an attacker who guesses a UUID" — it is
+**any customer confirming their own unpaid order**, which is why R-O5b asserts it explicitly
+rather than leaving it inside R-O5.
+
 | id | Scenario | Expected |
 |---|---|---|
 | **R-O1** | Customer orders at `T3.1` (self-pay ONLINE) with the gateway disabled | 503 by design; the customer page shows a usable message, not a dead button; **no** order, **no** payment, and the cart survives |
 | **R-O2** | Intent created (gateway stubbed/forced), no IPN yet | an `online_payment` intent is PENDING; no order, no payment, nothing on the bill, kanban or any report; `GET /public/payments/{ref}/status` reports pending |
 | **R-O3** | Confirmed IPN arrives once | the order **and** the ONLINE payment are created exactly once; the order enters the normal flow (numbered, ORDERED, pushed to the board); `fiscal_status` PENDING like any other fiscalized payment |
 | **R-O4** | The same confirmed IPN replayed (gateways retry) | "already processed" — **no second order, no second payment, no second receipt** |
-| **R-O5** | IPN whose amount does not match the intent | the intent fails; no order, no payment |
+| **R-O5** | Confirmed IPN that **states** an amount not matching the intent | the intent fails; no order, no payment |
+| **R-O5b** | Confirmed IPN (`payment.status = 3`) for a real PENDING reference with the **amount field absent**, posted unauthenticated with no gateway involved | **current behaviour: accepted** — the order and the ONLINE payment are created, i.e. a customer who has their own reference can settle their own bill for free (`OnlinePaymentService.java:135-141`). This is the reproduction for the architects' critical finding; after the authenticity story it must be rejected, and R-O3 must still pass with a genuine IPN |
 | **R-O6** | IPN for an unknown / already-expired reference | rejected; nothing created |
 | **R-O7** | Intent left untouched for > 30 min | expired by the scheduler; a late IPN for it creates nothing |
 | **R-O8** | Post-fix (authenticity story) | an IPN that fails signature/authenticity verification is rejected, and R-O3 still passes with a genuine one |
@@ -461,6 +484,7 @@ QA-15…QA-21**, in the order listed here.
 | **F-5** | **AMOUNT mode ignores the order point's discount.** `payFull`/`payPartial` charge the net price; `payAmount` allocates against the gross `lineTotal` and records `discount = null`. On `T2.1` (10%), a bill of one 42.00 pizza is 37.80 under FULL but paying AMOUNT 37.80 covers no whole unit, splits the unit, and leaves 4.20 owed — the same customer pays the gross price and the table looks unsettled. Candidate `sev:major` money defect; needs a product decision (`ba` + architects) rather than a QA verdict | `OrderService.java:471-473` and `:565-578` (`createPayment(request, remaining, remaining, null, me)`) |
 | **F-6** | `OrderService.createPayment` resolves the payment type from the repository twice into `typeName` and `type` | `OrderService.java:636-653` — trivial |
 | **F-7** | `api/CLAUDE.md` says the RECEIPT is built and "sends it ONCE" with "no automatic retry ever", and does not mention that a frame for an offline bridge is **queued** and delivered on the next HELLO inside the 180 s deadline (expired ones dropped). Both statements are true of different things, but the doc as written makes R-F1's expected result ambiguous — found while an architect review corrected this plan's own first draft | `BridgeService.java:92-97` (the `waiting` queue), `:133-145`, `:169-183` (`onDeviceRegistered`) |
+| **F-8** | **Every authenticated role can trigger a fiscal re-issue.** `OrderPointAssignmentController` is `@PreAuthorize("isAuthenticated()")` at class level, and its `retryFiscal` delegates to `PaymentService.retryFiscal`, whose only check is the tenant guard. So SERVICE and WATCHER — not just a waiter on someone else's table — can re-print a receipt for any payment in their tenant. WATCHER is documented as read-only (`web/.../watcher-page.ts`, requirement.md's persona table), so this is a role-boundary breach, broader than the architects' A15 (waiter-vs-waiter scoping). Candidate `sev:critical` under the "a role reaches something it must not" clause if that definition is adopted, else `sev:major` | `controller/OrderPointAssignmentController.java:30`, `:91-95`; `service/OrderPointAssignmentService.java:155-157`; `service/PaymentService.java:134-147` |
 
 ## 12. Risks
 
