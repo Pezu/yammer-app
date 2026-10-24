@@ -206,16 +206,16 @@ QA-15…QA-21 = F-1…F-7, QA-22 = F-8 (reported after the plan's first draft).
 | UX group 3 (UX-C1 — money formatting) | fix | story to file (ux.md §10.3) |
 | UX group 4 (UX-C2, C4, C10, C11 — tokens/focus/combo keyboard) | fix | story to file (ux.md §10.4; needs architects' token decision) |
 | UX group 5 (UX-S1, S2, S3, S5, S6 — service board viewing distance) | fix | story to file (ux.md §10.5) |
-| UX group 6 (UX-C6, C7, C8, Q10 — compliance + dead ends) | fix | story to file (ux.md §10.6; needs Q4) |
+| UX group 6 (UX-C6, C7, C8, Q10 — compliance + dead ends) | fix | story to file (ux.md §10.6; per D8: shells + placeholder) |
 | UX group 7 (UX-W2, W3, W10 — waiter board truth) | fix | story to file (ux.md §10.7) |
 | UX group 8 (UX-W7, W8, W9 — fiscal visibility for the waiter) | fix | story to file (ux.md §10.8) |
 | UX group 9 (UX-W4, W5, W15, S4 — confirmations on destructive actions) | fix | story to file (ux.md §10.9) |
 | UX group 10 (UX-C5 + §8 copy corrections — i18n coverage) | fix | story to file (ux.md §10.10) |
 | UX group 11 (UX-B1…B8, C9, C12 — backoffice polish) | fix | story to file (ux.md §10.11) |
 | UX group 12 (UX-W11…W13, W16, W17, W19…W21, Q6, Q7, Q8, Q12, Q13, Q14 — smaller items) | fix | story to file (ux.md §10.12) |
-| UX-B9 (Order Points column density) | pending Q6 | — |
-| UX-Q11 (customer menu search) | pending Q5 | — |
-| UX-Q15 (legal label language) | pending Q4 | — |
+| UX-B9 (Order Points column density) | deferred (redesign) per D10 | the two cheap tweaks join the UX group 11 story |
+| UX-Q11 (customer menu search) | deferred per D9 | backlog issue #10 |
+| UX-Q15 (legal label language) | deferred per D8 | resolves with the human's legal content delivery |
 
 ## Story map
 
@@ -242,6 +242,9 @@ Filled as findings are consolidated into issues (Phase 2). Format:
 | D5 | 2026-10-24 | AMOUNT allocates against net (discounted) prices like FULL/PARTIAL — the table's discount applies in AMOUNT mode too, paying the displayed total settles the table (answers Q3, bug #5 option (a)) | Consistency across payment modes; the bill screen shows net totals | human (Radu) |
 | D6 | 2026-10-24 | The Netopia sandbox base URL in the production `deploy.yml` is deliberate for now — no switch-to-live task in this epic | Human's call; note the intent wherever a finding touches it | human (Radu) |
 | D7 | 2026-10-24 | Password login stays open to any role — QA F-1 resolves as a doc fix only (`api/CLAUDE.md` corrected, no code change) | The web app routes every role to its surface; restricting login was never the rebuilt behaviour | human (Radu) |
+| D8 | 2026-10-24 | Legal pages: routes + shells + not-found ship this epic with a minimal factual placeholder; the legal content comes later from the human as **one Yammer-level set** (answers Q4) | Guests must stop dead-ending on the staff login now; legal text is authored by the human/counsel, not agents | human (Radu) |
+| D9 | 2026-10-24 | Customer menu search (UX-Q11) is deferred — recorded, backlog issue filed, not in this epic (answers Q5) | A feature, not a finding; discretionary spend the epic is complete without | human (Radu) |
+| D10 | 2026-10-24 | Order Points density (UX-B9): only ux's two cheap tweaks this epic (booleans grouped into one column, fixed "Disc. %" width) — they join UX group 11; the redesign is deferred (answers Q6) | Redesign is a story of its own the human did not ask for | human (Radu) |
 
 ## Open questions
 
@@ -250,6 +253,6 @@ Filled as findings are consolidated into issues (Phase 2). Format:
 | Q1 | Is there a budget/priority ceiling for Phase 2 — do we implement everything accepted, or stop after critical/major + High-impact? | lead → human | Answered → D3 |
 | Q2 | Should `bridge/mobile/` findings that require installing a new APK be scheduled in this epic, given installs are a human gate? | lead → human | Answered → D4 |
 | Q3 | AMOUNT payment on a discounted table (bug #5): should it allocate against net (discounted) prices like FULL/PARTIAL (recommended), or stay "taken as is" and be blocked on discounted tables? | lead → human | Answered → D5 |
-| Q4 | Legal pages (UX-C6/UX-Q10, major): the six legal links (`/legal/termeni`, `/confidentialitate`, `/livrare`, `/anulare`, `/gdpr`, `/contact`) and any bad QR dead-end on the **staff login form** — the Netopia/ANPC compliance surface of a card-accepting site. Fixing routes + shells + not-found page is in scope (ux specced them, RO/EN copy in ux.md §8); the gate decision is about content only: (i) **who writes the six legal documents** — they are legal text, the human or counsel, not agents; (ii) **one set for Yammer or per-tenant content?** Recommendation: one Yammer-level set supplied by the human; shells ship this epic with a minimal factual placeholder so no guest lands on the login form meanwhile | lead → human | Open |
-| Q5 | Customer menu search (UX-Q11): the waiter app has search, the customer page does not. It is a new feature, not a defect — the epic's out-of-scope rule says features only when implied by a finding. (a) in scope this epic; (b) **recommended**: defer — record + backlog issue | lead → human | Open |
-| Q6 | Order Points density (UX-B9): 13 editable columns. (a) **recommended**: ux's two cheap tweaks only this epic, redesign deferred as its own backlog story; (b) full redesign story now | lead → human | Open |
+| Q4 | Legal pages (UX-C6/UX-Q10, major): the six legal links (`/legal/termeni`, `/confidentialitate`, `/livrare`, `/anulare`, `/gdpr`, `/contact`) and any bad QR dead-end on the **staff login form** — the Netopia/ANPC compliance surface of a card-accepting site. Fixing routes + shells + not-found page is in scope (ux specced them, RO/EN copy in ux.md §8); the gate decision is about content only: (i) **who writes the six legal documents** — they are legal text, the human or counsel, not agents; (ii) **one set for Yammer or per-tenant content?** Recommendation: one Yammer-level set supplied by the human; shells ship this epic with a minimal factual placeholder so no guest lands on the login form meanwhile | lead → human | Answered → D8 |
+| Q5 | Customer menu search (UX-Q11): the waiter app has search, the customer page does not. It is a new feature, not a defect — the epic's out-of-scope rule says features only when implied by a finding. (a) in scope this epic; (b) **recommended**: defer — record + backlog issue | lead → human | Answered → D9 |
+| Q6 | Order Points density (UX-B9): 13 editable columns. (a) **recommended**: ux's two cheap tweaks only this epic, redesign deferred as its own backlog story; (b) full redesign story now | lead → human | Answered → D10 |
