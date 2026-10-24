@@ -145,10 +145,12 @@ Filled as findings are consolidated into issues (Phase 2). Format:
 |---|---|---|---|---|
 | D1 | 2026-10-24 | `ci.yml` is the first task of the epic and blocks all implementation stories | DoD requires green CI; there is no PR CI today | epic body (lead) |
 | D2 | 2026-10-24 | Won't-fix and deferred findings are recorded here, not deleted from the register | Epic requires nothing silently dropped | epic body (lead) |
+| D3 | 2026-10-24 | Phase 2 has no priority ceiling: every accepted finding is implemented (answers Q1) | Human's call at the requirements gate | human (Radu) |
+| D4 | 2026-10-24 | Bridge findings that require installing a new APK are deferred — recorded in the register and as backlog issues, not scheduled in this epic (answers Q2) | APK installs are a human gate; human chose to skip them for now | human (Radu) |
 
 ## Open questions
 
 | # | Question | Asked to | Status |
 |---|---|---|---|
-| Q1 | Is there a budget/priority ceiling for Phase 2 — do we implement everything accepted, or stop after critical/major + High-impact? | lead → human | Open |
-| Q2 | Should `bridge/mobile/` findings that require installing a new APK be scheduled in this epic, given installs are a human gate? | lead → human | Open |
+| Q1 | Is there a budget/priority ceiling for Phase 2 — do we implement everything accepted, or stop after critical/major + High-impact? | lead → human | Answered → D3 |
+| Q2 | Should `bridge/mobile/` findings that require installing a new APK be scheduled in this epic, given installs are a human gate? | lead → human | Answered → D4 |
