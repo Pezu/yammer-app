@@ -1448,6 +1448,13 @@ dictionary; every key must exist in RO.
 | `cust.viewOrder` | `See my order` | `Vezi comanda` |
 | `cust.changeTable` | `Change` | `Schimbă` |
 | `cust.pickSlotHelp` | `Not sure? Ask your waiter which part of the table you are at.` | `Nu știi? Întreabă ospătarul la ce parte a mesei stai.` |
+| `legal.placeholder` | `This document is being prepared. Please ask our staff for details.` | `Acest document este în pregătire. Te rugăm să ceri detalii personalului.` |
+| `legal.termeni` | `Terms and conditions` | `Termeni și condiții` |
+| `legal.confidentialitate` | `Privacy policy` | `Politica de confidențialitate` |
+| `legal.livrare` | `Delivery policy` | `Politica de livrare` |
+| `legal.anulare` | `Cancellation and return policy` | `Politica de anulare și retur` |
+| `legal.gdpr` | `GDPR policy` | `Politica GDPR` |
+| `legal.contact` | `Contact details` | `Date de contact` |
 | `cust.changeTableConfirmTitle` | `Change your table?` | `Schimbi masa?` |
 | `cust.changeTableConfirmBody` | `Orders you already placed stay on {name}, and the waiter has to approve you again.` | `Comenzile deja trimise rămân pe masa {name}, iar ospătarul va trebui să te aprobe din nou.` |
 | `cust.askAgain` | `Ask again` | `Cere din nou` |
@@ -1473,22 +1480,25 @@ Existing entries to correct:
 | `pay.tip` / `payments.tip` / `stats.tip` | RO alternates `Bacșiș` and `Tips` for the same thing | all three RO → `Bacșiș` |
 | `pay.customPct` / `pay.percent` | both RO `Procent` for two different controls | `pay.customPct` RO → `Procent personalizat` (the chip that reveals the typed value), `pay.percent` RO → `Procent` (the input's own placeholder). `ba` confirmed the contrast to preserve is *preset choice* vs *typed value*; wording is mine. |
 | `detail.proforma` | EN `Proforma` (noun) vs RO `Printează nota` (verb) | EN → `Print bill`, RO stays |
-| `tables.assignedMany` | RO `{n} alocați` — masculine, for feminine `mese` | see the note below: EN and RO are both ambiguous about *what* is counted |
+| `tables.assignedOne` / `tables.assignedMany` | EN `1 assigned` / `{n} assigned` and RO `1 alocat` / `{n} alocați` — neither says *what* is counted | **Decided by `ba`: it counts waiters, and now says so.** EN `1 waiter` / `{n} waiters`, RO `1 ospătar` / `{n} ospătari`. This **supersedes** the earlier `{n} alocate` fix, which assumed the number counted tables. |
 | `cust.denied` | terminal — says what happened, never what to do next (UX-Q7) | EN → `The waiter declined access at this table — please order with your waiter.`, RO → `Ospătarul a refuzat accesul la această masă — comandă, te rog, prin ospătar.` |
 
-Two copy decisions for `ba`, recorded rather than guessed:
+Both copy questions are now **decided by `ba`** and the decisions are above and below rather than
+left open:
 
-- **`tables.assignedOne` / `tables.assignedMany`.** EN is "1 assigned" / "{n} assigned" and RO is
-  "1 alocat" / "{n} alocați". On a multi-user point the number counts **waiters**, not tables, so
-  the RO masculine is arguably right and the fix is to make both languages say what is counted:
-  EN `{n} waiters` / RO `{n} ospătari`. If the number is meant to read as "this point is assigned,
-  N times", then `{n} alocate` (agreeing with `mese`) is the fix instead. One of the two, not both.
-- **Romanian plural with "de".** From 20 up, Romanian needs *de*: `20 de produse`, `20 de ore`,
-  `20 de ospătari`. `I18nService.t` has no plural support, so today `cust.itemMany`,
-  `time.hoursAgo`, `time.minAgo` and `tables.assignedMany` are wrong for any count ≥ 20 — easy to
-  hit with items on a table of eight. Cheapest fix without a plural engine: a second key per case
-  (`…Many` / `…ManyDe`) chosen at the call site on `n >= 20`. A real plural rule in `t()` is the
-  better long-term answer and is a story of its own.
+- **What the assignment count counts:** waiters. EN `1 waiter` / `{n} waiters`, RO `1 ospătar` /
+  `{n} ospătari`, superseding `{n} alocate`.
+- **Romanian plural with "de".** From 20 up Romanian needs *de*: `20 de produse`, `20 de ore`,
+  `20 de ospătari`. `I18nService.t` has no plural support, so a second key per case
+  (`…Many` / `…ManyDe`) chosen at the call site on `n >= 20` ships this epic; a real plural engine
+  in `t()` is deferred.
+
+  **One key must be excluded from that list: `time.minAgo`.** It renders the *abbreviation* —
+  "acum {n} min" — and an abbreviated unit takes no *de* in Romanian: `acum 20 min` is correct and
+  `acum 20 de min` is not. So `time.minAgo` needs **no** `…De` variant and must be left alone;
+  only `cust.itemMany`, `time.hoursAgo` and `tables.assignedMany` (full words: produse, ore,
+  ospătari) take one. Spelling it out because the obvious reading of "apply *de* from 20 up" breaks
+  this one key.
 
 Backoffice copy (English, no `t()`): `Loading…` (UX-B1), `Paid` / `Partial` / `Not paid`
 (UX-B2), `Ordered` instead of `Sales` (UX-B6), `1 table is still open — close it to cash up` /
@@ -1593,7 +1603,10 @@ Phase-2 stories, ordered by value per unit of work. Each is independently shippa
 14. **Smaller waiter/customer items** — UX-W11, UX-W12, UX-W13, UX-W16, UX-W17, UX-W19, UX-W20,
     UX-W21, UX-W24, UX-Q6 (Q6), UX-Q7 (Q7), UX-Q8, UX-Q12, UX-Q13, UX-Q14 (Q8), UX-Q16 (Q11),
     UX-Q18.
-15. **Login screen** — UX-C16. Gated on the `ba` language decision in §7.
+15. **Login screen** — UX-C16. **`ba` has decided the language question: login stays English**, per
+    the house rule, so this is an accessibility story only (labels, described errors, password
+    toggle) with no translation work. I did not ask for RO at login and am not asking now; if it
+    ever matters it is a house-rule change for the gate, not a default to flip.
 
 Deferred by default, recorded rather than dropped. **Three of these also appear in a story above,
 and that is deliberate, not a double-assignment:** UX-W3, UX-B9 and UX-Q6 each ship a part now and
