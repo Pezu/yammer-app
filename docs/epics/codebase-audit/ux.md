@@ -1134,9 +1134,23 @@ re-picked.
    money the rule exists to protect.
 **API — answered (architect-a, Q5).** `selfPayOnline` is **already on the public payload**, so the
 button can read "Pay X RON" today. The pre-redirect total is the client's own cart total, and the
-redirect response additionally returns the **server-resolved amount** — so the confirm sheet shows
-the authoritative figure, not the client's arithmetic, before the guest leaves for Netopia. Where
-the two disagree, the server's number is what the sheet displays.
+redirect response additionally returns the **server-resolved amount**.
+
+**When the two disagree — the sequence, which my first wording got wrong.** `frontend-2` pointed out
+that the server amount arrives *with* the redirect response, so "show the authoritative figure
+before the guest leaves" cannot happen in a single pass: the honest options are to redirect on a
+number the client computed, or to pause. The behaviour to build:
+
+- **They agree** (the normal case): redirect immediately. Nothing visibly changes, no extra tap.
+- **They differ:** hold the redirect. Show `cust.amountChanged` in the sheet, re-label the pay
+  button to the **server** total via `cust.payAndOrder`, and require a second tap, which follows the
+  `paymentUrl` already returned. Pausing costs nothing — the intent exists — and a guest must never
+  be charged a figure they did not see. Abandoning here is safe: the cart is keyed to the intent
+  reference and only cleared on `PAID`.
+
+The notice says the total *changed* and shows the new one; it does **not** guess why. The response
+carries a total, not line detail, so any explanation ("a price changed", "an item is unavailable")
+would be invention. Do not re-render the cart lines from a figure that cannot explain them.
 
 ### UX-Q3 — The menu's own type scale is too small, and the price is the quietest thing on the row · **major**
 
@@ -1160,11 +1174,18 @@ There is a second, compounding problem: `−` is rendered only when `qty > 0`
 button **shifts left** by the width of `−` plus the value. A guest tapping `+` twice in quick
 succession lands the second tap on the quantity or on `−`.
 
-**Spec.** 40×40px, gap `10px`, `-webkit-tap-highlight-color: transparent`, quantity value
-`min-width: 24px` at `16px/700`. The `.item-side` column widens accordingly; the item row grows by
-~16px, which the 15px type (UX-Q3) absorbs. Reserve the stepper's full width at qty 0 — render the
-`−` and the value as `visibility: hidden` placeholders rather than omitting them — so `+` never
-moves under the thumb.
+**Spec.** **44×44px**, gap `10px`, `-webkit-tap-highlight-color: transparent`, quantity value
+`min-width: 24px` at `16px/700`. The `.item-side` column widens accordingly; the item row grows,
+which the 15px type (UX-Q3) absorbs. Reserve the stepper's full width at qty 0 — render the `−` and
+the value as `visibility: hidden` placeholders rather than omitting them — so `+` never moves under
+the thumb.
+
+*Corrected from 40×40 after `frontend-2` flagged the mismatch with story #30's AC.* **44 is right
+and my 40 was the inconsistency**: this register applies a 44px floor everywhere else it touches a
+phone target — UX-W4's split button, the waiter shell's `.refresh`/`.burger`, UX-C16's password
+toggle — and there is no reason the customer's *ordering* control should be the one exception. It is
+the control that makes the sale, used by guests of every age. `frontend-2` verified the fit at a
+390px viewport: `.item-side` ≈ 132px leaves ≈ 166px for the name at 15px, with no wrap problem.
 
 ### UX-Q5 — The order confirmation renders where the guest is not looking · **major**
 
@@ -1451,6 +1472,7 @@ dictionary; every key must exist in RO.
 | `cust.cartTitle` | `Your order` | `Comanda ta` |
 | `cust.payAndOrder` | `Pay {total} RON` | `Plătește {total} RON` |
 | `cust.onlinePayNote` | `You will be taken to the secure Netopia page to pay by card.` | `Vei fi dus la pagina securizată Netopia pentru plata cu cardul.` |
+| `cust.amountChanged` | `The total has changed to {total} RON. Please check it before you pay.` | `Totalul s-a modificat: {total} RON. Verifică-l înainte de a plăti.` |
 | `cust.orderSentBody` | `The waiter has your order.` | `Ospătarul are comanda ta.` |
 | `cust.viewOrder` | `See my order` | `Vezi comanda` |
 | `cust.changeTable` | `Change` | `Schimbă` |
