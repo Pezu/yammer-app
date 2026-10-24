@@ -262,7 +262,7 @@ Disposition: **fix** (story/bug link), **won't fix** / **deferred** (decision or
 | UX-Q15 (legal label language) | — | deferred — resolves with the legal content (D8) | — |
 | Waiter WS push (from UX-W3/Q2) | — | deferred — poll ships; push is a new api story (recorded in ux.md §10) | — |
 | Moving orders between slots (from UX-Q6) | — | deferred — warned recovery path ships (recorded in ux.md §10) | — |
-| Split for plain-named tables (from UX-W4/Q13) | — | pending Q7 at the human gate (ba deferred; ux + architects recommend adopt with a rename warning) | — |
+| Split for plain-named tables (from UX-W4/Q13) | — | deferred (D16 — human upheld ba's disposition) | — |
 
 ## Story map
 
@@ -311,6 +311,12 @@ Blocked by #4 applies to every implementation story (D1). #8 gates Phase 3/4 ver
 | D8 | 2026-10-24 | Legal pages: routes + shells + not-found ship this epic with a minimal factual placeholder; the legal content comes later from the human as **one Yammer-level set** (answers Q4) | Guests must stop dead-ending on the staff login now; legal text is authored by the human/counsel, not agents | human (Radu) |
 | D9 | 2026-10-24 | Customer menu search (UX-Q11) is deferred — recorded, backlog issue filed, not in this epic (answers Q5) | A feature, not a finding; discretionary spend the epic is complete without | human (Radu) |
 | D10 | 2026-10-24 | Order Points density (UX-B9): only ux's two cheap tweaks this epic (booleans grouped into one column, fixed "Disc. %" width) — they join UX group 11; the redesign is deferred (answers Q6) | Redesign is a story of its own the human did not ask for | human (Radu) |
+| D11 | 2026-10-24 | #13 IPN-verification design approved; ONLINE self-pay STAYS LIVE in the interim (sandbox exposure only) | Gate: payments | human (Radu) |
+| D12 | 2026-10-24 | V3 (order-no counter) and V4 (client legal line) schema additions approved | Gate: schema | human (Radu) |
+| D13 | 2026-10-24 | #22 Spring Boot 3.2 → 3.5.x approved | Gate: dependency | human (Radu) |
+| D14 | 2026-10-24 | #20 WebSocket single-use ticket approved | Gate: architecture | human (Radu) |
+| D15 | 2026-10-24 | I9/release: the human will DROP the prod database and reconcile — #45's runbook becomes the drop-and-recreate procedure (document what is lost and the seed path; the GCP action itself stays human) | Gate: release; prod data is sacrificial at this stage | human (Radu) |
+| D16 | 2026-10-24 | Q7 split-rename: DEFERRED — the human did not override ba's disposition; ux.md's record stands as written | Gate: requirements | human (Radu) |
 
 ## Open questions
 
@@ -322,4 +328,4 @@ Blocked by #4 applies to every implementation story (D1). #8 gates Phase 3/4 ver
 | Q4 | Legal pages (UX-C6/UX-Q10, major): the six legal links (`/legal/termeni`, `/confidentialitate`, `/livrare`, `/anulare`, `/gdpr`, `/contact`) and any bad QR dead-end on the **staff login form** — the Netopia/ANPC compliance surface of a card-accepting site. Fixing routes + shells + not-found page is in scope (ux specced them, RO/EN copy in ux.md §8); the gate decision is about content only: (i) **who writes the six legal documents** — they are legal text, the human or counsel, not agents; (ii) **one set for Yammer or per-tenant content?** Recommendation: one Yammer-level set supplied by the human; shells ship this epic with a minimal factual placeholder so no guest lands on the login form meanwhile | lead → human | Answered → D8 |
 | Q5 | Customer menu search (UX-Q11): the waiter app has search, the customer page does not. It is a new feature, not a defect — the epic's out-of-scope rule says features only when implied by a finding. (a) in scope this epic; (b) **recommended**: defer — record + backlog issue | lead → human | Answered → D9 |
 | Q6 | Order Points density (UX-B9): 13 editable columns. (a) **recommended**: ux's two cheap tweaks only this epic, redesign deferred as its own backlog story; (b) full redesign story now | lead → human | Answered → D10 |
-| Q7 | Split for plain-named tables (UX-W4/Q13): nothing is broken today — batch-created tables are born `T{n}.1` and the split button is hidden on a manually renamed plain `T12` (the api 400s on the pattern). The question is ADDING capability: splitting a plain `T12` renames it to `T12.1` and creates `T12.2` (safe — all references are by id, printed QRs keep working). ux + architects recommend ADOPT, with the confirm dialog telling the waiter the table is being renamed (a table silently changing name under a guest's printed QR loses trust). I initially deferred it as not finding-implied; given both specialists' recommendation, options: (a) adopt with the rename warning (their recommendation); (b) keep deferred, rule documented | lead → human | Open |
+| Q7 | Split for plain-named tables (UX-W4/Q13): nothing is broken today — batch-created tables are born `T{n}.1` and the split button is hidden on a manually renamed plain `T12` (the api 400s on the pattern). The question is ADDING capability: splitting a plain `T12` renames it to `T12.1` and creates `T12.2` (safe — all references are by id, printed QRs keep working). ux + architects recommend ADOPT, with the confirm dialog telling the waiter the table is being renamed (a table silently changing name under a guest's printed QR loses trust). I initially deferred it as not finding-implied; given both specialists' recommendation, options: (a) adopt with the rename warning (their recommendation); (b) keep deferred, rule documented | lead → human | Answered → D16 (deferred) |
