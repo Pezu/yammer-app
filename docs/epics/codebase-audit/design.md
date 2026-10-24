@@ -237,6 +237,15 @@ IDs: `A-*` api (architect-a), `W-*` web, `B-*` bridge, `I-*` infra (architect-b)
   bridges paired to the **payment's** client (via its order point's location); an unpaired
   bridge receives nothing until an admin pairs it. The pinned `fiscal_device` already keeps
   re-dispatches on one device.
+- The list filter is only cosmetic without the **write-side validation**: `IntegrationService`
+  (today `:69-74`, which validates nothing) refuses saving a `device_id` already referenced by
+  another client's integration rows — two clients referencing one device must be impossible at
+  the data layer, not just hidden by the picker.
+- **Behaviour change to state at rollout:** once any-bridge routing filters by the payment's
+  client, a TCP-register receipt needs at least one bridge PAIRED to that client. A fresh venue
+  with a connected-but-unpaired bridge will see receipts go PENDING → sweeper-FAILED where today
+  they would print. The pairing step (create the peripherals row with the device id) becomes
+  part of venue setup and is added to the bridge README/setup docs in the same task.
 - No schema change: pairing is derived from `integration.device_id` rows. Latent today (one
   tenant with bridges); must land before a second tenant installs one.
 
@@ -294,7 +303,8 @@ issues.
 | A1 | payments | approve the IPN-verification story (§3.1). The interim stance on ONLINE self-pay (leave enabled against sandbox vs `NETOPIA_ENABLED=false` until the fix ships) is the human's call — the sandbox pin itself is deliberate (decision D6) |
 | I9 | release | confirm prod DB migration state; approve the flyway reconciliation plan (runbook) before any `develop → main` release |
 | I6 | architecture (dependency) | approve the Spring Boot upgrade target (3.5.x latest patch, Tomcat pin dropped) |
-| V3 + V4 | architecture (schema) | standing gate — both migrations in §4 |
+| V3 + V4 | architecture (schema) | standing gate — both migrations in §4. V4 is the schema half of bug #11 (per-tenant legal identity in the customer footer), specified here so the gate covers it in one pass |
+| W2 ticket | architecture (live push) | the `POST /ws/ticket` endpoint changes live-push authentication — under the §9 gate umbrella; design in §3.10 / ADR-0002 |
 | I7 | legal (note) | iText AGPL licensing check, no urgency |
 
 Closed by the human's decisions, recorded in §2/§8: **D5** (F-5: AMOUNT allocates against net —
@@ -344,7 +354,9 @@ Every fix is independently deployable and additive (transitional tolerance on th
 W2 keeps `?token=` for one release). The only migration (V3) is additive with a backfill.
 Rollback of any single story = revert its squash commit on `develop`; nothing in this epic
 requires coordinated multi-service deployment. The A1 deploy half and anything in GCP is
-human-executed per CLAUDE.md §9.
+human-executed per CLAUDE.md §9. One behaviour change to announce at rollout: after B-T1, a
+TCP-register receipt requires a bridge paired to the client — venue setup gains the pairing
+step (§3.8), and an unpaired bridge means PENDING → FAILED instead of a print.
 
 ## 12. Answers to the ux questions (ux.md §7) and the theme-token decision
 
