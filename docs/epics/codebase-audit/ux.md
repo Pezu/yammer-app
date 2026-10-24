@@ -484,15 +484,27 @@ ticks, and right-align + fix the width of "Disc. %" with a `%` suffix in the cel
 story of its own.
 
 
-### UX-B10 — Two reports show timestamps one to three hours early · **major**
+### UX-B10 — Two reports show the raw UTC value instead of local time · **major**
 
-`shared/tz.ts` is the documented single source of truth for display: the api returns naive
-wall-clock strings recorded in UTC, so they must be parsed as UTC and rendered in
-`Europe/Bucharest`. `shifts-page` and `dashboard-page` use its `roDate` pipe and are correct.
-`not-paid-report-page.html:76` and `open-tables-report-page.html:55` use Angular's
-`| date: 'dd.MM.yyyy HH:mm'`, which parses a zone-less string as **local** time — so those two
-reports render every timestamp one hour (winter) or three hours (summer) earlier than the same
-event on the dashboard and the shifts page.
+`shared/tz.ts` is the documented single source of truth for display, and states the contract in its
+own header: every api timestamp is "a naive wall-clock string with no zone (Java `LocalDateTime`)
+recorded in UTC", which `parseUtc` handles by appending `Z` when no offset is present.
+`shifts-page` and `dashboard-page` use its `roDate` pipe and are correct.
+
+`not-paid-report-page.html:76` and `open-tables-report-page.html:55` are the **only two `| date:`
+call sites in the app**, and both feed it the raw api string. ECMAScript parses a date-time string
+without an offset as **local** time, so those two reports display the raw UTC value as if it were
+already local.
+
+**The error equals the browser's current UTC offset** — not a fixed number. For an admin in
+Romania that is **2 h early in winter (EET, UTC+2) and 3 h early in summer (EEST, UTC+3)**; it is
+never one hour. Measured on this machine (`Europe/Bucharest`): a stored `13:40` renders `13:40` on
+these two reports against `16:40` in June and `15:40` in December elsewhere in the app.
+
+*Correction:* this finding first said "one hour (winter) or three hours (summer)". That was wrong,
+it propagated into `qa`'s R-S8 before `architect-a` caught it there, and `design.md` was corrected
+first. Stating the rule rather than the delta is what stops it recurring — and the delta genuinely
+changes mid-epic, since Romania leaves EEST on **2026-10-25**.
 
 Who it hurts: a manager reconciling the Not-paid report or the open tables against the service day
 reads two different clocks for the same payment and cannot tell which is right.
@@ -500,15 +512,23 @@ reads two different clocks for the same payment and cannot tell which is right.
 **Spec.** `{{ row.at | roDate }}` and `{{ row.openedAt | roDate }}` (import `RoDatePipe`), dropping
 `DatePipe` from both components.
 
-**Confirmed as a defect by architect-a directly** (not relayed), and filed as a `bug` on the
-frontend. **It must be fixed together with its server-side twin, A8**, and `qa` is the one who
-spotted why: the api sets no `TZ`, so printed slips and PDFs run **2–3 h behind** while these two
-reports run **1–3 h early**. For a single payment a manager can today read **three different
-times** across screen, report and paper. Fixing either side alone makes the discrepancy look
-resolved on whichever surface someone happens to check first — which is worse than the current
-state, because the remaining error stops being obvious. `qa` split them deliberately as R-S8
-(client) and R-S9 (printed) with the relationship written down; the stories should carry the same
-link.
+**The expected result is agreement, not a delta** (`qa`'s framing, and the better one): after the
+fix, the same event shows the **same local time on all four surfaces** — dashboard, Shifts,
+Not-paid, Open tables. An expectation written as "2 h earlier" goes stale the day the clocks change;
+"equal to the dashboard" never does, and it is what the fix actually has to achieve.
+
+**Verification level, stated precisely** so nobody over- or under-weights it: confirmed against the
+documented contract and every call site — by `ux-2` originally, by `architect-a` in both templates,
+by `qa`, and the offset arithmetic re-derived here. **Not yet observed in a running stack**; Phase 4
+closes that. The fix is the same either way.
+
+**It must be fixed together with its server-side twin, A8.** The api sets no `TZ`, so printed slips
+and PDFs run **2–3 h behind** while these two reports run **2–3 h early**. For a single payment a
+manager can today read **three different times** across screen, report and paper. Fixing either side
+alone makes the discrepancy look resolved on whichever surface someone happens to check first —
+worse than the current state, because the remaining error stops being obvious. `qa` split them
+deliberately as R-S8 (client) and R-S9 (printed) with the relationship written down; the stories
+should carry the same link. Filed as **#44**.
 
 ### UX-B11 — The Open tables report never refreshes · **major**
 
@@ -1564,7 +1584,7 @@ Phase-2 stories, ordered by value per unit of work. Each is independently shippa
 11. **Phone platform fit** — UX-C15 (`viewport-fit=cover` + safe areas) and UX-C12 (`dvh`). Small
     and self-contained, and it has to land before anything else can be judged on an installed
     phone.
-12. **Backoffice correctness** — UX-B10 (timestamps 1–3 h out), UX-B11 (stale Open tables),
+12. **Backoffice correctness** — UX-B10 (reports show the raw UTC value), UX-B11 (stale Open tables),
     UX-B12 (the colour picker), UX-B15. Separate from polish because these change what a user can
     believe, not how it looks.
 13. **Backoffice polish** — UX-B1, UX-B2, UX-B3, UX-B4, UX-B5, UX-B6, UX-B7, UX-B8, UX-B16,
