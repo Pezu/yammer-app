@@ -227,10 +227,11 @@ Disposition: **fix** (story/bug link), **won't fix** / **deferred** (decision or
 |---|---|---|
 | G-1 / QA-01 (fiscal state machine untested) | fix | #26 |
 | G-2 / QA-02 (no e2e) · G-3 / QA-03 (web untested) · G-11 / QA-11 (untranslated RO) | fix | #28 |
-| G-4 / QA-04 (pay untested) · G-10 / QA-10 (no concurrency tests) | fix — ride their fix stories' test ACs | #14, #23 |
+| G-4 / QA-04 (pay untested) | fix — explicit test AC: #14 AC6 (full pay-arithmetic matrix incl. 0-row conflict paths) | #14 |
+| G-10 / QA-10 (no concurrency tests) | fix — #14 AC1/AC5 (latch-forced settlement race) + #23 AC1/AC2/AC6 (assignment + shift races) | #14, #23 |
 | G-5 / QA-05 (tenancy untested) · G-6 / QA-06 (permissions untested) | fix | #27 |
 | G-7 / QA-07 (no CI) · G-8 / QA-08 (DB-bound test) | fix | #4 |
-| G-9 / QA-09 (untested services) | fix — distributed: every fix story adds the tests §5.6 demands; residual re-assessed at epic exit | #13–#28 |
+| G-9 / QA-09 (untested services) | fix — distributed with a verifiable exit: at epic exit qa diffs G-9's service list (test-plan §11) against the test classes on `develop`; any still-untested service without a §5.6 justification is filed as a new finding before the epic closes | #13–#28 + exit check |
 | G-12 / QA-12 (frame content unasserted) | fix | #26 |
 | G-13 / QA-13 (stack unbuildable) · F-4 / QA-18 (scripts missing) | fix | #8 |
 | G-14 / QA-14 (bridge untested) | fix (pure-logic half, #25 AC4); on-device half deferred (D4) | #25 |
