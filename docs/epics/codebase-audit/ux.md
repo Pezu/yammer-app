@@ -2,6 +2,16 @@
 
 Owner: `ux`. Scope: the four Yammer surfaces as they exist on `origin/develop` (`628c193`).
 
+> **Second-pass addendum pending.** A second pass over `index.html`,
+> `public/manifest.webmanifest` and `shared/tz.ts` produced a further ~24 findings
+> (`UX-C13`–`UX-C18`, `UX-B10`–`UX-B16`, `UX-W22`–`UX-W25`, `UX-S7`–`UX-S8`, `UX-Q16`–`UX-Q20`).
+> **Those finding bodies are not in this file yet** — only their summary line arrived, so the
+> register below is the first pass plus the one second-pass item I verified myself (folded into
+> `UX-C8`). Counts below describe what is actually written here. The addendum lands as a follow-up
+> commit on this branch; the full second-pass text is preserved at
+> `.worktrees/ux-parallel-session-audit.md` (gitignored) so nothing is lost. Existing IDs will not
+> move when it lands.
+
 ## 1. Method and limits
 
 Code-level audit of `web/src/app` in full: every template, every component stylesheet,
@@ -22,9 +32,14 @@ accepts. What it is not: an architecture review (see `design.md`) or a defect li
 | **minor** | friction, inconsistency, or copy that is awkward but not misleading |
 | **trivial** | cosmetic |
 
-**Counts:** 63 findings — 0 critical, 29 major, 29 minor, 5 trivial.
+**Counts (what is written below):** 63 findings — 0 critical, 29 major, 29 minor, 5 trivial.
 Per surface: cross-cutting 12 (9 major), backoffice 9 (0 major), waiter 21 (9 major), service
-board 6 (4 major), customer 15 (7 major).
+board 6 (4 major), customer 15 (7 major). With the pending addendum the register reaches ~87.
+
+Nothing is graded critical: every finding has a workaround, even if an ugly one. The three that
+come closest — a failed payment wiping the bill (`UX-C3`), the picker swallowing "this table still
+owes money" (`UX-W1`), and a guest ordering with no cart to review (`UX-Q1`) — are the ones to fix
+first.
 
 Each finding is `UX-<surface><n>`: `C` cross-cutting, `B` backoffice, `W` waiter, `S` service
 board, `Q` customer QR page.
@@ -175,12 +190,30 @@ is ~10px tall — far under the 24px floor of WCAG 2.5.8, and the text is simply
 `color: var(--muted)`, underline on hover/focus; `.copy` → `0.7rem`. The footer grows by ~18px;
 it is `margin-top: auto` so no layout breaks. The `.pay-label` (0.62rem/8.7px) goes to `0.7rem`.
 
-### UX-C8 — The footer hard-codes one tenant's company · **major** (tenancy)
+### UX-C8 — One tenant's identity is baked into the shipped app · **major** (tenancy)
 
-`site-footer.component.ts`: `© RENDEZVOUS EVENTS S.R.L. — CUI 41973877`, shown on every page of a
-multi-tenant product. A guest scanning a QR code at a *Glo* table is told they are dealing with
-Rendezvous Events, and the ANPC/Netopia identification is therefore wrong for every tenant but
-one. Needs client legal data from the API — **question for the architects** (§7, Q1).
+Three places, all verified:
+
+- `shared/site-footer.component.ts`: `© RENDEZVOUS EVENTS S.R.L. — CUI 41973877`, on every page of
+  a multi-tenant product. A guest scanning a QR code at a *Glo* table is told they are dealing
+  with Rendezvous Events, so the ANPC/Netopia merchant identification is wrong for every tenant
+  but one.
+- `web/public/manifest.webmanifest`: `"name": "RENDEZVOUS"`, `"short_name": "RENDEZVOUS"`,
+  `"description": "Rendezvous — socialize & dance in the citadel."`, and
+  `"start_url": "/waiter"`. A guest who uses "Add to home screen" from any tenant's QR page
+  installs an app called **RENDEZVOUS** that opens the **waiter** app, not their menu.
+  `"theme_color": "#0e1320"` is also off-token (UX-C2).
+- `web/src/index.html:14`: `<meta name="apple-mobile-web-app-title" content="RENDEZVOUS">` — the
+  same leak on iOS.
+
+The footer needs client legal data from the API — **architects, Q1**. The manifest and the meta tag
+do not: they are shipped static files and cannot be per-tenant without server-side templating, so
+the spec is to make them **neutral** (`name`/`short_name` → `Yammer`, description → the product
+one, `start_url` → `/login`, the iOS title → `Yammer`) and let the per-tenant identity live where
+it already can: the client logo and name the customer page loads at runtime.
+
+*(The manifest/`index.html` half of this finding came from the second-pass register; I verified it
+against the files before folding it in.)*
 
 ### UX-C9 — Wide tables overflow the page instead of scrolling in the panel · **minor**
 
@@ -223,6 +256,81 @@ while the waiter/customer shells correctly ladder `100vh` → `100dvh`. On a tab
 chrome the service board's `height: 100vh` overflows by the toolbar height. Add the `100dvh`
 line (and drop the duplicated `min-height: 100vh` lines in `waiter-page.ts` and
 `customer-order-point-page.ts`).
+
+
+### UX-C13 — The PWA hard-codes one tenant and sends guests to the staff login · **major** (tenancy)
+
+`public/manifest.webmanifest`: `"name": "RENDEZVOUS"`, `"short_name": "RENDEZVOUS"`,
+`"description": "Rendezvous — socialize & dance in the citadel."`, `"start_url": "/waiter"`.
+`index.html:15`: `<meta name="apple-mobile-web-app-title" content="RENDEZVOUS">`. Same root cause
+as UX-C8, different surface: a guest at a *Glo* table who uses "Add to Home Screen" on the QR page
+— which is exactly what a `display: standalone` manifest invites — gets an icon labelled
+RENDEZVOUS that opens **`/waiter`**, the staff login, not the menu they scanned.
+
+**Spec.** `name`/`short_name` → `Yammer`, `description` → a product line with no venue in it,
+`start_url` → `/`, and drop the Apple title override (the manifest's `short_name` covers it).
+A genuinely per-tenant manifest (served per client, with the venue's name and icon) is a larger
+change and a separate story — recorded, not specced here.
+
+### UX-C14 — `<html lang>` is always `en` · **minor** (a11y)
+
+`index.html:2`. Both bilingual surfaces default to Romanian (`I18nService.defaultFor`), so for the
+majority of sessions the document declares a language it is not using: screen readers pronounce
+Romanian with an English voice, and browsers offer to "translate this page from English".
+
+**Spec.** `I18nService.setLang()` and `init()` also set `document.documentElement.lang`. The
+backoffice, login and service board set `en` explicitly, so a waiter switching surfaces does not
+leave `ro` behind.
+
+### UX-C15 — A translucent status bar is declared but no surface reserves the safe area · **major**
+
+`index.html:13` sets `apple-mobile-web-app-status-bar-style: black-translucent` and the manifest
+asks for `display: standalone`, which together put the web view **under** the iPhone status bar.
+The viewport meta (`:6`) has no `viewport-fit=cover`, and `env(safe-area-inset-*)` appears in
+exactly two places in the whole app (`waiter-table-detail-page.scss:46`,
+`site-footer.component.ts:49`). Installed on a phone, the waiter top bar (logo, approvals badge,
+hamburger) and the customer's sticky top bar sit under the clock and the notch, and the customer
+cart bar, both pay sheets and the assign picker sit under the home indicator.
+
+**Spec.** `viewport-fit=cover` in the viewport meta, then:
+`padding-top: env(safe-area-inset-top)` on `.topbar` in `waiter-page.ts` and
+`customer-order-point-page.ts` (height grows by the inset, not the content);
+`padding-bottom: calc(<existing> + env(safe-area-inset-bottom))` on `.cart-bar` (both order
+pages), `.pay-sheet`, `.picker` and the service board's `.board`. Nothing changes in a browser
+tab, where every inset is 0.
+
+### UX-C16 — Login fields are labelled only by their placeholder · **minor** (a11y)
+
+`login.html:14-36`: the two inputs have `placeholder="Username"` / `"Password"` and no `<label>`,
+no `id`/`for`, no `aria-label`; the validation messages (`:19-21`, `:30-32`) are not linked with
+`aria-describedby` and the invalid input gets a red border but no `aria-invalid`. The placeholder
+also disappears as soon as the field has content, so a user who looks away loses the label. This is
+the gate to every surface, and the only screen a waiter sees before their shift.
+
+**Spec.** Visually-hidden `<label for>` for each field, `[attr.aria-invalid]` and
+`[attr.aria-describedby]` → the message id when invalid, and keep the placeholders as hints.
+A show/hide password toggle (44×44, `aria-pressed`) is worth adding on a surface used one-handed in
+a dark venue — recorded as part of the same story.
+
+### UX-C17 — The NETOPIA mark is loaded from a third-party origin · **minor**
+
+`site-footer.component.ts:28`: `<img src="https://mny.ro/np-black-0.svg">`, on every page of every
+surface. If that host is slow, down or blocked, the payment mark the Netopia account requires
+simply is not there; it also leaks every guest's IP to a third party and has no `width`/`height`,
+so the footer shifts as it loads.
+
+**Spec.** Self-host the SVG under `web/public/assets/images/`, with explicit `width`/`height`.
+Same asset, same look, no third-party request.
+
+### UX-C18 — No `prefers-reduced-motion` anywhere · **trivial**
+
+`confirm-dialog` (`fade`, `pop`), `payment-return-page` (`ret-spin`), the customer approval
+spinner, the sidebar's `max-height` transition and the `.icon-btn` hover `translateY` all animate
+unconditionally.
+
+**Spec.** One global block in `styles.scss`:
+`@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; } }`,
+with the two spinners kept (they communicate progress) by excluding them from the rule.
 
 ---
 
@@ -267,12 +375,22 @@ below the fold and scrolling the table scrolls the navigation out of reach.
 
 **Spec.** `.sidebar { position: sticky; top: 0; height: 100vh; height: 100dvh; overflow-y: auto; }`.
 
-### UX-B5 — Collapsible groups expose no state to assistive tech · **minor** (a11y)
+### UX-B5 — Collapsed groups keep their links in the tab order and expose no state · **major** (a11y)
 
-The four `.group-toggle` buttons carry no `aria-expanded`/`aria-controls`, and the parent group of
-the active page gets no active styling (only the leaf `routerLinkActive`).
+Two problems in the same place. `backoffice-layout.scss:86-95` collapses a group with
+`overflow: hidden; max-height: 0` — the links are *clipped*, not removed, so they stay focusable:
+tabbing through the sidebar moves focus into invisible links and the browser scrolls a clipped
+container. And the four `.group-toggle` buttons (`backoffice-layout.html:14, 59, 92, 125`) carry no
+`aria-expanded`/`aria-controls`, while the parent group of the active page gets no active styling
+(only the leaf `routerLinkActive`).
 
-**Spec.** `[attr.aria-expanded]="configOpen()"` + `aria-controls` on each toggle;
+Re-graded from minor to **major** on the second pass: focus going somewhere invisible is a
+2.4.3/2.4.7 failure, not polish.
+
+**Spec.** `visibility: hidden` on the collapsed state with
+`transition: max-height 0.2s ease-in-out, visibility 0s 0.2s` (and `visibility: visible` +
+`transition: max-height 0.2s ease-in-out` when open), so the links leave the tab order the moment
+the group closes; `[attr.aria-expanded]="configOpen()"` + `aria-controls` on each toggle;
 `.group:has(.submenu-link.active) .group-toggle { color: var(--primary); }` so the open page's
 group reads as current.
 
@@ -308,6 +426,88 @@ page, but the row is still hard to read and to edit.
 right-align + fix the width of "Disc. %" with a `%` suffix in the cell. Anything further is a
 story of its own.
 
+
+### UX-B10 — Two reports show timestamps one to three hours early · **major**
+
+`shared/tz.ts` is the documented single source of truth for display: the api returns naive
+wall-clock strings recorded in UTC, so they must be parsed as UTC and rendered in
+`Europe/Bucharest`. `shifts-page` and `dashboard-page` use its `roDate` pipe and are correct.
+`not-paid-report-page.html:76` and `open-tables-report-page.html:55` use Angular's
+`| date: 'dd.MM.yyyy HH:mm'`, which parses a zone-less string as **local** time — so those two
+reports render every timestamp one hour (winter) or three hours (summer) earlier than the same
+event on the dashboard and the shifts page.
+
+Who it hurts: a manager reconciling the Not-paid report or the open tables against the service day
+reads two different clocks for the same payment and cannot tell which is right.
+
+**Spec.** `{{ row.at | roDate }}` and `{{ row.openedAt | roDate }}` (import `RoDatePipe`), dropping
+`DatePipe` from both components. Also a defect — raised with the architects so it is fixed once,
+not twice.
+
+### UX-B11 — The Open tables report never refreshes · **major**
+
+`open-tables-report-page.ts:72-88` loads once per location change: no poll, no refresh button, no
+"updated at". It is the live "which tables still owe money right now" view, used at closing time
+next to the Shifts page — which does re-check its blockers every 15 s. A manager reading a frozen
+list believes a table is settled when it is not.
+
+**Spec.** A refresh button in `.header-actions` (the `.add-btn` shape, a refresh glyph,
+`aria-label="Refresh"`) plus `Updated HH:mm:ss` in `--muted` beside it, and a 30 s poll while the
+document is visible, replacing rows in place. Same treatment for the Shifts blockers already
+present, so the two pages agree.
+
+### UX-B12 — The Menu page's colour picker lets an admin make the guest menu unreadable · **major** (a11y)
+
+`menu-page.html:286`: `<input type="color" class="rt-color" value="#283c50">` writes an inline
+colour into a category name, which is then rendered with `[innerHTML]` on the customer page, the
+waiter order page and inside combo options. An admin can pick white on the white customer
+background, or any low-contrast pair, and nothing warns them — an accessibility failure introduced
+through content, outside the token system, on the public surface.
+
+**Spec.** Remove the free picker. If emphasis is genuinely wanted, offer four swatches bound to
+tokens (`--text`, `--muted`, `--primary`, `--danger`), all of which are known-contrast against
+`--surface`. Part of the same consolidation as UX-C11's note about this toolbar duplicating
+`rich-text-editor`.
+
+### UX-B13 — A bare `.icon-btn` turns white on white on hover · **minor**
+
+`_crud-table.scss:206-212`: `.icon-btn:hover { color: #fff; transform: … }`, while only the
+`.edit` / `.save` / `.danger` / `.cancel` modifiers set a background. Any `.icon-btn` used without
+a modifier — `service-page.html:14, 22, 34` reuses the class name on the board's top bar — becomes
+an invisible white glyph on a white surface on hover.
+
+**Spec.** Move `color: #fff` out of the base `:hover` and into each modifier, so a bare
+`.icon-btn` only gets its `--page-bg` background on hover.
+
+### UX-B14 — Money columns in the reports carry no unit · **minor**
+
+`open-tables-report-page.html:56` (Amount), `payments-report-page` (Amount / Tip / Total),
+`not-paid-report-page`, `orders-report-page` and the dashboard's per-waiter table
+(`dashboard-page.html:230-240`) all print bare numbers, while the dashboard's KPI tiles and every
+waiter screen print `RON`. Three of those reports are printed or exported and read away from the
+screen.
+
+**Spec.** The unit goes in the column header — `Amount (RON)`, `Tip (RON)`, `Total (RON)` — once
+per report, not in every cell. Pairs with UX-C1: the backoffice keeps `en-US` grouping, so the
+header is the only thing that changes.
+
+### UX-B15 — `open-tables-report-page` borrows another page's stylesheet · **trivial**
+
+`open-tables-report-page.ts:14`: `styleUrl: './payments-report-page.scss'`. It is also the only
+report whose component does not `@use` `crud-table` itself. It works, but the Payments report can
+no longer be restyled without silently restyling Open tables.
+
+**Spec.** Its own `open-tables-report-page.scss` that `@use`s `crud-table` and holds the `.num` /
+`.totals` rules it actually needs.
+
+### UX-B16 — Table headers carry no `scope` · **trivial**
+
+Every `.table` in the backoffice. Implicit scope covers the simple single-row cases; the
+dashboard's and the Not-paid report's grouped tables are where a screen reader loses the thread.
+
+**Spec.** `scope="col"` on every `thead th`, `scope="row"` on the Not-paid report's group rows.
+One attribute per header; no visual change.
+
 ---
 
 ## 4. Waiter phone app (RO default / EN)
@@ -340,8 +540,15 @@ been open. To find out who owes money the waiter must enter each table in turn a
   in `--warn-soft` when a customer at that table is pending approval;
 - the open-round age as `timeAgo` in `--muted` 0.7rem, bottom-left — only once the round is open.
 
-A tile with nothing due and nothing pending looks exactly as it does today. Needs API data —
-**architects, Q2.**
+A tile with nothing due and nothing pending looks exactly as it does today.
+
+**API — answered (architect-b, Q2): yes, additive.** All four fields come off the current schema:
+`unpaidTotal` is the open-tables report's computation per point, `readyOrderCount` is
+`status = READY` per point, `pendingApprovalCount` is PENDING `customer_sessions` + DRAFT orders
+(the approvals query already exists), and `roundOpenedAt` is the earliest active assignment's
+`assigned_at` — which *is* the round start by definition (`TableRoundService`). Architect-b's
+contract condition, which this spec adopts: **one response, 3–4 grouped/batched queries, never a
+per-point lookup** — the tiles are a hot path polled every 15 s and must not become an N+1.
 
 ### UX-W3 — The board never refreshes · **major**
 
@@ -354,8 +561,14 @@ paid.
 
 **Spec.** Refresh `loadAssigned()` on a 15 s interval (aligned with the approvals poll already in
 the shell) and on `visibilitychange` → visible, replacing tiles in place with no loading flash —
-the picker already does exactly this (`loadBoard()`). If the architects prefer the WebSocket, the
-same refresh hangs off an `ORDER_*`/`PAYMENT_*` message; polling is the safety net either way.
+the picker already does exactly this (`loadBoard()`).
+
+**Polling, not push — settled (architect-b, Q2).** `OrderNotificationService` routes live push by
+**SERVICE-station assignment**, so the socket today reaches service-board users only; it has no
+concept of the waiters assigned to a table. Pushing to waiters is therefore a new api story, not a
+detail of this spec. The 15 s poll is the whole fix. Waiter WebSocket push is recorded as a
+deferred improvement (§10) rather than filed: a 15 s staleness window on a board the waiter is
+holding in their hand is acceptable, and the same poll carries UX-W10.
 
 ### UX-W4 — Split is a 30px button inside the tile's tap area, with no confirmation · **major**
 
@@ -473,14 +686,25 @@ the original price.
 ("Partially paid — {paid} of {full}"), copy in §8. The customer page already does the `title` half
 of this (`cust.partial`), so the two surfaces end up consistent.
 
-### UX-W14 — A typed amount over the bill is silently clamped · **minor**
+### UX-W14 — A typed amount over the bill is clamped on screen but sent unclamped · **major**
 
-In AMOUNT mode the input accepts `500` on a 50 RON bill; `grossTotal()` clamps to the amount due,
-so the sum rows below read 50.00 while the field still reads 500. Nothing says why.
+In AMOUNT mode the input accepts `500` on a 50 RON bill. `grossTotal()` clamps for *display* —
+`round2(Math.min(this.fixedAmount() ?? 0, due))`, `waiter-table-detail-page.ts:238` — so the
+summary rows read `Amount 50.00 / Total to pay 50.00`. But the request sends the raw field:
+`payload.amount = this.fixedAmount() ?? 0` (`:563`). The waiter charges from a screen that says
+50.00 while 500 goes to the server.
 
-**Spec.** `[max]` on the input plus, when the typed value exceeds what is due, a hint line under
-it: `t('pay.amountCapped', { max })` ("Maximum due is {max} RON"). The clamp itself does not
-change.
+Re-graded from minor to **major** on the second pass: the display and the submitted amount are
+different numbers, which is a money-reading failure whatever the api then does with it. Flagged to
+the architects as well (distinct from `#5`, which is about discounts — and note the UI already
+hides AMOUNT mode when the table has a discount, `waiter-table-detail-page.html:93`, which bounds
+that issue's reach).
+
+**Spec.** `[max]` on the input; when the typed value exceeds what is due, a hint line under it
+(`t('pay.amountCapped', { max })` — "Maximum due is {max} RON") in `--danger` and the method
+buttons disabled, so nothing can be submitted in the divergent state. Either the submitted value
+is clamped to match the display, or the UI refuses — it must not be possible for the two to
+differ.
 
 ### UX-W15 — Deny destroys a customer's order with no confirmation · **minor**
 
@@ -544,6 +768,59 @@ sibling `<button>` positioned over the tile corner, not a child. Keeps the visua
 **Spec.** `role="status" aria-live="polite"` on the toast, and `bottom: calc(1.25rem + 64px)`
 when the host page has an action bar (a `--toast-offset` custom property the page can set).
 
+
+### UX-W22 — The Pay button vanishes when the point has no payment type · **major**
+
+`waiter-table-detail-page.ts:75-77`: `canPay = unpaidTotal > 0 && payOptions().length > 0`, and
+the footer renders Pay only `@if (canPay())`. On an order point with no payment types configured,
+the waiter sees `TOTAL DUE 120.00 RON` and **no Pay button and no reason** — the action simply is
+not there. The order page handles the identical situation properly and says so
+(`order.noPaymentTypes` — "No payment type is set for this order point — ask an admin",
+`waiter-order-page.ts:360`).
+
+**Spec.** `canPay` drops the `payOptions()` condition, so Pay appears whenever money is due. When
+`payOptions()` is empty the sheet opens and renders `t('pay.noTypes')` in the `.methods` slot
+instead of buttons (copy in §8). The waiter learns what is wrong and who fixes it, on the screen
+where they noticed.
+
+### UX-W23 — The money screens never name the service day they report on · **minor**
+
+Payments and Statistics both scope to the location's open service day — the right POS semantics,
+and no date picker, per `CLAUDE.md` §5 — but neither screen says *which* day. `stats.empty` even
+reads "Nothing collected on **this day**" without naming it. A waiter cashing up cannot confirm the
+numbers are tonight's, and after a manager closes the day and opens the next one the same screen
+silently changes meaning.
+
+**Spec.** A subheader on both pages, left of the existing filter combo, `0.8rem` `--muted`:
+`t('tables.serviceDay', { name })` → "Service day · Fri 24.10, 17:00" /
+"Ziua de serviciu · Vi 24.10, 17:00", from the open shift's nickname when it has one and its start
+time otherwise. Needs the open shift readable by a waiter — **architects, Q12.**
+
+### UX-W24 — One in-flight decision disables every button on the Approvals page · **minor**
+
+`waiter-approvals-page.ts:223`: a single `busy` boolean gates every Approve and Deny button
+(`:40-41, 68-69`). With four guests waiting, approving one greys out the whole queue at
+`opacity: 0.6` until the call returns. The Orders page already does this per id
+(`busy = signal<Set<string>>`).
+
+**Spec.** `busy` becomes a `Set<string>` keyed by the customer/order id, as on the Orders page;
+only the acted-on card's two buttons disable, and that card shows the pending state.
+
+### UX-W25 — The top-bar refresh reloads the whole app · **major**
+
+`waiter-page.ts:303-306`: `refreshPage()` = `menuCache.clear()` + `window.location.reload()`, on a
+36×36 button next to the hamburger on **every** waiter screen, with no confirmation. Two
+consequences: a half-built order on the order page is destroyed (UX-W16 — the waiter cart is not
+persisted), and on the venue wifi a reload can fail to come back at all, leaving the waiter on a
+browser error page mid-service. The hamburger already has the safe version ("Refresh menu", which
+only drops the cache).
+
+**Spec.** The top-bar button re-fetches the current page's data instead of reloading the document —
+every waiter page is signal-driven, so a `refresh()` output on the shell that the active child
+subscribes to is enough (and UX-W3/UX-W10's polling makes it rarely needed). If a document reload
+is kept for the cache, it goes through `confirm-dialog` whenever the order page has a non-empty
+cart.
+
 ---
 
 ## 5. Service board (kitchen/bar, English, read at a distance)
@@ -592,8 +869,17 @@ from the board *and* from the waiter's Orders page, and nothing on the board can
 
 **Spec.** A board toast (the shell has none; add the same `ToastService` pattern) reading
 `Order #124 delivered` with an **Undo** action for 6 s, which calls `updateStatus(id, 'READY')`
-and re-inserts the card. Whether the API accepts `DELIVERED → READY` is **architects, Q4**; if it
-does not, fall back to `confirm-dialog` on Delivered ("Mark #124 delivered?").
+and re-inserts the card.
+
+**Undo, not a confirm — settled (architect-b, Q4).** `DELIVERED → READY` is accepted today, though
+only because `OrderService.java:701-716` checks set membership and nothing else (the architects'
+own finding A5). Their transition matrix will **explicitly keep** `DELIVERED → READY` as the undo
+path, because a kanban status never touches payment state — only `CANCELED` is money-relevant. So
+this spec takes the Undo toast and drops the confirm-dialog fallback: a confirm on every Delivered
+would tax the common case to protect against the rare mis-tap, which is exactly what an undo is
+for. The agreed matrix for reference: `ORDERED ↔ READY`, `READY → DELIVERED`,
+`DELIVERED → READY`, `{ORDERED, READY} → CANCELED` only when no line is paid, and nothing leaves
+`CANCELED`.
 
 ### UX-S5 — No per-column counts · **minor**
 
@@ -610,6 +896,35 @@ tickets below the fold.
 **Spec.** `aria-label` mirroring each `title`, including the order number
 (`[attr.aria-label]="'Mark order #' + o.orderNo + ' ready'"`) so the three identical buttons on
 adjacent cards are distinguishable. English, as the surface is.
+
+
+### UX-S7 — A SERVICE user whose location has no station cannot log out · **major**
+
+`service-page.html:31-44`: the station picker's close button is rendered only `@if (station())`,
+which is right for "you must pick one before you see the board" — but when
+`stations().length === 0` the picker shows "No service stations in your location yet — ask an admin
+to add one." over an overlay that also covers the top bar, where Logout lives. There is no close
+button (no station), no Logout inside the picker, and no route away. The only exit is clearing site
+data.
+
+**Spec.** The picker head always renders a trailing button: the X when a station is held, a
+`Logout` text button when none is. In the empty state, Logout becomes the primary action under the
+message, so the dead end is also the explanation.
+
+### UX-S8 — Nothing says when the board has gone stale · **major**
+
+`service-page.ts:187-227` is solid plumbing — WebSocket push, 3 s auto-reconnect, polling as the
+safety net — with no indicator. When the socket closes and the tablet's wifi is down, the board
+keeps showing the orders it last saw; a frozen board and a quiet kitchen look identical, on a
+screen nobody is standing in front of. UX-S3 fixes "blank vs broken" for the first load; this is
+the same problem after an hour of service.
+
+**Spec.** A live pill in the top bar, left of the user name, `role="status" aria-live="polite"`,
+at the board's type scale (UX-S1): green dot + `Live · updated 21:04:12` while
+`ws?.readyState === WebSocket.OPEN`, `--warn` dot + `Reconnecting… · updated 20:58:41` otherwise,
+both driven by a `lastLoadedAt` signal set in `load()`'s `next`. After 60 s disconnected, the
+board header strip also tints `--warn-soft` — a kitchen must not have to read text to notice.
+No API change: the component already knows both facts.
 
 ---
 
@@ -665,9 +980,16 @@ kept at `12px` beside it in `--muted`; description `13px/1.4` in `--muted`; cate
 make the sale, on a phone, and they sit at the absolute floor of WCAG 2.5.8 with no margin for a
 thumb. Mis-taps add the wrong quantity or hit the neighbouring row.
 
+There is a second, compounding problem: `−` is rendered only when `qty > 0`
+(`customer-order-point-page.ts:210-213`), so the row re-lays out on the first tap and the `+`
+button **shifts left** by the width of `−` plus the value. A guest tapping `+` twice in quick
+succession lands the second tap on the quantity or on `−`.
+
 **Spec.** 40×40px, gap `10px`, `-webkit-tap-highlight-color: transparent`, quantity value
 `min-width: 24px` at `16px/700`. The `.item-side` column widens accordingly; the item row grows by
-~16px, which the 15px type (UX-Q3) absorbs.
+~16px, which the 15px type (UX-Q3) absorbs. Reserve the stepper's full width at qty 0 — render the
+`−` and the value as `visibility: hidden` placeholders rather than omitting them — so `+` never
+moves under the thumb.
 
 ### UX-Q5 — The order confirmation renders where the guest is not looking · **major**
 
@@ -696,8 +1018,26 @@ who guesses wrong puts their orders — and their money — on the neighbouring 
    clears the stored choice and re-opens the chooser.
 2. The chooser gets a second line: `cust.pickSlotHelp` ("Not sure? Ask your waiter which part of
    the table you are at." / "Nu știi? Întreabă ospătarul la ce parte a mesei stai.").
-3. Changing the slot must not strand the guest's existing session — **architects, Q6** (what
-   happens to an approved session and its orders on the abandoned slot).
+3. **Change goes through a confirm dialog, because it is not free** (see the answer below):
+   `cust.changeTableConfirmTitle` / `cust.changeTableConfirmBody`, confirm `cust.changeTable`,
+   cancel `common.cancel`. The body states both consequences in plain words — the guest waits for
+   the waiter again, and orders already placed stay on the old part of the table.
+
+**API — answered (architect-b, Q6), and it constrains this spec.** A second join at the sibling
+slot is allowed and *is* the mechanism: each slot is its own order point, and `join()` creates a
+fresh PENDING session there (`CustomerAccessService.java:43-54` resumes only within the same
+point's current round). Two consequences I had hoped to avoid:
+
+- **approval does not carry over** — the guest returns to the "waiting for waiter" banner;
+- **orders already placed do not move** — they stay on the wrong slot's bill, and no order-move
+  endpoint exists; the waiter resolves it at the table.
+
+So "Change" is a recovery path with a real cost, not an undo, and the copy has to say so rather
+than imply a clean switch. The clean fix — moving orders between sibling slots — is **deferred**
+(§10): architect-b assesses it as feasible (same location, same table round) but money-path work
+needing design care, not a quick addition. It stays recorded with that reason. One consequence for
+story trimming: the *prevention* in point 2 now carries more weight than the cure, so the "not
+sure, ask your waiter" line is not decoration and should survive any scope cut.
 
 ### UX-Q7 — "Denied" is a dead end · **minor**
 
@@ -769,10 +1109,14 @@ them the confirmation.
 "Payment confirmed" and a tick. No amount, no reference, nothing the guest can show a waiter or
 check against their card statement.
 
-**Spec.** Under the heading: `ret.paidAmount` ("Paid {amount} RON") and, when the API returns one,
-the order number as `ret.paidOrder` ("Order #{no}"). Plus a `cust.order` link to the bill view
-beside `ret.back`. Needs amount + order number on `/public/payments/{ref}/status` —
-**architects, Q8.**
+**Spec.** Under the heading: `ret.paidAmount` ("Paid {amount} RON") and the order number as
+`ret.paidOrder` ("Order #{no}") — both unconditional. Plus a `cust.order` link to the bill view
+beside `ret.back`.
+
+**API — answered (architect-b, Q8): yes, trivial.** The response is `{status, orderId}` today
+(`OnlinePaymentStatusResponse`); the intent row already stores the amount and the confirmed order
+already has its `orderNo`, so this is a two-field DTO addition. Nothing in the spec is conditional
+any more.
 
 ### UX-Q15 — Legal links are Romanian-only on the English page · **trivial**
 
@@ -781,26 +1125,85 @@ documents themselves are Romanian legal texts, so the labels are arguably correc
 decision is on the record rather than accidental. If translated, EN labels go in the same
 `LEGAL_LINKS` structure keyed by language.
 
+
+### UX-Q16 — After ordering in CONFIRM mode the bill says "No orders yet" · **major**
+
+In `CONFIRM` self-order mode a customer order is created as a DRAFT on the waiter's Approvals page
+and carries no number until it is approved, so it is not in the bill. The guest is shown
+`cust.orderSentApproval` ("Your order was sent to the waiter for approval."), opens drawer → Order,
+and reads `cust.noOrders` — "No orders yet." Two screens of the same app contradict each other
+about whether the order exists, immediately after the guest acted.
+
+**Spec.** A notice at the top of the Order view, in the `approval-note` style already on the page,
+while this device has an order awaiting approval: `t('cust.pendingApprovalLine')` ("You have an
+order waiting for the waiter to approve it." / "Ai o comandă în așteptarea aprobării
+ospătarului."). Needs the bill payload to report a pending-approval count for this token —
+**architects, Q11.** Pairs with UX-Q8 (the bill does not refresh either), so the notice clears
+itself once the order is approved and appears as a normal line.
+
+### UX-Q17 — The cart bar vanishes when ordering becomes impossible · **major**
+
+`customer-order-point-page.ts:150`: the bar renders only
+`@if (view() === 'menu' && cartCount() > 0 && canOrder())`. If the waiter denies the device, or
+closes the table, while the guest is building a cart, the bar — and with it the total and the only
+way to send the order — **disappears with the items still in the cart** and nothing explains why.
+The guest keeps tapping `+` on a page that no longer has an order button.
+
+**Spec.** Keep the bar whenever `cartCount() > 0`; when `canOrder()` is false, the button is
+disabled and its label is replaced by the reason: `t('cust.cannotOrderNow')` ("Ordering is paused
+at this table." / "Comanda este oprită la această masă."), with the existing DENIED/not-open banner
+above giving the detail and UX-Q7's "Ask again" the way out.
+
+### UX-Q18 — "Waiting for the waiter" can spin forever · **minor**
+
+`customer-order-point-page.ts:1044-1058`: a 5 s poll with no cap, behind a spinner and
+`cust.waitingApproval` ("Waiting for the waiter to approve this table…"). If nobody opens the
+Approvals page, the guest watches that spinner indefinitely and is never told to do anything else.
+
+**Spec.** Keep polling, change the copy after 2 minutes: `t('cust.waitingLong')` ("The waiter has
+not answered yet — please call them over." / "Ospătarul nu a răspuns încă — te rugăm să îl
+chemi."), spinner retained so it still reads as in progress.
+
+### UX-Q19 — The cart-bar total carries no currency · **minor**
+
+`customer-order-point-page.ts:154`: `{{ price(cartTotal()) }}` — a bare number, next to a count of
+items, while every item price (`:206`) and the bill total (`:119`) print `RON`. The one number the
+guest checks before committing is the only money on the page without a unit.
+
+**Spec.** `{{ price(cartTotal()) }} RON`, matching the bill total. The "drop a pointless `.00`"
+rule stays as it is.
+
+### UX-Q20 — Quick-nav scrolls the category heading under the sticky top bar · **minor**
+
+`customer-order-point-page.ts:1076-1078`: `scrollIntoView({ behavior: 'smooth', block: 'start' })`
+against a 56 px sticky top bar (`:258-262`), so the category the guest tapped ends up hidden behind
+the bar and the first thing they see is the second item of that category.
+
+**Spec.** `scroll-margin-top: 64px` on `.menu-cat` (56 px bar + 8 px breathing room); no JS change.
+
 ---
 
 ## 7. Questions for the architects
 
 Each of these gates a state specced above; `ux` needs the answer before the matching story goes
-`stage:ready`.
+`stage:ready`. **Q2, Q4, Q6 and Q8 are answered** (architect-b, 2026-10-24) and the specs above
+have been rewritten accordingly — the answers are recorded in the finding, not here, so the spec
+and the contract can't drift apart. Q1, Q3, Q5, Q7 and Q9 are open with architect-a.
 
 | # | For | Question |
 |---|---|---|
 | Q1 | UX-C8, UX-Q9 | Can the public order-point payload carry the client's **display name and legal line** (company, CUI), so the footer and the logo `alt` are per tenant instead of hard-coded Rendezvous? |
-| Q2 | UX-W2 | Can `GET /order-points/assigned` return, per point: `unpaidTotal`, `readyOrderCount`, `pendingApprovalCount`, `roundOpenedAt`? Without these the tiles cannot carry state. |
+| ~~Q2~~ | UX-W2 | **Answered: yes, additive.** All four fields derive from the current schema; one response, 3–4 batched queries, no per-point lookup. |
 | Q3 | UX-W10 | Is there (or can there be) a cheap count for "READY orders at my tables", or should the shell poll the existing list? Alternatively, should the waiter shell subscribe to `/api/ws/orders`? |
-| Q4 | UX-S4 | Does the API accept `DELIVERED → READY`? If not, Delivered needs a confirm dialog instead of an undo. |
+| ~~Q4~~ | UX-S4 | **Answered: yes, and the coming transition matrix keeps it** as the undo path (kanban status never touches payment state). Undo toast, no confirm dialog. |
 | Q5 | UX-Q2 | Does the public order-point payload say whether the point self-pays `ONLINE` (and with what total), so the button can read "Pay X RON" before the redirect? |
-| Q6 | UX-Q6 | What happens to an approved customer session and its placed orders when a device changes its split-table slot? Is a second join allowed? |
+| ~~Q6~~ | UX-Q6 | **Answered: a second join is allowed and is the mechanism**, but approval does not carry over and placed orders do not move. Spec now warns about both; moving orders is deferred. |
 | Q7 | UX-Q7 | May a DENIED device re-request access (new PENDING), or is Deny terminal for that device/token? |
-| Q8 | UX-Q14 | Can `/public/payments/{ref}/status` return the paid amount and the resulting order number? |
+| ~~Q8~~ | UX-Q14 | **Answered: yes, trivial** — a two-field DTO addition; the intent row already stores the amount. |
 | Q9 | UX-W18 | Does the pay response expose the fiscal status, so the toast can distinguish "receipt printing" from "receipt issued"? |
 
-Token change for UX-C2 and the `--focus-ring` in UX-C4 also needs an architect decision.
+Token change for UX-C2 and the `--focus-ring` in UX-C4 also needs an architect decision — as **one**
+decision in `design.md`, not re-argued per story.
 
 ---
 
@@ -843,6 +1246,8 @@ dictionary; every key must exist in RO.
 | `cust.viewOrder` | `See my order` | `Vezi comanda` |
 | `cust.changeTable` | `Change` | `Schimbă` |
 | `cust.pickSlotHelp` | `Not sure? Ask your waiter which part of the table you are at.` | `Nu știi? Întreabă ospătarul la ce parte a mesei stai.` |
+| `cust.changeTableConfirmTitle` | `Change your table?` | `Schimbi masa?` |
+| `cust.changeTableConfirmBody` | `Orders you already placed stay on {name}, and the waiter has to approve you again.` | `Comenzile deja trimise rămân pe masa {name}, iar ospătarul va trebui să te aprobe din nou.` |
 | `cust.askAgain` | `Ask again` | `Cere din nou` |
 | `cust.search` | `Search the menu…` | `Caută în meniu…` |
 | `ret.checkingText` *(replaces)* | `This usually takes a few seconds. Please keep this page open.` | `Durează de obicei câteva secunde. Te rugăm să nu închizi pagina.` |
@@ -850,6 +1255,13 @@ dictionary; every key must exist in RO.
 | `ret.paidOrder` | `Order #{no}` | `Comanda #{no}` |
 | `nf.title` | `This code is not working` | `Codul nu funcționează` |
 | `nf.body` | `Ask your waiter for a menu, or scan the code again.` | `Cere ospătarului meniul sau scanează din nou codul.` |
+| `pay.noTypes` *(UX-W22)* | `No payment type is set for this table — ask an admin.` | `Nicio metodă de plată setată pentru această masă — cere unui admin.` |
+| `payments.pendingNote` *(UX-W7)* | `Fiscal receipt not issued yet — it is printing.` | `Bonul fiscal nu a fost emis încă — se tipărește.` |
+| `tables.serviceDay` *(UX-W23)* | `Service day · {name}` | `Ziua de serviciu · {name}` |
+| `cust.pendingApprovalLine` *(UX-Q16)* | `You have an order waiting for the waiter to approve it.` | `Ai o comandă în așteptarea aprobării ospătarului.` |
+| `cust.cannotOrderNow` *(UX-Q17)* | `Ordering is paused at this table.` | `Comanda este oprită la această masă.` |
+| `cust.waitingLong` *(UX-Q18)* | `The waiter has not answered yet — please call them over.` | `Ospătarul nu a răspuns încă — te rugăm să îl chemi.` |
+| `common.refresh` *(UX-W25)* | `Refresh` | `Reîncarcă` |
 
 Existing entries to correct:
 
@@ -859,7 +1271,22 @@ Existing entries to correct:
 | `pay.tip` / `payments.tip` / `stats.tip` | RO alternates `Bacșiș` and `Tips` for the same thing | all three RO → `Bacșiș` |
 | `pay.customPct` / `pay.percent` | both RO `Procent` for two different controls | `pay.customPct` RO → `Procent %`, `pay.percent` RO → `Procent` |
 | `detail.proforma` | EN `Proforma` (noun) vs RO `Printează nota` (verb) | EN → `Print bill`, RO stays |
-| `tables.assignedMany` | RO `{n} alocați` — masculine, for feminine `mese` | RO → `{n} alocate` |
+| `tables.assignedMany` | RO `{n} alocați` — masculine, for feminine `mese` | see the note below: EN and RO are both ambiguous about *what* is counted |
+| `cust.denied` | terminal — says what happened, never what to do next (UX-Q7) | EN → `The waiter declined access at this table — please order with your waiter.`, RO → `Ospătarul a refuzat accesul la această masă — comandă, te rog, prin ospătar.` |
+
+Two copy decisions for `ba`, recorded rather than guessed:
+
+- **`tables.assignedOne` / `tables.assignedMany`.** EN is "1 assigned" / "{n} assigned" and RO is
+  "1 alocat" / "{n} alocați". On a multi-user point the number counts **waiters**, not tables, so
+  the RO masculine is arguably right and the fix is to make both languages say what is counted:
+  EN `{n} waiters` / RO `{n} ospătari`. If the number is meant to read as "this point is assigned,
+  N times", then `{n} alocate` (agreeing with `mese`) is the fix instead. One of the two, not both.
+- **Romanian plural with "de".** From 20 up, Romanian needs *de*: `20 de produse`, `20 de ore`,
+  `20 de ospătari`. `I18nService.t` has no plural support, so today `cust.itemMany`,
+  `time.hoursAgo`, `time.minAgo` and `tables.assignedMany` are wrong for any count ≥ 20 — easy to
+  hit with items on a table of eight. Cheapest fix without a plural engine: a second key per case
+  (`…Many` / `…ManyDe`) chosen at the call site on `n >= 20`. A real plural rule in `t()` is the
+  better long-term answer and is a story of its own.
 
 Backoffice copy (English, no `t()`): `Loading…` (UX-B1), `Paid` / `Partial` / `Not paid`
 (UX-B2), `Ordered` instead of `Sales` (UX-B6), `1 table is still open — close it to cash up` /
@@ -907,5 +1334,16 @@ Phase-2 stories, ordered by value per unit of work. Each is independently shippa
 12. **Smaller waiter/customer items** — UX-W11, UX-W12, UX-W13, UX-W16, UX-W17, UX-W19, UX-W20,
     UX-W21, UX-Q6 (Q6), UX-Q7 (Q7), UX-Q8, UX-Q12, UX-Q13, UX-Q14 (Q8).
 
-Deferred by default, recorded rather than dropped: UX-B9 (Order Points density — a story of its
-own), UX-Q11 (customer menu search — a feature, the BA's call), UX-Q15 (legal label language).
+Deferred by default, recorded rather than dropped:
+
+- **UX-B9** — Order Points density (13 editable columns); a story of its own.
+- **UX-Q11** — customer menu search; a feature, the BA's call.
+- **UX-Q15** — legal label language on the EN customer page.
+- **Waiter WebSocket push** (from Q2/UX-W3) — `OrderNotificationService` routes by SERVICE-station
+  assignment and has no notion of a table's waiters, so pushing to waiters is a new api story. The
+  15 s poll makes it unnecessary for now; recorded so the option is on the record rather than
+  forgotten.
+- **Moving orders between sibling split slots** (from Q6/UX-Q6) — the clean fix for a guest who
+  picked the wrong half of a table. Architect-b assesses it as feasible (same location, same table
+  round) but money-path work needing design care. Until it exists, UX-Q6 is a warned recovery
+  path, not an undo, and the waiter resolves mis-slotted orders at the table.
