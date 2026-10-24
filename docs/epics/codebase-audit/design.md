@@ -99,9 +99,9 @@ IDs: `A-*` api (architect-a), `W-*` web, `B-*` bridge, `I-*` infra (architect-b)
 | W9 | `web/CLAUDE.md` layout drift: `watcher/`, `stats/`, `qr-templates/`, `reports/dashboard` exist undocumented; "Reports group [empty for now]" is stale | `web/CLAUDE.md` | doc fix, folded with A16 | DOC |
 | I3 | `deploy.yml` has no `concurrency` group — two quick pushes to `main` can deploy out of order | `.github/workflows/deploy.yml` | one-line `concurrency:` block | DO |
 | I5 (QA-03) | `scripts/env-up.sh`, `scripts/seed-tenant.sh`, `web/e2e/` referenced by CLAUDE.md don't exist; compose file + docs are untracked on `origin/develop` | `git ls-tree origin/develop`; CLAUDE.md §2/§7 | devops commits the stack + scripts (precondition for QA's Phase 4) | DO |
-| B1 | Thermal TCP sink has no read/write timeout (connect timeout only): a wedged printer parks its single queue thread until app restart; the 180 s sweeper protects the money, not the bridge | `bridge/.../EscPosThermalService.kt:249-258`; `PrintQueueManager.kt` | soTimeout + bounded write | BE (bridge) |
-| B2 | The 90 s job budget exists only on the fiscal path; INFO_RECEIPT / WAITER_REPORT / non-fiscal receipts have none — README overstates "a job is capped at 90 s" | `FiscalPrinterService` vs `EscPosThermalService` | same budget pattern on the thermal paths | BE (bridge) |
-| B3 | `handleInfo`/`handleReport` `.exceptionally` blocks never answer the frame (violates "every inbound frame is answered"); `handleReceipt` does it right | `BridgeWebSocketClient.kt` | answer BRIDGE_INTERNAL like `handleReceipt` | BE (bridge) |
+| B1 | Thermal TCP sink has no read/write timeout (connect timeout only): a wedged printer parks its single queue thread until app restart; the 180 s sweeper protects the money, not the bridge | `bridge/.../EscPosThermalService.kt:249-258`; `PrintQueueManager.kt` | soTimeout + bounded write. Deferred per decision D4 (requirement.md decisions log) | BE (bridge) |
+| B2 | The 90 s job budget exists only on the fiscal path; INFO_RECEIPT / WAITER_REPORT / non-fiscal receipts have none — README overstates "a job is capped at 90 s" | `FiscalPrinterService` vs `EscPosThermalService` | same budget pattern on the thermal paths. Deferred per D4 | BE (bridge) |
+| B3 | `handleInfo`/`handleReport` `.exceptionally` blocks never answer the frame (violates "every inbound frame is answered"); `handleReceipt` does it right | `BridgeWebSocketClient.kt` | answer BRIDGE_INTERNAL like `handleReceipt`. Deferred per D4 | BE (bridge) |
 
 ### 2.4 Trivial
 
@@ -187,10 +187,9 @@ IDs: `A-*` api (architect-a), `W-*` web, `B-*` bridge, `I-*` infra (architect-b)
 - **API contract (first, so BE and FE build in parallel):** `PlaceOrderRequest.items[*]` becomes
   `{menuItemId, quantity}` — `name`/`price` are removed. The server resolves name, price and VAT
   from the menu item exactly as `resolveCustomerOrderLines` does, validating the item belongs to
-  a menu of the point's location. Free-text lines: *pending architect-b's verification of the
-  waiter UI* — if the UI never sends `menuItemId = null`, the field pair is simply dropped; if a
-  custom-line path exists, it stays as an explicit `{name, price}` variant **restricted to
-  ADMIN/SUPER** so the open price entry is a manager action.
+  a menu of the point's location, and `menuItemId` becomes `@NotNull`. No free-text path exists
+  in the UI (verified: both cart entry points build lines from menu data only —
+  `waiter-order-page.ts:297-307, 320-325`), so the `name`/`price` pair is dropped outright.
 - Transitional tolerance: the API ignores (not rejects) `name`/`price` if present, so the old web
   build keeps working until the FE task lands (additive change, CLAUDE.md §5 gate).
 - **FE:** `GET /order-points/{id}/menu` response gains a `menuVersion` (the max `updated_at`-style
@@ -202,8 +201,9 @@ IDs: `A-*` api (architect-a), `W-*` web, `B-*` bridge, `I-*` infra (architect-b)
 
 - `updateStatus` refuses CANCELED when any line of the order has `payment_id` (409 with reason
   "Order has paid items — refund/handle them first", shown by the UI).
-- Allowed transitions: `ORDERED↔READY`, `READY→DELIVERED`, `{ORDERED,READY}→CANCELED`,
-  `DELIVERED→{READY,ORDERED}` is refused (resurrection), `CANCELED` is terminal.
+- Allowed transitions: `ORDERED↔READY`, `READY↔DELIVERED` (`DELIVERED→READY` is the board's
+  Undo, promised in §11 Q4 / ux UX-S4), `{ORDERED,READY}→CANCELED`; `DELIVERED→ORDERED` is
+  refused (full resurrection), `CANCELED` is terminal.
 - Live-push: unchanged — `OrderChangedEvent` still fires on every accepted transition.
 
 ### 3.6 A6 — real paging for the orders report
@@ -218,9 +218,9 @@ IDs: `A-*` api (architect-a), `W-*` web, `B-*` bridge, `I-*` infra (architect-b)
 ### 3.7 I1 — `ci.yml` (first task, blocks all fix stories)
 
 - `on: pull_request` (any base). Jobs: **api** — postgres:16 service container, `yammer` schema
-  init, `mvn -B test` with dependency cache (fake-gcs only if the context proves to need it —
-  *pending architect-b's check of `StorageConfig` startup behaviour*; if needed, the
-  fake-gcs-server container joins the job); **web** — node 22, `npm ci`, `npm test -- --run`,
+  init, `mvn -B test` with dependency cache — postgres only, no fake-gcs (verified:
+  `StorageConfig` builds the GCS client lazily, no startup ping; devops confirms with one dry
+  run); **web** — node 22, `npm ci`, `npm test -- --run`,
   `npm run build`; **bridge** — `gradle assembleDebug`, path-filtered on `bridge/**`.
 - Required checks per CLAUDE.md §6; QA-01 (context test red without DB) is solved by the service
   container now and may later move to Testcontainers — not in this task.
@@ -273,7 +273,7 @@ IDs: `A-*` api (architect-a), `W-*` web, `B-*` bridge, `I-*` infra (architect-b)
 Two new migrations this epic, both additive (`V1`/`V2` are never edited — §5 gate):
 
 - `V3__Client_order_no_counter.sql` (§3.3) — `client.next_order_no` with a backfill.
-- `V4__Client_legal_line.sql` (ux Q1, §12) — `client.legal_name`, `client.cui` (nullable
+- `V4__Client_legal_line.sql` (ux Q1, §11) — `client.legal_name`, `client.cui` (nullable
   VARCHARs) + the backoffice Clients form fields, so the customer page's footer and logo alt
   are per tenant instead of the hard-coded Rendezvous line.
 
@@ -356,9 +356,11 @@ Rollback of any single story = revert its squash commit on `develop`; nothing in
 requires coordinated multi-service deployment. The A1 deploy half and anything in GCP is
 human-executed per CLAUDE.md §9. One behaviour change to announce at rollout: after B-T1, a
 TCP-register receipt requires a bridge paired to the client — venue setup gains the pairing
-step (§3.8), and an unpaired bridge means PENDING → FAILED instead of a print.
+step (§3.8), and an unpaired bridge means PENDING → FAILED instead of a print. Existing installs
+auto-pair: their device ids are already on peripherals rows, so nothing changes for them; only a
+connected-but-unreferenced bridge stops receiving any-bridge frames.
 
-## 12. Answers to the ux questions (ux.md §7) and the theme-token decision
+## 11. Answers to the ux questions (ux.md §7) and the theme-token decision
 
 Converged by the pair, so stories don't re-litigate them. Q-numbers are ux.md §7's.
 
@@ -396,7 +398,7 @@ hex values across 23 files migrate to tokens as the ux stories touch their files
 sweep (§5 point 5: no clean-up sweeps of untouched code). Until the tokens land, ux's interim
 review rule stands: a hard-coded colour with no token to point at is a Note, not Blocking.
 
-## 11. Task decomposition
+## 12. Task decomposition
 
 Created as issues after the stories exist (`ba`); slicing agreed by the pair:
 API-contract-first tasks (A4, W2) so BE/FE run in parallel; odd stories → `architect-a`'s
