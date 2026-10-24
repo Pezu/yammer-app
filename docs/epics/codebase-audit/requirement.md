@@ -25,15 +25,20 @@ reason — nothing silently dropped.
 
 Success is measured by:
 
-1. **Coverage** — every module in scope (`api/`, `web/`, `bridge/mobile/`, repo
-   infrastructure) is examined by at least one auditor and listed in the findings
-   register, even if a module yields zero findings (recorded as "reviewed, no findings").
-2. **Traceability** — every finding has exactly one disposition: a linked story/bug
-   issue, or a "won't fix" entry in this page's decisions log with a reason.
+1. **Coverage** — every unit in the Coverage checklist below is examined by at least
+   one auditor and marked *reviewed — findings* or *reviewed — no findings*. "Examined"
+   is claimed per unit, never per module.
+2. **Traceability** — every finding ID from `design.md`, `ux.md` and the QA register
+   appears **exactly once** in the Disposition register below, linked to a story/bug
+   issue or to a decision entry (won't fix / deferred) with its reason. At epic exit,
+   criterion 2 is a diff between the registers' ID lists and this table — not a reading
+   exercise.
 3. **Delivery** — every accepted finding's story/bug reaches `stage:qa-passed` on the
    integration stack built from `develop`.
 4. **No regressions** — all existing tests keep passing (`api`: `mvn test`,
-   `web`: `npm test`) and, once `ci.yml` exists, CI is green on every PR of this epic.
+   `web`: `npm test`), the regression blocks of `test-plan.md` §9 for the invariants a
+   story touches are green, and, once `ci.yml` exists, CI is green on every PR of this
+   epic.
 
 ## Personas served
 
@@ -57,15 +62,18 @@ Three audit tracks, each owned by the role that will defend its findings:
 
 Code in scope:
 
-- `api/` — Spring Boot 3.2 / Java 21 (204 source files): tenancy, service days, table
+- `api/` — Spring Boot 3.2 / Java 21 (~200 source files): tenancy, service days, table
   rounds, payments + fiscal outbox, WebSocket push, reports, Netopia
-- `web/` — Angular 21 zoneless (84 TS + 56 template/style files), four surfaces
-- `bridge/mobile/` — Kotlin Android fiscal bridge (19 files)
+- `web/` — Angular 21 zoneless (~80 TS + ~60 template/style files), four surfaces
+- `bridge/mobile/` — Kotlin Android fiscal bridge (~20 files)
 - Repo infrastructure: `docker-compose.local.yml`, `.github/workflows/`, `db-seeds/`, docs
 
 **Known precondition gap:** `.github/workflows/ci.yml` does not exist, so the Definition
 of Done's "green CI" cannot be met today. Creating it (build + tests + release gate) is
 the first `devops` task of this epic and blocks the merge of every implementation story.
+`mvn test` includes a `@SpringBootTest` that needs a live PostgreSQL (no test datasource,
+no Testcontainers exist today), so running the suite unattended — CI provisioning a
+database — is part of that task's scope, not an afterthought.
 
 ## Out of scope
 
@@ -88,13 +96,13 @@ Every finding enters the register (in `design.md` / `ux.md`) with:
   today, fragile or costly tomorrow), or UX/UI improvement
 - **Severity / impact:**
   - Defects use the bug severity labels: `sev:critical` (money wrong, data loss,
-    cross-tenant leak, fiscal double-print), `sev:major` (a flow is broken or a business
-    rule violated, workaround exists), `sev:minor` (incorrect but low-impact behaviour),
-    `sev:trivial` (cosmetic).
-  - Improvements use impact **High / Medium / Low** = (who is affected) × (how often) ×
-    (cost of leaving it). High: affects money, tenancy, fiscal, or a daily waiter/customer
-    flow. Medium: affects an admin flow or maintainability of a sensitive area. Low:
-    polish, consistency, dev ergonomics.
+    cross-tenant leak, a role reaching something it must not, a fiscal receipt
+    double-printed **or silently not printed**), `sev:major` (a flow is broken or a
+    business rule violated, workaround exists), `sev:minor` (incorrect but low-impact
+    behaviour), `sev:trivial` (cosmetic).
+  - Improvements use impact **High / Medium / Low**. High: affects money, tenancy,
+    fiscal, or a daily waiter/customer flow. Medium: affects an admin flow or
+    maintainability of a sensitive area. Low: polish, consistency, dev ergonomics.
 - **Disposition** (decided in triage with the lead; human sign-off per the §9
   requirements gate): *fix now* (story/bug this epic), *won't fix* (recorded below with
   reason), or *deferred* (recorded below; a backlog issue is created but not scheduled).
@@ -113,6 +121,10 @@ architecture sign-off gate (CLAUDE.md §9).
 - Genuine defects become `bug` issues with a severity label; improvement groups become
   `story` issues. All carry `Part of #1`, an owner label, a stage label, dependencies as
   `Blocked by #n`, and an S/M/L estimate agreed with the implementing role.
+- Each story states which invariants it comes near (I1–I9 in `test-plan.md` §3 —
+  tenancy, money, settled lines, fiscal outbox, service day, roles, table rounds, live
+  push, RO/EN); that list selects the regression blocks for success criterion 4 and
+  QA's exit check.
 - Stories meet the Definition of Ready before `stage:ready`: user-story form,
   Given/When/Then acceptance criteria (testable, confirmed by `qa`; money criteria with
   concrete amounts; waiter/customer copy in RO and EN), technical tasks linked by the
@@ -133,6 +145,42 @@ architecture sign-off gate (CLAUDE.md §9).
    `test-report.md`, `release-notes.md`; module `CLAUDE.md` files updated where documented
    behaviour changed.
 5. The epic closes only when the human has merged `develop → main` and the deploy is green.
+
+## Coverage checklist
+
+One row per meaningful unit; auditors mark each *reviewed — findings* or *reviewed — no
+findings*. The epic cannot pass success criterion 1 with a pending row.
+
+| Unit | Auditor | Status |
+|---|---|---|
+| `api/` security (`security/`, auth, JWT, throttling) | architects | pending |
+| `api/` services (`service/` — money, rounds, shifts, approvals) | architects | pending |
+| `api/` persistence (`repository/`, entities, `db/migration`) | architects | pending |
+| `api/` controllers + DTOs | architects | pending |
+| `api/` WebSocket (`ws/`, bridge handler, order push) | architects | pending |
+| `web/` backoffice surface | ux + architects | pending |
+| `web/` waiter surface | ux + architects | pending |
+| `web/` service board | ux + architects | pending |
+| `web/` customer page | ux + architects | pending |
+| `web/` `core/` + `shared/` | architects | pending |
+| `bridge/mobile/` | architects | pending |
+| Infra: `.github/workflows/`, `docker-compose.local.yml`, `db-seeds/`, docs | architects + qa | reviewed — findings (QA §11) |
+| Test coverage (api + web suites) | qa | reviewed — findings (QA §11) |
+
+## Disposition register
+
+Every finding ID appears here exactly once. Disposition: **fix** (story/bug link),
+**won't fix** / **deferred** (decision link).
+
+| Finding | Disposition | Issue / decision |
+|---|---|---|
+| QA F-1 (stale login-roles doc) | fix | #6 |
+| QA F-2 (contradictory service-day doc) | fix | #6 |
+| QA F-3 (X-Forwarded-For trusted, QR throttle bypass) | pending triage | — |
+| QA F-4 (documented `scripts/` missing) | pending triage | — |
+| QA F-5 (AMOUNT payment loses discount) | fix | #5 (pending Q3) |
+| QA §11 no-CI / DB-bound test | fix | #4 |
+| QA §11 remaining coverage gaps (fiscal SM, pay, tenancy, web) | pending triage | — |
 
 ## Story map
 
