@@ -97,7 +97,9 @@ Every finding enters the register (in `design.md` / `ux.md`) with:
 - **Severity / impact:**
   - Defects use the bug severity labels: `sev:critical` (money wrong, data loss,
     cross-tenant leak, a role reaching something it must not, a fiscal receipt
-    double-printed **or silently not printed**), `sev:major` (a flow is broken or a
+    double-printed, or a payment reaching a terminal state with no receipt issued and no
+    operator verdict — a PENDING whose bridge is merely offline is queued inside the 180 s
+    deadline and is NOT this case), `sev:major` (a flow is broken or a
     business rule violated, workaround exists), `sev:minor` (incorrect but low-impact
     behaviour), `sev:trivial` (cosmetic).
   - Improvements use impact **High / Medium / Low**. High: affects money, tenancy,
@@ -158,10 +160,10 @@ findings*. The epic cannot pass success criterion 1 with a pending row.
 | `api/` persistence (`repository/`, entities, `db/migration`) | architects | pending |
 | `api/` controllers + DTOs | architects | pending |
 | `api/` WebSocket (`ws/`, bridge handler, order push) | architects | pending |
-| `web/` backoffice surface | ux + architects | pending |
-| `web/` waiter surface | ux + architects | pending |
-| `web/` service board | ux + architects | pending |
-| `web/` customer page | ux + architects | pending |
+| `web/` backoffice surface | ux + architects | ux: reviewed — findings (ux.md); architects: pending |
+| `web/` waiter surface | ux + architects | ux: reviewed — findings (ux.md); architects: pending |
+| `web/` service board | ux + architects | ux: reviewed — findings (ux.md); architects: pending |
+| `web/` customer page | ux + architects | ux: reviewed — findings (ux.md); architects: pending |
 | `web/` `core/` + `shared/` | architects | pending |
 | `bridge/mobile/` | architects | pending |
 | Infra: `.github/workflows/`, `docker-compose.local.yml`, `db-seeds/`, docs | architects + qa | reviewed — findings (QA §11) |
@@ -172,15 +174,48 @@ findings*. The epic cannot pass success criterion 1 with a pending row.
 Every finding ID appears here exactly once. Disposition: **fix** (story/bug link),
 **won't fix** / **deferred** (decision link).
 
+QA ids map positionally to the test plan's §11: QA-01…QA-14 = G-1…G-14,
+QA-15…QA-21 = F-1…F-7, QA-22 = F-8 (reported after the plan's first draft).
+
 | Finding | Disposition | Issue / decision |
 |---|---|---|
-| QA F-1 (stale login-roles doc) | fix | #6 (per D7: doc fix only) |
-| QA F-2 (contradictory service-day doc) | fix | #6 |
-| QA F-3 (X-Forwarded-For trusted, QR throttle bypass) | pending triage | — |
-| QA F-4 (documented `scripts/` missing) | pending triage | — |
-| QA F-5 (AMOUNT payment loses discount) | fix | #5 (per D5: option (a)) |
-| QA §11 no-CI / DB-bound test | fix | #4 |
-| QA §11 remaining coverage gaps (fiscal SM, pay, tenancy, web) | pending triage | routed to `architect-a` as QA-01…QA-18, consolidated from `design.md` |
+| QA-01 (fiscal state machine untestable at current level) | pending triage | — |
+| QA-02 (no e2e layer) | pending triage | — |
+| QA-03 (web surfaces untested) | pending triage | — |
+| QA-04 (`OrderService.pay` PARTIAL/AMOUNT untested) | pending triage | — |
+| QA-05 (tenant isolation untested) | pending triage | — |
+| QA-06 (no permission test) | pending triage | — |
+| QA-07 (no CI) | fix | #4 |
+| QA-08 (Spring test needs a live DB) | fix | #4 (test datasource in scope) |
+| QA-09 (untested services) | pending triage | — |
+| QA-10 (no concurrency test) | pending triage | — |
+| QA-11 (untranslated RO values unchecked) | pending triage | — |
+| QA-12 (bridge frame content unasserted) | pending triage | — |
+| QA-13 (stack not buildable from `develop`) | fix | #8 |
+| QA-14 (`bridge/mobile` no tests; pure-logic units allowed under D4) | pending triage | — |
+| QA-15 / F-1 (stale login-roles doc) | fix | #6 (per D7: doc fix only) |
+| QA-16 / F-2 (contradictory service-day doc) | fix | #6 |
+| QA-17 / F-3 (X-Forwarded-For trusted, QR throttle bypass) | pending triage | — |
+| QA-18 / F-4 (documented `scripts/` missing) | fix | #8 |
+| QA-19 / F-5 (AMOUNT payment loses discount) | fix | #5 (per D5: option (a)) |
+| QA-20 / F-6 (payment type resolved twice — trivial) | pending triage | — |
+| QA-21 / F-7 (RECEIPT queue behaviour undocumented) | fix | #6 |
+| QA-22 / F-8 (any role can re-issue a fiscal receipt) | fix | #9 |
+| UX group 1 (UX-C3, W1, W6, W14, W18 — waiter error handling/state loss) | fix | story to file (ux.md §10.1) |
+| UX group 2 (UX-Q1, Q3, Q4, Q5 — customer menu legibility + cart) | fix | story to file (ux.md §10.2) |
+| UX group 3 (UX-C1 — money formatting) | fix | story to file (ux.md §10.3) |
+| UX group 4 (UX-C2, C4, C10, C11 — tokens/focus/combo keyboard) | fix | story to file (ux.md §10.4; needs architects' token decision) |
+| UX group 5 (UX-S1, S2, S3, S5, S6 — service board viewing distance) | fix | story to file (ux.md §10.5) |
+| UX group 6 (UX-C6, C7, C8, Q10 — compliance + dead ends) | fix | story to file (ux.md §10.6; needs Q4) |
+| UX group 7 (UX-W2, W3, W10 — waiter board truth) | fix | story to file (ux.md §10.7) |
+| UX group 8 (UX-W7, W8, W9 — fiscal visibility for the waiter) | fix | story to file (ux.md §10.8) |
+| UX group 9 (UX-W4, W5, W15, S4 — confirmations on destructive actions) | fix | story to file (ux.md §10.9) |
+| UX group 10 (UX-C5 + §8 copy corrections — i18n coverage) | fix | story to file (ux.md §10.10) |
+| UX group 11 (UX-B1…B8, C9, C12 — backoffice polish) | fix | story to file (ux.md §10.11) |
+| UX group 12 (UX-W11…W13, W16, W17, W19…W21, Q6, Q7, Q8, Q12, Q13, Q14 — smaller items) | fix | story to file (ux.md §10.12) |
+| UX-B9 (Order Points column density) | pending Q6 | — |
+| UX-Q11 (customer menu search) | pending Q5 | — |
+| UX-Q15 (legal label language) | pending Q4 | — |
 
 ## Story map
 
@@ -188,9 +223,12 @@ Filled as findings are consolidated into issues (Phase 2). Format:
 
 | Story/Bug | Track | Findings covered | Owner | Estimate | Stage |
 |---|---|---|---|---|---|
-| [#4 CI pipeline on PRs](https://github.com/Pezu/yammer-app/issues/4) | infra | QA §11 (no CI, DB-bound test); epic precondition | devops | S (proposed) | backlog |
-| [#5 AMOUNT payment loses the table discount](https://github.com/Pezu/yammer-app/issues/5) | defect | QA F-5 | backend | S (proposed) | backlog |
-| [#6 api/CLAUDE.md stale login + service-day sections](https://github.com/Pezu/yammer-app/issues/6) | docs | QA F-1, F-2 | backend | S (proposed) | backlog |
+| [#4 CI pipeline on PRs](https://github.com/Pezu/yammer-app/issues/4) | infra | QA-07, QA-08; epic precondition | devops | S (proposed) | backlog |
+| [#5 AMOUNT payment loses the table discount](https://github.com/Pezu/yammer-app/issues/5) | defect | QA-19 (F-5) | backend | S (proposed) | backlog |
+| [#6 api/CLAUDE.md stale login + service-day sections](https://github.com/Pezu/yammer-app/issues/6) | docs | QA-15, QA-16, QA-21 | backend | S (proposed) | backlog |
+| [#8 develop builds its own stack: commit compose/nginx/CLAUDE.md + scripts](https://github.com/Pezu/yammer-app/issues/8) | infra | QA-13, QA-18 | devops | S (proposed) | backlog |
+| [#9 any role can re-issue a fiscal receipt](https://github.com/Pezu/yammer-app/issues/9) | defect | QA-22 (F-8) | backend | S (proposed) | backlog |
+| UX groups 1–12 (ux.md §10) | ux/ui | 60 UX findings | frontend | per story | stories after gate |
 | _further rows as architect/ux findings land_ | | | | | |
 
 ## Decisions log
@@ -212,3 +250,6 @@ Filled as findings are consolidated into issues (Phase 2). Format:
 | Q1 | Is there a budget/priority ceiling for Phase 2 — do we implement everything accepted, or stop after critical/major + High-impact? | lead → human | Answered → D3 |
 | Q2 | Should `bridge/mobile/` findings that require installing a new APK be scheduled in this epic, given installs are a human gate? | lead → human | Answered → D4 |
 | Q3 | AMOUNT payment on a discounted table (bug #5): should it allocate against net (discounted) prices like FULL/PARTIAL (recommended), or stay "taken as is" and be blocked on discounted tables? | lead → human | Answered → D5 |
+| Q4 | Legal pages (UX-C6/UX-Q10): the six legal links and bad QR codes dead-end on the staff login form — the Netopia/ANPC compliance surface of a card-accepting site. ux specced the shells; the content must come from the human. (a) route + shells now, human supplies content; (b) **recommended**: route + shells now with a minimal factual placeholder, content follows when provided; (c) defer entirely | lead → human | Open |
+| Q5 | Customer menu search (UX-Q11): the waiter app has search, the customer page does not. It is a new feature, not a defect — the epic's out-of-scope rule says features only when implied by a finding. (a) in scope this epic; (b) **recommended**: defer — record + backlog issue | lead → human | Open |
+| Q6 | Order Points density (UX-B9): 13 editable columns. (a) **recommended**: ux's two cheap tweaks only this epic, redesign deferred as its own backlog story; (b) full redesign story now | lead → human | Open |
