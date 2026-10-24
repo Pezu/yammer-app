@@ -70,6 +70,7 @@ to judge it:
 |---|---|---|
 | `OrderService` (pay/split/bill), `util/DiscountMath`, `OrderItemEntity` | I2, I3, I5 | R-M, R-F1, R-S1 |
 | `BridgeService`, `FiscalResultSweeper`, `PaymentRepository` UPDATEs, `PaymentService`, `bridge/mobile` | I4 | R-F |
+| `OnlinePaymentService`, `NetopiaPaymentService`, `/public/payments/**` | I2, I4 | R-O, R-F |
 | `security/*`, any service's tenant check, `UserService`, controller annotations | I1, I6 | R-T, R-R |
 | `ShiftService`, reports, dashboard, PDF/thermal output | I5 | R-S, R-M7, R-M8 |
 | `TableRoundService`, `OrderPointAssignmentService`, `ApprovalService`, `CustomerAccessService` | I7 | R-A, R-M10 |
@@ -157,8 +158,8 @@ docker compose -f docker-compose.local.yml up -d --build
 
 | Limitation | Consequence | Turned into a test path |
 |---|---|---|
-| No bridge connected | CASH/CARD payments stay `PENDING` | the `PENDING → sweeper → FAILED` path is directly testable (R-F1); FAILED is then the entry state for the retry scenarios |
-| Netopia disabled (`NETOPIA_ENABLED=false`) | ONLINE self-pay returns 503 by design | R-R-ONLINE: the customer page must show a usable error, not a dead button; the IPN-confirm path (order created only on IPN) is **not** executable locally and is covered by L1/L2 instead — recorded as a residual risk (§12) |
+| No bridge connected | CASH/CARD payments stay `PENDING`, the frame queued for the next HELLO | the `PENDING → sweeper → FAILED` path is directly testable (R-F1a); FAILED is then the entry state for the retry scenarios, and the stub connecting inside/outside the deadline gives R-F1b/R-F1c |
+| Netopia disabled (`NETOPIA_ENABLED=false`) | ONLINE self-pay returns 503 by design | R-R-ONLINE: the customer page must show a usable error, not a dead button; the browser leg is not executable locally, but the IPN-confirm path **is** — by posting the notify directly (block **R-O**); only the real gateway's own behaviour stays a residual risk (§12) |
 | fake-gcs instead of GCS | logo/image upload works, signed URLs differ | image scenarios are display-only, L4 |
 | `BRIDGE_API_KEY=local-compose-bridge-key` | a scripted WebSocket client **can** connect as a bridge | the fiscal result paths OK / ERROR / UNKNOWN become testable (§6.4) |
 
@@ -265,14 +266,16 @@ regression — never ambiguity about what the number should be.
 
 | id | Scenario | Expected |
 |---|---|---|
-| **R-F1** | CASH payment, no bridge connected | `fiscal_status = PENDING`, `requestId` = the payment id, one send attempt; the waiter Payments page and the backoffice Fiscal column both show PENDING with no Retry; after the 180 s deadline the sweeper moves it to **FAILED** and Retry appears |
+| **R-F1a** | CASH payment, no bridge connected for the whole deadline | `fiscal_status = PENDING`, `requestId` = the payment id; the waiter Payments page and the backoffice Fiscal column both show PENDING with no Retry; the frame is **queued**, not sent (`BridgeService.waiting`, `BridgeService.java:98,133-145`), so "no auto-retry" does not mean "one wire attempt"; after the 180 s deadline the sweeper moves the payment to **FAILED** and Retry appears |
+| **R-F1b** | Same, but the stub bridge sends HELLO **before** the deadline | the queued RECEIPT is delivered on registration (`onDeviceRegistered`) and the payment resolves from the stub's `RECEIPT_RESULT` — PENDING in the meantime is correct, not a defect |
+| **R-F1c** | Stub connects **after** the deadline | the expired frame is dropped and never printed late; the payment stays FAILED |
 | **R-F2** | Retry from each state (stub connected) | `FAILED` → re-armed to PENDING; `PENDING`, `SUCCESS`, `UNKNOWN`, `NONE` → **409**, status untouched |
 | **R-F3** | Stub replies `RECEIPT_RESULT OK` with a receipt number | `SUCCESS` + receipt number shown; `fiscal_device` pinned to the stub's device id |
 | **R-F4** | Stub replies `OK`, then `ERROR` and `UNKNOWN` for the same `requestId` | stays **SUCCESS** with the original receipt number — `SUCCESS` is terminal |
 | **R-F5** | Stub replies `UNKNOWN` | `UNKNOWN`; waiter page says to see a manager (no Retry for a waiter); `resolve-unknown {printed:true}` → SUCCESS; from any other state → **409** |
 | **R-F6** | Stub replies `UNKNOWN`, operator resolves "not printed", then retries | `FAILED` + `fiscal_reprint_authorized` set; the next `RECEIPT` frame carries `clearIntent` |
 | **R-F7** | Two stub bridges connected, TCP-configured register | the receipt is sent to **exactly one** of them and pinned; a MOBILE register sends only to its own `device_id` |
-| **R-F8** | Budget invariant | configuration check: `bridge.fiscal-result-timeout-seconds` (180) stays strictly above the bridge's 90 s job budget; any story changing either number fails this block unless both move together |
+| **R-F8** | Budget invariant | configuration check: `bridge.fiscal-result-timeout-seconds` (180) stays strictly above the bridge's 90 s job budget. The two numbers live in different codebases, so each side pins its own: an api config test asserting the `application.yml` default (so a yml edit trips it) and a bridge unit test asserting its constant. Any story changing one fails this block unless both move together |
 
 ### R-T — tenancy (I1)
 
@@ -310,13 +313,49 @@ authenticates from `?token=`). Particular attention to the roles no one exercise
 - **WATCHER**: can reach the dashboard read-only and *nothing* that writes; cannot reach the
   waiter or service surfaces; `/watcher` is its only home.
 - **SERVICE**: the board and status changes, not payments, not reports.
-- **WAITER**: own assigned tables only — another waiter's table is not readable, and
-  `retry-fiscal` is allowed while `resolve-unknown` is not.
+- **WAITER**: direct table access is **tenant-scoped, not assignment-scoped** — any authenticated
+  user of the tenant may read and pay a table through `GET /orders?orderPointId=`,
+  `GET /orders/bill` and `POST /orders/pay` (`AccessGuard.requireAccessibleOrderPoint` is the only
+  check; `api/CLAUDE.md` documents the ordering endpoints as "any authenticated user,
+  tenant-checked"), and R-A1 depends on exactly that for a second waiter joining a table. What
+  scopes to assignments is the waiter's own **list** surfaces: `/order-points/orders`,
+  `/order-points/payments`, `/order-points/my-stats`, `/approvals`, and
+  `PUT /order-points/{id}/self-order-mode`. Cross-tenant → 404.
+- **WAITER, fiscal**: `retry-fiscal` is reachable; `resolve-unknown` is ADMIN-only.
+  `PaymentService.retryFiscal` is tenant-scoped but **not** assignment-scoped, so a waiter
+  retrying a colleague's FAILED payment in the same tenant succeeds today — *pending the
+  architects' **A15** decision*; the scenario asserts current behaviour and is re-pointed when
+  that decision lands, so Phase 4 files no false bug.
 - **anonymous customer**: `/public/**` only, and inside it only the own session's bill.
+
+**R-R3** — the **global** catalogs are not tenant-scoped and must not be probed as if they were:
+`/roles`, `/order-point-types`, `/payment-types`, `/self-pay-types`, `/vat-types` and
+`/qr-templates` (V1/V2 seed; a location references a template) — list for any authenticated user,
+**writes SUPER-only**, and an ADMIN of either client sees the same rows. `GET /qr-templates/*/image`
+is public.
 
 **R-R2** — login: every role can sign in with a password (see F-1), a user with no role gets the
 same 401 as bad credentials, 10 failures in 15 min → 429 on both the IP and the username key,
 QR login is not role-restricted, and a reset QR token invalidates the previous one.
+
+### R-O — online self-pay / Netopia (I2, I4)
+
+The gateway is disabled in the stack, so the browser leg is not executable; the money-critical leg
+— the server-to-server IPN, which is the only thing that creates the order and the payment — is,
+by posting to `/public/payments/netopia/notify` directly. The architects' register carries a
+**critical** finding here (the notify endpoint is unauthenticated and the amount check is
+skippable), so this block exists before any story does.
+
+| id | Scenario | Expected |
+|---|---|---|
+| **R-O1** | Customer orders at `T3.1` (self-pay ONLINE) with the gateway disabled | 503 by design; the customer page shows a usable message, not a dead button; **no** order, **no** payment, and the cart survives |
+| **R-O2** | Intent created (gateway stubbed/forced), no IPN yet | an `online_payment` intent is PENDING; no order, no payment, nothing on the bill, kanban or any report; `GET /public/payments/{ref}/status` reports pending |
+| **R-O3** | Confirmed IPN arrives once | the order **and** the ONLINE payment are created exactly once; the order enters the normal flow (numbered, ORDERED, pushed to the board); `fiscal_status` PENDING like any other fiscalized payment |
+| **R-O4** | The same confirmed IPN replayed (gateways retry) | "already processed" — **no second order, no second payment, no second receipt** |
+| **R-O5** | IPN whose amount does not match the intent | the intent fails; no order, no payment |
+| **R-O6** | IPN for an unknown / already-expired reference | rejected; nothing created |
+| **R-O7** | Intent left untouched for > 30 min | expired by the scheduler; a late IPN for it creates nothing |
+| **R-O8** | Post-fix (authenticity story) | an IPN that fails signature/authenticity verification is rejected, and R-O3 still passes with a genuine one |
 
 ### R-A — rounds, assignment, approvals (I7)
 
@@ -326,7 +365,7 @@ QR login is not role-restricted, and a reset QR token invalidates the previous o
 | **R-A2** | `waiter1` leaves while 20.00 is owed; then after it is settled | 409 first, allowed second; the last waiter out ends the round |
 | **R-A3** | `POST /close` on a table that owes | 409; on a settled one, every assignment is dropped and never-accepted DRAFTs are deleted |
 | **R-A4** | Two waiters assign the same single-user point at once; then the same `POST /assign` twice | one wins, the other gets 409; the repeat is idempotent, not a second row |
-| **R-A5** | Two devices pay the same bill at the same time (FULL + FULL, FULL + AMOUNT) | the table is not settled twice: the second call sees nothing (or only the remainder) to pay, and no line carries two payment ids |
+| **R-A5** | Two devices pay the same bill at the same time (FULL + FULL, FULL + AMOUNT) | the table is not settled twice: the second call sees nothing (or only the remainder) to pay, and no line carries two payment ids. **Expected to fail on today's code** — there is no locking in the api (no `@Version`, no `FOR UPDATE`), the architects' finding **A2**; a red result here during early execution is that finding, not a new bug, until the fix story lands |
 | **R-A6** | Customer joins by QR under CONFIRM; orders; waiter approves / denies | DRAFT invisible to bill, kanban, waiter order list and reports; on approve it gets the next per-client number and goes ORDERED and appears on the board; on deny it is gone |
 | **R-A7** | Customer re-scans after a browser restart, inside the round and after it ended | inside: resumes APPROVED from the stored token; after: a fresh PENDING join |
 
@@ -391,8 +430,8 @@ naming (`OrderPointServiceSplitTest`, 2), and report/PDF rendering
 `QrPdfServiceTest`).
 
 The gaps below are offered to `ba` as findings in their own right. In the consolidated register
-(`requirement.md`) they carry the `QA-nn` prefix: **G-1…G-14 → QA-01…QA-14**, **F-1…F-6 →
-QA-15…QA-20**, in the order listed here.
+(`requirement.md`) they carry the `QA-nn` prefix: **G-1…G-14 → QA-01…QA-14**, **F-1…F-7 →
+QA-15…QA-21**, in the order listed here.
 
 | # | Gap | Evidence | Why it matters |
 |---|---|---|---|
@@ -421,12 +460,13 @@ QA-15…QA-20**, in the order listed here.
 | **F-4** | `CLAUDE.md` §7 documents `scripts/env-up.sh` and `scripts/seed-tenant.sh`; there is no `scripts/` directory | repo root |
 | **F-5** | **AMOUNT mode ignores the order point's discount.** `payFull`/`payPartial` charge the net price; `payAmount` allocates against the gross `lineTotal` and records `discount = null`. On `T2.1` (10%), a bill of one 42.00 pizza is 37.80 under FULL but paying AMOUNT 37.80 covers no whole unit, splits the unit, and leaves 4.20 owed — the same customer pays the gross price and the table looks unsettled. Candidate `sev:major` money defect; needs a product decision (`ba` + architects) rather than a QA verdict | `OrderService.java:471-473` and `:565-578` (`createPayment(request, remaining, remaining, null, me)`) |
 | **F-6** | `OrderService.createPayment` resolves the payment type from the repository twice into `typeName` and `type` | `OrderService.java:636-653` — trivial |
+| **F-7** | `api/CLAUDE.md` says the RECEIPT is built and "sends it ONCE" with "no automatic retry ever", and does not mention that a frame for an offline bridge is **queued** and delivered on the next HELLO inside the 180 s deadline (expired ones dropped). Both statements are true of different things, but the doc as written makes R-F1's expected result ambiguous — found while an architect review corrected this plan's own first draft | `BridgeService.java:92-97` (the `waiting` queue), `:133-145`, `:169-183` (`onDeviceRegistered`) |
 
 ## 12. Risks
 
 | Risk | Handling |
 |---|---|
-| The IPN-confirmed ONLINE payment path (order created only on the Netopia notify) is not executable locally | covered at L1/L2 plus a stubbed notify POST; the real gateway path stays a production-first risk and is called out at sign-off |
+| The customer's browser leg through the real gateway is not executable locally | the money-critical half (the IPN that creates the order and the payment) is covered by R-O with a direct notify POST, plus L1/L2; the gateway's own behaviour stays a production-first risk and is called out at sign-off |
 | The bridge is stubbed, not real hardware; the register's own behaviour (paper out, USB detached mid-print) is not reproduced | the stub covers the wire contract; hardware behaviour is a human gate (CLAUDE.md §9) |
 | No CI (G-7): a merged fix can break another story's unit tests without anyone noticing until I run the suite | `qa` runs `mvn test` and `npm test` against `develop` before each execution round and reports a red suite as a blocker |
 | The single-instance assumption (I8) cannot be falsified locally with one api container | reviewed by reading, not by test; any story touching the WS registries is escalated to the architects |
