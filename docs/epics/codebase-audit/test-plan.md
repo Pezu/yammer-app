@@ -40,7 +40,7 @@ observed behaviour is exactly what is under suspicion.
 | `web/CLAUDE.md` | which surface a screen belongs to, i18n rule, shared-table rule |
 | `docs/epics/codebase-audit/requirement.md` (`ba`) | the stories and their acceptance criteria |
 | `docs/epics/codebase-audit/design.md` (`architect-a` / `architect-b`) | the agreed shape of each fix, and which invariant it is near |
-| `docs/epics/codebase-audit/ux.md` (`ux`) | screen states and RO/EN copy — the expected result for every UI scenario |
+| `docs/epics/codebase-audit/ux.md` (`ux`) | screen states, RO/EN copy, and the §9 accessibility register — the expected result for every UI scenario; §9 is folded into R-U4…R-U8 |
 | `api/src/main/resources/db/migration/V1__Initial_schema.sql`, `V2__Seed.sql` | seeded catalogs, roles, the five role names |
 
 **Where the basis contradicts itself, the scenario is blocked and goes back to the author.** Two
