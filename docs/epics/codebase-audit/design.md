@@ -374,6 +374,20 @@ Converged by the pair, so stories don't re-litigate them. Q-numbers are ux.md §
 | Q8 | **Yes.** `GET /public/payments/{ref}/status` gains `amount` and `orderNo` (both already on the intent/order rows). The ref is the bearer; it only ever reaches the payer's browser. |
 | Q9 | **Partially — honestly.** The pay response will carry `paymentId` + the initial `fiscalStatus` (PENDING for CASH/CARD, NONE for PROTOCOL/PO), so the toast can say "receipt printing…". "Receipt issued" is an async fact (bridge result, up to the 180 s sweeper deadline) — the waiter Payments page remains the authority; a toast that claimed "issued" at pay time would be unbuildable (see PR #7 review note on UX-W8). |
 
+Second-pass questions (ux.md §7 at `b790e83`):
+
+| Q | Answer |
+|---|---|
+| Q10 | **One convention: `ro-RO` everywhere, and the api paper aligns.** Today api-rendered paper prints plain dot-decimal (`WaiterStatementPdfService` money cells are `toPlainString`, :284; thermal slips carry raw numbers the bridge prints as-is), while the DATECS register's own fiscal lines are firmware-formatted (comma decimal). Decision: the surfaces format `ro-RO`; one S-size api task reformats the PDF statement + thermal slip rows (and the Excel export follows wherever it is generated) so the paper the guest holds and the screen agree — the register's native comma style is the reference. |
+| Q11 | **Yes.** The customer bill endpoint already takes the token; the response gains `pendingApprovalCount` = this session's DRAFT orders (count over `orders.customer_session_id` + status DRAFT). S-size, no new endpoint; fixes the "sent for approval" / "No orders yet" contradiction. |
+| Q12 | **Yes — relax the read.** `GET /shifts/current` is tenant-checked via `AccessGuard`; its role gate drops to any authenticated user (writes stay ADMIN/SUPER). A waiter labels Payments/Statistics with the open day's nickname/start — read-only, no date picker, §5 intact. |
+| Q13 | **The `.1` suffix is how tables are born** (batch create makes `T{n}.1`) and `splitEntity` hard-requires the pattern (400 otherwise, `OrderPointService.java:223-227`) — a plain `T12` only exists through a manual rename. Technical recommendation, pending ba's product confirmation: make split handle a plain name by renaming the source to `T12.1` and creating `T12.2` — safe, because every reference (orders, payments, QR codes) is by id and names resolve at read time. Until then the backoffice documents the naming rule. |
+| Q14 | **Both halves, explicitly:** the api ALREADY clamps (`payAmount` takes `amount.min(unpaidTotal)`, `OrderService.java:571` — the overpay never reaches the payment row or the receipt), so no money defect and no 400 needed; the FE fix is to submit exactly the clamped value it displays (`waiter-table-detail-page.ts:563` sends the raw field today). Invariant for the spec: submitted == displayed; the server clamp stays as the safety net and `test-plan.md`'s overpay scenario asserts it. |
+
+UX-B10 is agreed as a defect (the FE counterpart of A8): two report pages pipe the api's naive-UTC
+strings through `| date:` instead of `shared/tz.ts` — file as `bug`, `sev:minor`,
+`agent:frontend`.
+
 **Theme tokens (ADR-0003, one decision):** `styles.scss` gains `--success: #10b981`,
 `--success-soft: rgba(16,185,129,.12)`, `--warn: #f59e0b`, `--warn-soft: rgba(245,158,11,.14)`,
 `--surface: #fff`, `--overlay: rgba(18,27,46,.45)`, `--focus-ring: var(--primary)`; and
