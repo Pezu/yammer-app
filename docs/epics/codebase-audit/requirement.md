@@ -116,7 +116,10 @@ architecture sign-off gate (CLAUDE.md §9).
 - Stories meet the Definition of Ready before `stage:ready`: user-story form,
   Given/When/Then acceptance criteria (testable, confirmed by `qa`; money criteria with
   concrete amounts; waiter/customer copy in RO and EN), technical tasks linked by the
-  architects, UI stories specified in `ux.md`.
+  architects, UI stories specified in `ux.md`. Acceptance criteria are written to the
+  `qa` checklist in `test-plan.md` §7 (named role, concrete amounts, observable result,
+  404 for tenancy, RO+EN copy, service-day not date, named fiscal state, named
+  regression scope for no-behaviour-change work).
 - Anything estimated over ~3 days is split.
 
 ## What "done" means for this epic
@@ -137,7 +140,10 @@ Filled as findings are consolidated into issues (Phase 2). Format:
 
 | Story/Bug | Track | Findings covered | Owner | Estimate | Stage |
 |---|---|---|---|---|---|
-| _pending — audit in progress_ | | | | | |
+| [#4 CI pipeline on PRs](https://github.com/Pezu/yammer-app/issues/4) | infra | QA §11 (no CI, DB-bound test); epic precondition | devops | S (proposed) | backlog |
+| [#5 AMOUNT payment loses the table discount](https://github.com/Pezu/yammer-app/issues/5) | defect | QA F-5 | backend | pending Q3 | backlog |
+| [#6 api/CLAUDE.md stale login + service-day sections](https://github.com/Pezu/yammer-app/issues/6) | docs | QA F-1, F-2 | backend | S (proposed) | backlog |
+| _further rows as architect/ux findings land_ | | | | | |
 
 ## Decisions log
 
@@ -154,3 +160,4 @@ Filled as findings are consolidated into issues (Phase 2). Format:
 |---|---|---|---|
 | Q1 | Is there a budget/priority ceiling for Phase 2 — do we implement everything accepted, or stop after critical/major + High-impact? | lead → human | Answered → D3 |
 | Q2 | Should `bridge/mobile/` findings that require installing a new APK be scheduled in this epic, given installs are a human gate? | lead → human | Answered → D4 |
+| Q3 | AMOUNT payment on a discounted table (bug #5): should it allocate against net (discounted) prices like FULL/PARTIAL (recommended), or stay "taken as is" and be blocked on discounted tables? | lead → human | Open |
