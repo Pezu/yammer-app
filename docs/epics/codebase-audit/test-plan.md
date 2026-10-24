@@ -238,7 +238,60 @@ ids are `S<issue>-<n>`, and the regression blocks come from the story's invarian
 
 ### Stories
 
-*(empty — waiting on `ba`; this section is the only part of the plan that changes per story)*
+Every story body carries its own `Invariants:` and `Regression blocks:` lines, so the selection of
+regression work is `ba`'s and the architects', not a judgement I make per story. What this section
+adds is the other direction: **which scenarios are new, which existing ones flip from expected-fail
+to expected-pass, and where a story's own AC is the only coverage.**
+
+Two levels of detail, deliberately:
+
+- **Full AC-level mapping** for the money, fiscal, tenancy and role stories — the invariant areas,
+  where a missed scenario costs money or leaks a tenant.
+- **Block-level mapping** for the UX stories (#29–#43). Their expected results live in `ux.md`'s
+  per-finding specs, which are already observable, and their regression exposure is R-U plus
+  whichever money block the surface touches. Writing 15 more AC-by-AC tables would restate `ux.md`
+  rather than add anything.
+
+#### Money, fiscal, tenancy and roles
+
+| Story | New scenarios | Existing scenarios that change | Notes |
+|---|---|---|---|
+| **#13** A1 forged IPN (critical) | — | **R-O5b flips**: today "accepted, order+payment created" becomes "rejected, intent stays PENDING". R-O3 and R-O4 must stay green *after* the fix — see the seam question in the testability pass | AC5 (fail-fast on a missing key) is a startup scenario, not an API one: assert the container exits rather than serves |
+| **#14** A2 double-payment race | the AC2 FULL-vs-AMOUNT race; the AC3 report-edit-vs-settle race | **R-A5 flips** from expected-fail to green; R-M1/R-M10 re-run (same methods) | the 409 copy in AC1 joins R-U1's RO/EN check |
+| **#15** A3 order numbers | a zero-order client's first number (boundary, see pass) | R-A6 and R-M1 re-run unchanged | `V3` → schema gate; R-S* unaffected (numbers are not shift-scoped) |
+| **#16** A4 client-sent prices | AC1 stale-cache price, AC3 foreign `menuItemId` → 400, AC4 `menuVersion` refetch | **R-F frame content** gains the 45.00 + VAT assertion; R-M re-run | the only story where a *stale read* is the everyday defect and the tampering is the tail risk |
+| **#17** A5 CANCELED over paid lines | AC1 409; AC3's full transition matrix as one scenario per edge | R-M (bill contents), R-P1 (events on accepted transitions) | add the partially-paid case (see pass) |
+| **#18** A7 approvals 403→404 | — | **R-T1b flips** to 404; R-A6/R-A7 must stay green (same-tenant 403 preserved) | |
+| **#19** B-T1 bridge tenancy | AC1 device list, AC2 routing to the paired bridge, AC3 409 without naming the tenant | **R-T1c flips**; R-F1a/R-F3/R-F7 re-run with two stub bridges of different tenants | the stub (§6.4) must support two identities for this |
+| **#9** F-8 role reach (`sev:major`) | — | **R-R1f flips**: SERVICE/WATCHER move from 2xx to 403; the WAITER path stays 2xx per A15 | |
+| **#5** F-5 AMOUNT discount | — | **R-M6 flips** to D5's outcome (37.80 settles the table, `discount_amount = 4.20`); R-M5 unchanged | API-level only while the UI conditional stands — see §9 R-M6 |
+| **#44** UX-B10 report times | — | **R-S8 flips**; R-S9 stays failing until #24 lands | both must land before the block passes |
+| **#24** deploy TZ | — | **R-S9 flips**; R-S8 unaffected | opposite direction to #44 — fixing one alone shrinks the error without removing it |
+| **#26** fiscal DB tests | — | **automates R-F2…R-F7**; they stay in the manual suite until the automation is green | AC3 automates R-M7's frame half |
+| **#27** tenancy + role matrix | — | **automates R-T1/R-T2 and R-R1**; R-T1b/R-T1c/R-R1f join it once #18/#19/#9 land | derive the matrix from code, not the docs — see pass |
+| **#28** web test foundation | — | **seeds R-U1/R-U3 automation**; AC2 overlaps R-M1's arithmetic at unit level | AC2 asserts a computed value, not the payload — see pass |
+| **#4** CI | — | nothing flips; CI is what makes "green" mean anything | gates every story above |
+| **#8** stack from `develop` | — | nothing flips; **without it no L3/L4/L5 scenario can run at all** | gates my entire execution phase |
+
+#### UX stories (#29–#43) — block level
+
+| Story | Blocks to re-run | New scenarios beyond `ux.md`'s specs |
+|---|---|---|
+| **#29** waiter failed actions | R-M (pay flows), R-U1, R-U3 | AC5 is **R-M12**'s post-fix expectation; AC1 is **R-M11** |
+| **#30** customer cart + legibility | R-U1, R-U3, R-O1 | the cart-clear path after a paid-and-closed tab (UX-Q2's revised rule) |
+| **#31** RO money formatting | R-M (display half), R-U1, R-U2 | the RO/EN pairs per AC1/AC3; **every R-M UI assertion re-reads in RO afterwards** |
+| **#32** tokens, focus, combo | R-U2, R-U5, R-U7, R-U8 | R-U8 re-measures `--danger` and the new `--success`/`--warn` |
+| **#33** service board distance | R-U3, R-P1 | UX-S2's new/late states on the 8 s tick; UX-S3's empty/loading columns |
+| **#34** legal, not-found, footer | R-U1, R-T5 | the placeholder must not read as a legal document (see pass) |
+| **#35** waiter tiles state | R-M (owed amounts shown), R-A1, R-A2 | tile state against a table that owes from an earlier round (R-M2 fixture) |
+| **#36** waiter fiscal visibility | R-F1a, R-F2, R-F5, R-U1 | the PENDING→FAILED transition observed *on screen* within the poll |
+| **#37** confirmations and undo | R-A3, R-A4, R-P1 | DELIVERED→READY undo (depends on #17's AC3 allowing it) |
+| **#38** i18n names, lang, copy | R-U1, R-U4 | R-U4's grep becomes a test here |
+| **#39** safe areas, dvh | R-U3 | installed-PWA check needs a real phone (Phase 4, precondition stated) |
+| **#40** backoffice correctness | R-S8, R-U2 | includes #44's fix; the colour picker's contrast floor |
+| **#41** backoffice polish | R-U2, R-U5, R-U7 | loading/empty states per page |
+| **#42** smaller waiter/customer | R-U1, R-U3, R-A6, R-A7 | UX-Q16's CONFIRM-mode notice **must not** put DRAFTs in the bill (I7) |
+| **#43** login accessibility | R-U5, R-U7, R-R2 | login stays English; `user-scalable=no` is an accepted exception, not a bug |
 
 ## 9. Regression suite
 
