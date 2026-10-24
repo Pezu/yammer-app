@@ -112,6 +112,11 @@ Every finding enters the register (in `design.md` / `ux.md`) with:
 Auditors own their registers (`design.md`, `ux.md`); the consolidated view — every finding
 ID with its disposition and story/bug link — is this page's story map, owned by `ba`.
 
+Cross-track duplicates get ONE canonical id — first/most complete report wins — and the other
+ids live in the "Also reported as" column: one disposition, one story per real-world defect.
+This register is the single authority for every alias (incl. the `QA-nn` series, defined only
+here: QA-01…14 = G-1…14, QA-15…22 = F-1…8, QA-23 = F-9, QA-24 = F-10).
+
 Triage order: critical/major defects first, then High-impact improvements, then the rest.
 Anything touching payments, fiscal, tenancy, live push, or schema also needs the
 architecture sign-off gate (CLAUDE.md §9).
@@ -155,81 +160,142 @@ findings*. The epic cannot pass success criterion 1 with a pending row.
 
 | Unit | Auditor | Status |
 |---|---|---|
-| `api/` security (`security/`, auth, JWT, throttling) | architects | pending |
-| `api/` services (`service/` — money, rounds, shifts, approvals) | architects | pending |
-| `api/` persistence (`repository/`, entities, `db/migration`) | architects | pending |
-| `api/` controllers + DTOs | architects | pending |
-| `api/` WebSocket (`ws/`, bridge handler, order push) | architects | pending |
-| `web/` backoffice surface | ux + architects | ux: reviewed — findings (ux.md); architects: pending |
-| `web/` waiter surface | ux + architects | ux: reviewed — findings (ux.md); architects: pending |
-| `web/` service board | ux + architects | ux: reviewed — findings (ux.md); architects: pending |
-| `web/` customer page | ux + architects | ux: reviewed — findings (ux.md); architects: pending |
-| `web/` `core/` + `shared/` | architects | pending |
-| `bridge/mobile/` | architects | pending |
-| Infra: `.github/workflows/`, `docker-compose.local.yml`, `db-seeds/`, docs | architects + qa | reviewed — findings (QA §11) |
+| `api/` security (`security/`, auth, JWT, throttling) | architects | reviewed — findings (design.md) |
+| `api/` services (`service/` — money, rounds, shifts, approvals) | architects | reviewed — findings (design.md) |
+| `api/` persistence (`repository/`, entities, `db/migration`) | architects | reviewed — findings (design.md) |
+| `api/` controllers + DTOs | architects | reviewed — findings (design.md) |
+| `api/` WebSocket (`ws/`, bridge handler, order push) | architects | reviewed — findings (design.md) |
+| `web/` backoffice surface | ux + architects | reviewed — findings (ux.md, design.md) |
+| `web/` waiter surface | ux + architects | reviewed — findings (ux.md, design.md) |
+| `web/` service board | ux + architects | reviewed — findings (ux.md, design.md) |
+| `web/` customer page | ux + architects | reviewed — findings (ux.md, design.md) |
+| `web/` `core/` + `shared/` | architects | reviewed — findings (design.md) |
+| `bridge/mobile/` | architects | reviewed — findings (design.md) |
+| Infra: `.github/workflows/`, `docker-compose.local.yml`, `db-seeds/`, docs | architects + qa | reviewed — findings (design.md, QA §11) |
 | Test coverage (api + web suites) | qa | reviewed — findings (QA §11) |
 
 ## Disposition register
 
-Every finding ID appears here exactly once. Disposition: **fix** (story/bug link),
-**won't fix** / **deferred** (decision link).
+Every finding ID appears here exactly once (canonical id; duplicates in "Also reported as").
+Disposition: **fix** (story/bug link), **won't fix** / **deferred** (decision or design ref).
 
-QA ids map positionally to the test plan's §11: QA-01…QA-14 = G-1…G-14,
-QA-15…QA-21 = F-1…F-7, QA-22 = F-8 (reported after the plan's first draft).
+### Critical / major defects and fixes
 
-| Finding | Disposition | Issue / decision |
+| Finding | Also reported as | Disposition | Issue |
+|---|---|---|---|
+| A1 (forged/self-issued Netopia IPN) | qa R-O5b evidence | fix | #13 |
+| A2 (double-payment race) | QA G-10 partially | fix | #14 |
+| A3 (duplicate order numbers) | — | fix | #15 |
+| A4 (waiter lines trust client prices) | architects' W1 | fix | #16 |
+| A5 (CANCELED hides settled money) | — | fix | #17 |
+| A6 (orders report in-memory paging) | — | fix | #21 |
+| A7 (approvals 403 instead of 404) | — | fix | #18 |
+| A8 (server-rendered times UTC — printed slips behind) | pairs with UX-B10/#44 (three-clocks defect; must land together, R-S8/R-S9) | fix | #24 |
+| A9 (money/permission/tenancy untested) | QA G-1…G-14 umbrella | fix | #26, #27, #28 (+ test ACs in #14) |
+| F-5 / QA-19 (AMOUNT ignores discount; API-only reach — UI hides the mode on discounted tables) | ux reach note | fix (D5) + FE rider: unhide AMOUNT | #5 (arithmetic rides #14) |
+| F-8 / QA-22 (fiscal re-issue by read-only roles; held at major per design §9) | — | fix | #9 |
+| F-9 / QA-23 (footer shows Rendezvous identity to all tenants) | UX-C8 | fix | #11 |
+| B-T1 (bridge layer tenant-blind) | — | fix | #19 |
+| W2 (JWT in the WebSocket URL) | architects' A13-jwt | fix | #20 |
+| I1 / QA-07 (no ci.yml) | QA G-7 | fix | #4 |
+| I6 (Spring Boot 3.2 EOL) | — | fix (human gate: dependency) | #22 |
+| I9 (main/develop Flyway divergence) | — | fix (human gate: release) | #45 (runbook) |
+
+### Minor / trivial findings
+
+| Finding | Also reported as | Disposition | Issue |
+|---|---|---|---|
+| A10, A11, A12, A14 (races + join throttle) | — | fix | #23 |
+| A13-key (bridge key in query) | — | fix (rides W2) | #20 |
+| I11 (unconfigured RestClient inside the start() transaction) | — | fix (rides A1, design §3.1) | #13 |
+| A15 (waiter retry not assignment-scoped) | — | won't fix — intended, documented (design §2.3) | doc line in #6 |
+| A16 (+I4, W9: doc drift) | QA F-1/F-2/F-7 = QA-15/16/21 | fix (D7 for F-1) | #6 |
+| A17 / QA-20 (payment type resolved twice) | QA F-6 | fix (rides #14's task) | #14 |
+| F-3 / QA-17 (X-Forwarded-For trust) | — | fix | #23 |
+| F-10 / QA-24 (legal links dead-end on login) | UX-C6, UX-Q10 | fix (D8) | #34 |
+| W3 (index.html uncached-control) | — | fix | #24 |
+| W5 (combo-box no ARIA/keyboard) | UX-C4/C10 area | fix | #32 |
+| W6 (401 bounce on public surface) | — | fix | #34 |
+| I3 (deploy.yml no concurrency) | — | fix | #24 |
+| I5 (stack not buildable from develop) | QA G-13 = QA-13, F-4 = QA-18 | fix | #8 |
+| B1, B2, B3 (bridge I/O, budget, frame answers) | — | fix; device verification deferred (D4) | #25 |
+| B4, B5, B6, W7, W8, I7, N1–N4 | — | won't fix — recorded notes (design §2.5; I7 flagged to the human for a licensing check) | — |
+
+### QA coverage gaps (G-nn → QA-nn)
+
+| Finding | Disposition | Issue |
 |---|---|---|
-| QA-01 (fiscal state machine untestable at current level) | pending triage | — |
-| QA-02 (no e2e layer) | pending triage | — |
-| QA-03 (web surfaces untested) | pending triage | — |
-| QA-04 (`OrderService.pay` PARTIAL/AMOUNT untested) | pending triage | — |
-| QA-05 (tenant isolation untested) | pending triage | — |
-| QA-06 (no permission test) | pending triage | — |
-| QA-07 (no CI) | fix | #4 |
-| QA-08 (Spring test needs a live DB) | fix | #4 (test datasource in scope) |
-| QA-09 (untested services) | pending triage | — |
-| QA-10 (no concurrency test) | pending triage | — |
-| QA-11 (untranslated RO values unchecked) | pending triage | — |
-| QA-12 (bridge frame content unasserted) | pending triage | — |
-| QA-13 (stack not buildable from `develop`) | fix | #8 |
-| QA-14 (`bridge/mobile` no tests; pure-logic units allowed under D4) | pending triage | — |
-| QA-15 / F-1 (stale login-roles doc) | fix | #6 (per D7: doc fix only) |
-| QA-16 / F-2 (contradictory service-day doc) | fix | #6 |
-| QA-17 / F-3 (X-Forwarded-For trusted, QR throttle bypass) | pending triage | — |
-| QA-18 / F-4 (documented `scripts/` missing) | fix | #8 |
-| QA-19 / F-5 (AMOUNT payment loses discount) | fix | #5 (per D5: option (a)) |
-| QA-20 / F-6 (payment type resolved twice — trivial) | pending triage | — |
-| QA-21 / F-7 (RECEIPT queue behaviour undocumented) | fix | #6 |
-| QA-22 / F-8 (any role can re-issue a fiscal receipt) | fix | #9 |
-| UX group 1 (UX-C3, W1, W6, W14, W18 — waiter error handling/state loss) | fix | story to file (ux.md §10.1) |
-| UX group 2 (UX-Q1, Q3, Q4, Q5 — customer menu legibility + cart) | fix | story to file (ux.md §10.2) |
-| UX group 3 (UX-C1 — money formatting) | fix | story to file (ux.md §10.3) |
-| UX group 4 (UX-C2, C4, C10, C11 — tokens/focus/combo keyboard) | fix | story to file (ux.md §10.4; needs architects' token decision) |
-| UX group 5 (UX-S1, S2, S3, S5, S6 — service board viewing distance) | fix | story to file (ux.md §10.5) |
-| UX group 6 (UX-C6, C7, C8, Q10 — compliance + dead ends) | fix | story to file (ux.md §10.6; per D8: shells + placeholder) |
-| UX group 7 (UX-W2, W3, W10 — waiter board truth) | fix | story to file (ux.md §10.7) |
-| UX group 8 (UX-W7, W8, W9 — fiscal visibility for the waiter) | fix | story to file (ux.md §10.8) |
-| UX group 9 (UX-W4, W5, W15, S4 — confirmations on destructive actions) | fix | story to file (ux.md §10.9) |
-| UX group 10 (UX-C5 + §8 copy corrections — i18n coverage) | fix | story to file (ux.md §10.10) |
-| UX group 11 (UX-B1…B8, C9, C12 — backoffice polish) | fix | story to file (ux.md §10.11) |
-| UX group 12 (UX-W11…W13, W16, W17, W19…W21, Q6, Q7, Q8, Q12, Q13, Q14 — smaller items) | fix | story to file (ux.md §10.12) |
-| UX-B9 (Order Points column density) | deferred (redesign) per D10 | the two cheap tweaks join the UX group 11 story |
-| UX-Q11 (customer menu search) | deferred per D9 | backlog issue #10 |
-| UX-Q15 (legal label language) | deferred per D8 | resolves with the human's legal content delivery |
+| G-1 / QA-01 (fiscal state machine untested) | fix | #26 |
+| G-2 / QA-02 (no e2e) · G-3 / QA-03 (web untested) · G-11 / QA-11 (untranslated RO) | fix | #28 |
+| G-4 / QA-04 (pay untested) | fix — explicit test AC: #14 AC6 (full pay-arithmetic matrix incl. 0-row conflict paths) | #14 |
+| G-10 / QA-10 (no concurrency tests) | fix — #14 AC1/AC5 (latch-forced settlement race) + #23 AC1/AC2/AC6 (assignment + shift races) | #14, #23 |
+| G-5 / QA-05 (tenancy untested) · G-6 / QA-06 (permissions untested) | fix | #27 |
+| G-7 / QA-07 (no CI) · G-8 / QA-08 (DB-bound test) | fix | #4 |
+| G-9 / QA-09 (untested services) | fix — distributed with a verifiable exit: at epic exit qa diffs G-9's service list (test-plan §11) against the test classes on `develop`; any still-untested service without a §5.6 justification is filed as a new finding before the epic closes | #13–#28 + exit check |
+| G-12 / QA-12 (frame content unasserted) | fix | #26 |
+| G-13 / QA-13 (stack unbuildable) · F-4 / QA-18 (scripts missing) | fix | #8 |
+| G-14 / QA-14 (bridge untested) | fix (pure-logic half, #25 AC4); on-device half deferred (D4) | #25 |
+
+### UX groups (ux.md §10; 87 ids, 86 active — 41 major / 37 minor / 8 trivial; UX-C13 withdrawn into UX-C8 — each active id dispositioned through its group)
+
+| Group | Findings | Disposition | Issue |
+|---|---|---|---|
+| 1 Waiter error handling | UX-C3, W1, W6, W14, W18, W22, W25 | fix | #29 |
+| 2 Customer menu + cart | UX-Q1…Q5, Q9, Q17, Q19, Q20 | fix | #30 |
+| 3 Money formatting | UX-C1, B14 | fix | #31 |
+| 4 Tokens + focus + combo | UX-C2, C4, C10, C11, B13 (+W5) | fix (ADR-0003) | #32 |
+| 5 Service board distance | UX-S1, S2, S3, S5, S6, S8 | fix | #33 |
+| 6 Compliance + dead ends | UX-C6, C7, C17, Q10, S7 (+F-10, W6; C8 → #11) | fix (D8) | #34 |
+| 7 Waiter board truth | UX-W2, W3, W10, W23 | fix | #35 |
+| 8 Fiscal visibility | UX-W7, W8, W9 | fix | #36 |
+| 9 Confirmations/undo | UX-W4, W5, W15, S4 | fix | #37 |
+| 10 i18n + copy | UX-C5, C14 + §8 corrections | fix | #38 |
+| 11 Phone platform fit | UX-C15, C12 | fix | #39 |
+| 12 Backoffice correctness | UX-B11, B12, B15 (B10 → #44) | fix | #40 |
+| UX-B10 (major defect, design §2.2: reports show raw UTC — early by the full UTC offset, 2 h EET / 3 h EEST) | qa R-S8 | fix — lands WITH #24 (A8 pair; fixing one side shrinks the error without removing it) | #44 (bug sev:major) |
+| UX-W14 (major defect, design §2.2: pay sheet shows clamped, submits raw) | qa R-M12 | fix — clamp at source + told via pay.amountCapped; held at major (server caps at the unpaid total, no money moves) | #29 (AC5) |
+| 13 Backoffice polish | UX-B1…B8, B16, C9, C18 + B9 tweaks | fix (D10) | #41 |
+| 14 Smaller waiter/customer | 17 ids (see #42) | fix | #42 |
+| 15 Login a11y | UX-C16 | fix (login stays English — ba) | #43 |
+| UX-B9 redesign | — | deferred (D10) | — |
+| UX-Q11 (menu search) | — | deferred (D9) | #10 (backlog) |
+| UX-Q15 (legal label language) | — | deferred — resolves with the legal content (D8) | — |
+| Waiter WS push (from UX-W3/Q2) | — | deferred — poll ships; push is a new api story (recorded in ux.md §10) | — |
+| Moving orders between slots (from UX-Q6) | — | deferred — warned recovery path ships (recorded in ux.md §10) | — |
+| Split for plain-named tables (from UX-W4/Q13) | — | deferred (D16 — human upheld ba's disposition) | — |
 
 ## Story map
 
-Filled as findings are consolidated into issues (Phase 2). Format:
+Blocked by #4 applies to every implementation story (D1). #8 gates Phase 3/4 verification.
 
-| Story/Bug | Track | Findings covered | Owner | Estimate | Stage |
+| Issue | Title | Type/Sev | Owner | Estimate | Depends on |
 |---|---|---|---|---|---|
-| [#4 CI pipeline on PRs](https://github.com/Pezu/yammer-app/issues/4) | infra | QA-07, QA-08; epic precondition | devops | S (proposed) | backlog |
-| [#5 AMOUNT payment loses the table discount](https://github.com/Pezu/yammer-app/issues/5) | defect | QA-19 (F-5) | backend | S (proposed) | backlog |
-| [#6 api/CLAUDE.md stale login + service-day sections](https://github.com/Pezu/yammer-app/issues/6) | docs | QA-15, QA-16, QA-21 | backend | S (proposed) | backlog |
-| [#8 develop builds its own stack: commit compose/nginx/CLAUDE.md + scripts](https://github.com/Pezu/yammer-app/issues/8) | infra | QA-13, QA-18 | devops | S (proposed) | backlog |
-| [#9 any role can re-issue a fiscal receipt](https://github.com/Pezu/yammer-app/issues/9) | defect | QA-22 (F-8) | backend | S (proposed) | backlog |
-| UX groups 1–12 (ux.md §10) | ux/ui | 60 UX findings | frontend | per story | stories after gate |
-| _further rows as architect/ux findings land_ | | | | | |
+| #4 | CI pipeline on PRs | story | devops | S | — (first) |
+| #8 | develop builds its own stack | story | devops | S | — (first) |
+| #13 | Netopia IPN forgery | bug critical | backend (+devops) | M | #4; human gate: payments |
+| #14 | Double-payment race (one task with #15, #5, A17) | bug major | backend | M | #4; schema gate (V3 via #15) |
+| #15 | Duplicate order numbers | bug major | backend | rides #14 | #4; schema gate V3 |
+| #5 | AMOUNT ignores discount | bug major | backend | rides #14 | #4 |
+| #16 | Waiter lines trust client prices | bug major | backend+frontend | M | #4 |
+| #17 | CANCELED hides settled money | bug major | backend | S | #4 |
+| #18 | Approvals 403→404 | bug major | backend | S | #4 |
+| #19 | Bridge tenant binding | bug major | backend | M | #4 |
+| #9 | Fiscal re-issue role gate | bug major | backend | S | #4 |
+| #11 | Footer tenant identity | bug major | frontend (+V4 BE) | S | #4; schema gate V4 |
+| #20 | WebSocket ticket auth | story | backend+frontend | M | #4 |
+| #21 | Orders report SQL paging | story | backend | M | #4 |
+| #22 | Spring Boot upgrade | story | backend+devops | M | #4; human gate: dependency |
+| #23 | API hardening minors | story | backend | M | #4 |
+| #24 | Deploy corrections (TZ, concurrency, cache) | story | devops | S | #4 |
+| #25 | Bridge code fixes | story | backend | S | #4; device verify deferred (D4) |
+| #26 | Fiscal DB-backed tests | story | backend+qa | M | #4 |
+| #27 | Tenancy/role test suite | story | backend+qa | L | #4 |
+| #28 | Web test foundation | story | frontend+qa | M | #4, #8 |
+| #29–#43 | UX groups 1–15 (see register) | story | frontend (BE riders: #35, #36) | S–M each | #4; #37 also #17; #42 also #23; #40 now S (B10 → #44) |
+| #44 | Not-paid/Open-tables reports show raw UTC | bug major | frontend | S | #4; lands WITH #24 |
+| #45 | Flyway reconciliation runbook | task | devops | S | human gate: release |
+| #6 | api/CLAUDE.md + web/CLAUDE.md doc fixes | task | backend | S | — |
+| #10 | Customer menu search (deferred, D9) | story | frontend | — | not scheduled |
 
 ## Decisions log
 
@@ -245,6 +311,12 @@ Filled as findings are consolidated into issues (Phase 2). Format:
 | D8 | 2026-10-24 | Legal pages: routes + shells + not-found ship this epic with a minimal factual placeholder; the legal content comes later from the human as **one Yammer-level set** (answers Q4) | Guests must stop dead-ending on the staff login now; legal text is authored by the human/counsel, not agents | human (Radu) |
 | D9 | 2026-10-24 | Customer menu search (UX-Q11) is deferred — recorded, backlog issue filed, not in this epic (answers Q5) | A feature, not a finding; discretionary spend the epic is complete without | human (Radu) |
 | D10 | 2026-10-24 | Order Points density (UX-B9): only ux's two cheap tweaks this epic (booleans grouped into one column, fixed "Disc. %" width) — they join UX group 11; the redesign is deferred (answers Q6) | Redesign is a story of its own the human did not ask for | human (Radu) |
+| D11 | 2026-10-24 | #13 IPN-verification design approved; ONLINE self-pay STAYS LIVE in the interim (sandbox exposure only) | Gate: payments | human (Radu) |
+| D12 | 2026-10-24 | V3 (order-no counter) and V4 (client legal line) schema additions approved | Gate: schema | human (Radu) |
+| D13 | 2026-10-24 | #22 Spring Boot 3.2 → 3.5.x approved | Gate: dependency | human (Radu) |
+| D14 | 2026-10-24 | #20 WebSocket single-use ticket approved | Gate: architecture | human (Radu) |
+| D15 | 2026-10-24 | I9/release: the human will DROP the prod database and reconcile — #45's runbook becomes the drop-and-recreate procedure (document what is lost and the seed path; the GCP action itself stays human) | Gate: release; prod data is sacrificial at this stage | human (Radu) |
+| D16 | 2026-10-24 | Q7 split-rename: DEFERRED — the human did not override ba's disposition; ux.md's record stands as written | Gate: requirements | human (Radu) |
 
 ## Open questions
 
@@ -256,3 +328,4 @@ Filled as findings are consolidated into issues (Phase 2). Format:
 | Q4 | Legal pages (UX-C6/UX-Q10, major): the six legal links (`/legal/termeni`, `/confidentialitate`, `/livrare`, `/anulare`, `/gdpr`, `/contact`) and any bad QR dead-end on the **staff login form** — the Netopia/ANPC compliance surface of a card-accepting site. Fixing routes + shells + not-found page is in scope (ux specced them, RO/EN copy in ux.md §8); the gate decision is about content only: (i) **who writes the six legal documents** — they are legal text, the human or counsel, not agents; (ii) **one set for Yammer or per-tenant content?** Recommendation: one Yammer-level set supplied by the human; shells ship this epic with a minimal factual placeholder so no guest lands on the login form meanwhile | lead → human | Answered → D8 |
 | Q5 | Customer menu search (UX-Q11): the waiter app has search, the customer page does not. It is a new feature, not a defect — the epic's out-of-scope rule says features only when implied by a finding. (a) in scope this epic; (b) **recommended**: defer — record + backlog issue | lead → human | Answered → D9 |
 | Q6 | Order Points density (UX-B9): 13 editable columns. (a) **recommended**: ux's two cheap tweaks only this epic, redesign deferred as its own backlog story; (b) full redesign story now | lead → human | Answered → D10 |
+| Q7 | Split for plain-named tables (UX-W4/Q13): nothing is broken today — batch-created tables are born `T{n}.1` and the split button is hidden on a manually renamed plain `T12` (the api 400s on the pattern). The question is ADDING capability: splitting a plain `T12` renames it to `T12.1` and creates `T12.2` (safe — all references are by id, printed QRs keep working). ux + architects recommend ADOPT, with the confirm dialog telling the waiter the table is being renamed (a table silently changing name under a guest's printed QR loses trust). I initially deferred it as not finding-implied; given both specialists' recommendation, options: (a) adopt with the rename warning (their recommendation); (b) keep deferred, rule documented | lead → human | Answered → D16 (deferred) |
