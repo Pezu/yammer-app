@@ -679,11 +679,15 @@ false, so the button is simply absent and the waiter never meets the 400. That i
 defect, and this spec leaves it alone.
 
 The architects' recommendation — split a plain name by renaming the source to `T12.1` and creating
-`T12.2`, safe because every reference is by id — is **pending `ba`'s product call** and would only
-*add* capability. If adopted, the confirm dialog above needs one more line telling the waiter the
-table is being renamed: a table changing name under a guest's printed QR code is surprising enough
-to warrant saying out loud. Until then the rule is recorded here so nobody files the absent button
-as a bug.
+`T12.2`, safe because every reference is by id — would only *add* capability, and **`ba` has
+deferred it**: no finding implies it, so it is not in this epic's scope. Current behaviour stands —
+the button is hidden on a manually-renamed table and that is correct, not a bug.
+
+Recorded for whenever it is revisited: the confirm dialog would need one more line telling the
+waiter the table is being renamed. A table changing name under a guest's **printed** QR code is
+surprising, and silent renames of things printed on paper are how trust in a POS gets lost. The
+code keeps working because every reference is by id, which is exactly why the rename could pass
+unnoticed.
 
 ### UX-W5 — "Close table" ends the round in one tap · **major**
 
@@ -1003,7 +1007,10 @@ service, which is both wrong and untestable.
   `--danger` text on `--danger` 10% at 20 minutes, in the ORDERED column only (a READY ticket is
   the waiter's problem, and UX-W10 is what fixes that). The 8 s tick is noise against these
   thresholds.
-Thresholds are constants in `service-page.ts`, not settings.
+Thresholds are constants in `service-page.ts`, not settings — **confirmed by `ba`**: amber at 10 min
+and red at 20 min, uniform across every station, with no per-station or per-venue option. Nobody
+asked for one, and a configurable urgency threshold is the kind of setting that gets set once wrong
+and never revisited. Revisit only if a venue pushes back.
 
 ### UX-S3 — No loading state and no empty column · **major**
 
@@ -1396,7 +1403,7 @@ the architects.
 | Q10 | UX-C1 | **`ro-RO` everywhere** — plus one S-size api task aligning the PDF statement, thermal slips and the Excel export, taking the register's native comma style as the reference. Screen and paper must move together. |
 | Q11 | UX-Q16 | Yes — the customer bill response gains `pendingApprovalCount` for the calling token. Resolves the contradiction **without** putting DRAFTs in the bill. |
 | Q12 | UX-W23 | Yes — `GET /shifts/current` is already tenant-checked; its **read** relaxes to any authenticated user (writes stay ADMIN/SUPER). A label, not a selector. |
-| Q13 | UX-W4 | The `.1` suffix is birth-naming and `splitEntity` hard-requires it (400, `OrderPointService.java:223-227`); a plain `T12` only exists via manual rename, where `canSplit()` already hides the button. Rename-on-split is **pending `ba`**. |
+| Q13 | UX-W4 | The `.1` suffix is birth-naming and `splitEntity` hard-requires it (400, `OrderPointService.java:223-227`); a plain `T12` only exists via manual rename, where `canSplit()` already hides the button — correct behaviour, not a bug. Rename-on-split **deferred by `ba`** (no finding implies it). |
 | Q14 | UX-W14 | **The api clamps** — `payAmount` takes `request.amount().min(unpaidTotal)` (`OrderService.java:571`). So UX-W14 is a display/trust defect, **major and final**, not money-loss. The client must still not depend on the cap. |
 
 **I missed these for a round.** Architect-a posted Q1/Q3/Q5/Q7/Q9 and Q10–Q14 as **PR review
