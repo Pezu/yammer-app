@@ -57,9 +57,9 @@ IDs: `A-*` api (architect-a), `W-*` web, `B-*` bridge, `I-*` infra (architect-b)
 
 ### 2.1 Critical
 
-| ID | Finding | Evidence | Fix (design in §3) | Owner |
+| ID | Finding | Evidence | Fix (design in §3; B-T1 → §3.8, F-5 → §3.9, W2 → §3.10) | Owner |
 |---|---|---|---|---|
-| A1 (+I2) | **Forged Netopia IPN creates paid orders.** `/public/payments/netopia/notify` is permitAll and `handleIpn` performs no authenticity check; the amount check is skipped when the IPN omits it; the customer knows their own intent ref from the return URL. A forged `{order:{orderID:<ref>},payment:{status:3}}` creates an ORDERED order + SUCCESS payment **and prints a real fiscal receipt** for money never received — goods theft *and* tax exposure. `deploy.yml` sets `NETOPIA_ENABLED=true` in prod, so the endpoint is live today; the same deploy pins `NETOPIA_BASE_URL` to the **sandbox**, so even honest ONLINE payments move no real money. | `SecurityConfig.java:44`; `OnlinePaymentService.java:111-158` (amount skip 135-141, ref leak 210-212); `BridgeService` fires on `PaymentCommittedEvent`; `.github/workflows/deploy.yml:70` | §3.1 — verify IPN authenticity + reject confirmed IPNs without an amount, and resolve the sandbox pin, in ONE story; until it lands, ONLINE self-pay stays disabled. **Human gate (payments).** | BE + DO |
+| A1 | **Forged Netopia IPN creates paid orders.** `/public/payments/netopia/notify` is permitAll and `handleIpn` performs no authenticity check; the amount check runs **only when the IPN carries an amount**, so the bypass is an *absent* field, not a matching value; and the only identifier needed is the intent ref, which the customer's own browser already holds (the return page polls it). So this is not an attacker guessing a UUID — it is **any customer confirming their own unpaid order with one unauthenticated POST**: an ORDERED order + SUCCESS payment, **and a real fiscal receipt prints** for money never received — goods theft *and* tax exposure. `deploy.yml` sets `NETOPIA_ENABLED=true` in prod, so the endpoint is live today. (The sandbox `NETOPIA_BASE_URL` pin in the same deploy is **deliberate** per the human's decision D6 — noted as intent, not a defect; a go-live switch task sits in the backlog.) Reproduction: `test-plan.md` R-O5b. | `SecurityConfig.java:44`; `OnlinePaymentService.java:111-158` (amount skip 135-141, ref leak 210-212); `BridgeService` fires on `PaymentCommittedEvent`; `.github/workflows/deploy.yml:70` | §3.1 — verify IPN authenticity + reject confirmed IPNs without an amount. **Human gate (payments).** | BE + DO |
 
 ### 2.2 Major
 
@@ -72,8 +72,11 @@ IDs: `A-*` api (architect-a), `W-*` web, `B-*` bridge, `I-*` infra (architect-b)
 | A6 | **Orders report "paging" is in-memory.** Every page view loads ALL the location's orders + ALL their items, filters in streams and `subList`s; `filterOptions` loads every order to list distinct waiters. Unbounded growth on a 1 GiB single instance; latent at today's volume, certain to degrade. | `OrderReportService.java:54-78, 82-106` | §3.6 — real `Pageable` SQL + distinct queries | BE |
 | A7 | **Tenancy invariant break: 403 instead of 404.** `decideCustomer`/`decideOrder`/`setSelfOrderMode` load by id and answer 403 "Not assigned to this table" for cross-tenant ids, disclosing that the id exists. Practical impact is low (UUID ids); graded major because §5's "cross-tenant = 404, never 403" is a hard gate and grading invariant breaks by guessed likelihood re-litigates the invariant per-finding. | `ApprovalService.java:101-158` | Tenant-guard the order point via `AccessGuard` first (404), keep `requireAssigned` (403) for same-tenant callers | BE |
 | A8 | **Server-rendered times are UTC.** No TZ is set anywhere; `LocalDateTime.now()` feeds thermal cash-up slips and the waiter PDF statements — printed times run 2–3 h behind Romania, a recurring staff-dispute generator. Browser-rendered times are unaffected (instants converted client-side). | no TZ in `deploy.yml` / `api/Dockerfile` / `application.yml`; `ShiftService.java:58, 277`; `WaiterStatementPdfService` | `TZ=Europe/Bucharest` env in `deploy.yml` AND `docker-compose.local.yml` (parity), noted in both CLAUDE.md files. The `Instant`+zone refactor is out of this epic's scope (see §9 Alternatives) | DO + DOC |
-| A9 (=W4, QA-05/06/09/10) | **Money, permissions and tenancy are untested.** `OrderService.pay` (all three modes), the fiscal transitions, `AccessGuard`, the 56 `@PreAuthorize` rules: zero tests; web has one trivial spec; the bridge none. `mvn test` is red without a local Postgres (QA-01). CLAUDE.md §5.6 names exactly these as must-test. | `test-plan.md` §10 (QA-01..QA-10) with file evidence | The QA/test-debt track: `test-plan.md` §10's "minimum set" becomes stories (CI first — I1) | BE + FE + QA |
-| I1 (QA-02) | **No `ci.yml`.** Nothing builds or tests a PR; §6's "CI green" merge condition is unenforceable; `api/Dockerfile` builds with `-DskipTests`. | `.github/workflows/` contains only `deploy.yml` | §3.7 — `ci.yml` is the FIRST task of the epic, blocking every fix story | DO |
+| A9 (=W4, QA-02..QA-18) | **Money, permissions and tenancy are untested.** `OrderService.pay` (all three modes), the fiscal transitions and the RECEIPT frame content, `AccessGuard`, the 56 `@PreAuthorize` rules, the Netopia IPN invariant, the bridge journal: zero tests; web has one trivial spec. `mvn test` is red without a local Postgres (QA-03), and no DB-backed test level exists at all (QA-02) — the fiscal state machine is WHERE clauses nothing executes. CLAUDE.md §5.6 names exactly these as must-test. | qa's register QA-01..QA-18 (full table relayed to the architects, summarized in `test-plan.md`) | The QA/test-debt track: qa's "minimum set" becomes stories (CI first — I1); the test-datasource strategy (QA-02+QA-03) is ONE design decision taken in the ci.yml task. qa's note: the compose stack's `BRIDGE_API_KEY` lets a scripted WS client drive RECEIPT_RESULTs, so integration-level fiscal paths are testable before a DB test level lands | BE + FE + QA |
+| F-8 | **Fiscal re-issue reachable by read-only roles.** `OrderPointAssignmentController` is `isAuthenticated()` at class level and its `retry-fiscal` endpoint delegates to the tenant-guard-only service path — so SERVICE and **WATCHER (documented read-only)** can trigger a fiscal re-print for any payment of their tenant. Two doors to one service method, role-guarded on only one (`PaymentController` is correctly ADMIN/SUPER). Major, not critical: the action is a guarded FAILED-only re-arm, dedup-safe and tenant-scoped — an unauthorized actor causes a legitimate re-print, never wrong money. | `OrderPointAssignmentController.java:30, 91-95`; `PaymentService.java:134-147` | one-line `@PreAuthorize("hasAnyRole('WAITER','ADMIN','SUPER')")` on the endpoint; `test-plan.md` R-R1f asserts per role | BE |
+| B-T1 | **The bridge layer is tenant-blind.** (a) `GET /bridge/devices` lists EVERY tenant's connected phones to any ADMIN; (b) TCP-register receipts route to ANY connected bridge (`targetDevice=null` = "any device"), so the moment a second tenant connects a bridge, tenant A's fiscal frames can land on tenant B's phone — which cannot reach A's register LAN, so receipts fail non-deterministically; (c) nothing validates that a peripherals row's `device_id` belongs to the writer's tenant, so cross-tenant fiscal routing is configurable. Tenancy invariant + fiscal reliability; latent while only one tenant has a bridge. | `BridgeController.java:19-23`; `BridgeService.java:93` (Waiting.targetDevice null = any), `onDeviceRegistered`; `IntegrationService.java:69-74` (deviceId unvalidated) | §3.9 — bind device ids to a client at pairing time; routing and the device list filter by the payment's/caller's client | BE |
+| I1 (QA-01) | **No `ci.yml`.** Nothing builds or tests a PR; §6's "CI green" merge condition is unenforceable; `api/Dockerfile` builds with `-DskipTests`. | `.github/workflows/` contains only `deploy.yml` | §3.7 — `ci.yml` is the FIRST task of the epic, blocking every fix story | DO |
+| F-5 | **AMOUNT payments ignore the table's discount** (deliberate in code; the human decided it is a defect — decision D5): on a 10%-discounted table holding one 42.00 pizza, FULL settles at 37.80 but AMOUNT 37.80 covers no whole gross unit, splits it, and the table still owes 4.20 — the customer pays gross and the bill looks unsettled. | `OrderService.java:565-578, 471-473`; qa's worked example (R-M6) | §3.10 — `payAmount` allocates against NET discounted unit prices like FULL/PARTIAL and records the discount fields; ships with the A2 settle work (same method). Bug #5 tracks it | BE |
 | I6 | **Spring Boot 3.2.1 is EOL.** OSS support for the 3.2 line ended; the public API sits behind framework/Security lines with published fixes (Tomcat already pinned forward to 10.1.42). | `api/pom.xml:11` (`:31` tomcat override) | Upgrade to the current supported Boot line (target named by architect-b in the task); sequenced AFTER I1 so the bump lands with CI. **Human gate (dependency).** | BE + DO |
 | I9 | **Release/Flyway reconciliation risk.** `origin/main` (451248a) still ships the 46 pre-fold migrations; `origin/develop` (628c193) ships the folded `V1`/`V2`. Whatever state prod's database is in, one of two failures is pending: instance restarts failing validation now, or the next `develop → main` release failing Flyway validation at prod startup. | `git log origin/main..origin/develop`; `api/CLAUDE.md` "Database" section | **Human gate (release):** the human confirms prod's DB migration state before any release; a flyway repair/baseline plan goes in `docs/runbook.md` (devops prepares it) | human + DO |
 | W2 (=A13-jwt) | **Session JWT in the WebSocket URL.** The board connects to `/ws/orders?token=<jwt>`; tokens live 24 h and the client reconnects every 3 s when down, so valid staff tokens are continuously written into nginx/Cloud Run request logs, readable by anyone with log access. | `service-page.ts:205`; `WsAuthHandshakeInterceptor.java:31-33`; `application.yml:41` | §3.8 — single-use 30 s WS ticket (ADR-0002) | BE + FE |
@@ -87,7 +90,8 @@ IDs: `A-*` api (architect-a), `W-*` web, `B-*` bridge, `I-*` infra (architect-b)
 | A12 | Shift close check-then-act: an order can slip onto a closing day between the open-tables check and the commit | `ShiftService.java:175-197` | re-check `openTables` count in the same statement as the close, or accept + document (tiny window, money stays visible) | BE |
 | A13-key | Bridge `?key=` query fallback puts the API key in request logs; the bridge app always sends the header | `BridgeAuthHandshakeInterceptor.java:60-64` | drop the query fallback | BE |
 | A14 | Unthrottled `POST /public/order-points/{opId}/join` creates unbounded PENDING `customer_session` rows (approvals-page spam + table growth); stale/DENIED rows are never cleaned | `CustomerAccessService.java:43-54` | per-IP+point throttle (reuse the `LoginAttemptService` pattern), cap PENDING per point, scheduled cleanup of dead rows | BE |
-| A15 | Waiter `retry-fiscal` is tenant- but not assignment-scoped: any waiter can re-issue any FAILED receipt of their client | `PaymentService.java:134-147` | **Keep as-is, document**: it is a recovery action through the same guarded re-arm as the backoffice button and the bridge dedups by `requestId`; scoping buys nothing. `test-plan.md` R2.10 is tagged with this decision | DOC |
+| A15 | Waiter `retry-fiscal` is tenant- but not assignment-scoped: any **waiter** can re-issue any FAILED receipt of their client | `PaymentService.java:134-147` | **Keep as-is, document** (waiter-to-waiter scope): a recovery action through the same guarded re-arm as the backoffice button; the bridge dedups by `requestId`; scoping buys nothing across shift handovers. The ROLE hole on the same door (SERVICE/WATCHER) is F-8 above and IS fixed. `test-plan.md` tags its scenario with this decision | DOC |
+| I11 | `NetopiaPaymentService.startPayment` builds a `RestClient.create()` per call with no connect/read timeout, invoked inside the `@Transactional` `start()` — a hung gateway holds a DB connection and a request thread on the single instance | `NetopiaPaymentService.java:47` | one configured `RestClient` bean with timeouts; move the HTTP call out of the transaction. Folds into the A1 payments story (same files) | BE |
 | F-3 | Per-IP login/QR throttle bypassable: `clientIp` trusts the FIRST `X-Forwarded-For` hop, which is client-controlled. Per-username throttle still holds; QR tokens are UUIDs, so brute force stays impractical — hence minor | `AuthController.java:69-75` | take the LAST hop (Cloud Run's LB appends the real client IP last), fall back to `remoteAddr` | BE |
 | W3 | `index.html` served with no `Cache-Control` while hashed assets get 1 y immutable — a heuristically cached shell can reference deleted chunks after a deploy | `web/nginx.conf:48-51`, `web/nginx.local.conf` | `add_header Cache-Control "no-cache"` on the SPA fallback | DO |
 | W5 | `combo-box` has no ARIA (role/aria-expanded), no Escape, no arrow keys; it sits on the public customer page | `web/src/app/shared/combo-box.ts` | routed to `ux` for the UX track; implementation FE | FE + ux |
@@ -103,7 +107,7 @@ IDs: `A-*` api (architect-a), `W-*` web, `B-*` bridge, `I-*` infra (architect-b)
 
 | ID | Finding | Fix |
 |---|---|---|
-| A16 (+I4, F-1, F-2, W9) | Doc drift, all in one task: `api/CLAUDE.md` self-contradicts on shift stamping (the `shift_id` paragraph is the truth; the "NOT stamped"/`windowFor`/`BUSINESS_DAY_CUTOFF_HOUR` text describes removed code); claims login is restricted to ADMIN/SUPER via `AuthService.ALLOWED_LOGIN_ROLES`, which does not exist — any user with ≥1 role may log in (the code is intended behaviour, confirmed here); says Cloud Run "min 1 / max 2" where `deploy.yml` correctly pins `--max-instances 1` (the single-instance invariant — the DOC is wrong, never "fix" the workflow); `web/CLAUDE.md` layout drift (W9). | DOC |
+| A16 (+I4, F-1, F-2, F-7, W9) | Doc drift, all in one task: `api/CLAUDE.md` self-contradicts on shift stamping (the `shift_id` paragraph is the truth; the "NOT stamped"/`windowFor`/`BUSINESS_DAY_CUTOFF_HOUR` text describes removed code); claims login is restricted to ADMIN/SUPER via `AuthService.ALLOWED_LOGIN_ROLES`, which does not exist — any user with ≥1 role may log in (**intended**, human decision D7; doc fix #6); says Cloud Run "min 1 / max 2" where `deploy.yml` correctly pins `--max-instances 1` (the single-instance invariant — the DOC is wrong, never "fix" the workflow); never mentions the bridge offline queue (`BridgeService.waiting`) while saying "sends it ONCE / no automatic retry ever" — F-7, the omission that misled qa's first fiscal scenarios; `web/CLAUDE.md` layout drift (W9). | DOC |
 | A17 (=F-6) | `createPayment` resolves the payment type twice | fold into the A2/A3 touch of the same method |
 
 ### 2.5 Notes (block nothing, recorded for posterity)
@@ -119,6 +123,13 @@ IDs: `A-*` api (architect-a), `W-*` web, `B-*` bridge, `I-*` infra (architect-b)
   RO-speaking waiters see English on failures. Candidate for the UX track, not this register.
 - **W8**: the service board reloads fully per WS event; a ~250 ms debounce would cut burst load.
 - **I7**: iText 7.2.5 is AGPL — flag to the human for a licensing check at a convenient time.
+- **N1**: `ShiftService.close` computes the cash-up before stamping `closed_at` — a payment
+  committing in that window can miss the printed slip (the dashboard re-print shows it).
+- **N2**: `OrderNotificationService.recipients` loads all the location's users per event; fine
+  at today's cardinality, batches if boards grow.
+- **N3**: receipt VAT is resolved at dispatch time, not payment time — a VAT change between pay
+  and a manual retry prints the new rate.
+- **N4**: `MenuService.reconcile` saves per node; a large tree save is chatty. Editor-path only.
 
 ## 3. Implementation designs (accepted majors)
 
@@ -136,8 +147,10 @@ IDs: `A-*` api (architect-a), `W-*` web, `B-*` bridge, `I-*` infra (architect-b)
 - **Deploy half (human console steps prepared by devops)**: either go live (real
   `NETOPIA_BASE_URL` + live secrets) or set `NETOPIA_ENABLED=false` until go-live; the current
   enabled+sandbox combination is the one state that must not survive this epic.
-- Tests: the new `R8` suite in `test-plan.md` (valid IPN exactly-once, duplicate, forged/missing
-  token, amount mismatch, confirmed-without-amount, expiry).
+- `NetopiaPaymentService` hardening rides along (I11): one configured `RestClient` bean with
+  connect/read timeouts; the gateway call moves out of the `start()` transaction.
+- Tests: the `R-O` suite in `test-plan.md` (valid IPN exactly-once, replay, amount mismatch,
+  confirmed-without-amount = R-O5b, expiry, post-fix authenticity scenarios).
 
 ### 3.2 A2 — guarded conditional UPDATEs for settlement (ADR-0001)
 
@@ -152,7 +165,8 @@ IDs: `A-*` api (architect-a), `W-*` web, `B-*` bridge, `I-*` infra (architect-b)
   inserts with it. The loser re-reads a fresh bill; no money is ever double-settled.
 - `OrderReportService.updateItems` adopts the same guards (it mutates unpaid lines outside
   `pay()` — the reason data-layer guards beat an advisory lock; see ADR-0001).
-- Tests: `test-plan.md` R1.14/R1.15 go green; unit tests for the 0-row paths.
+- Tests: `test-plan.md`'s concurrency scenarios (marked *expected to fail pre-fix*) go green;
+  unit tests for the 0-row paths.
 
 ### 3.3 A3 — atomic per-client order numbers
 
@@ -211,7 +225,32 @@ IDs: `A-*` api (architect-a), `W-*` web, `B-*` bridge, `I-*` infra (architect-b)
 - Required checks per CLAUDE.md §6; QA-01 (context test red without DB) is solved by the service
   container now and may later move to Testcontainers — not in this task.
 
-### 3.8 W2 — WebSocket ticket (ADR-0002)
+### 3.8 B-T1 — bridge-to-tenant binding
+
+- A bridge announces nothing tenant-bound in HELLO, so the binding happens at **pairing time**,
+  where it already implicitly exists: a peripherals row (ADMIN-created, tenant-guarded) carries
+  the `device_id`. Design: a device id used by any integration row of client X is *paired to X*;
+  `GET /bridge/devices` returns unpaired devices plus devices paired to the caller's client
+  (SUPER sees all); saving a peripherals row with a device id already paired to ANOTHER client
+  is refused (409 naming nothing — the id simply "is not available").
+- Routing: for `targetDevice=null` (TCP registers), `sendToAnyReturningDevice` filters to
+  bridges paired to the **payment's** client (via its order point's location); an unpaired
+  bridge receives nothing until an admin pairs it. The pinned `fiscal_device` already keeps
+  re-dispatches on one device.
+- No schema change: pairing is derived from `integration.device_id` rows. Latent today (one
+  tenant with bridges); must land before a second tenant installs one.
+
+### 3.9 F-5 — AMOUNT allocates against net (human decision D5, bug #5)
+
+- `payAmount` switches from gross `lineTotal` to the same `DiscountMath.discountedUnit` pricing
+  as FULL/PARTIAL: allocation, the full-unit count and the split arithmetic all run on net unit
+  prices; the payment records `discount_percent`/`discount_amount` exactly as `payFull` does
+  (PROTOCOL/PO stay undiscounted — `NotPaidReportService.isNotPaid` rule unchanged).
+- qa's worked example becomes the acceptance criterion: 10% table, one 42.00 pizza → AMOUNT
+  37.80 settles the unit in full, nothing owed. Ships in the same backend task as A2/A3/A17
+  (same method/file — the no-overlap rule in §11).
+
+### 3.10 W2 — WebSocket ticket (ADR-0002)
 
 - `POST /ws/ticket` (authenticated) → `{ticket}`: a random 128-bit value stored in an in-memory
   map (single instance — consistent with the WS registries) with the username and a 30 s expiry,
@@ -222,9 +261,15 @@ IDs: `A-*` api (architect-a), `W-*` web, `B-*` bridge, `I-*` infra (architect-b)
 
 ## 4. Data model & migrations
 
-One new migration this epic: `V3__Client_order_no_counter.sql` (§3.3). Everything else is
-code-only. `V1`/`V2` are never edited (§5 gate). No new tables; no column drops — all changes
-backward compatible with the running revision during deploy.
+Two new migrations this epic, both additive (`V1`/`V2` are never edited — §5 gate):
+
+- `V3__Client_order_no_counter.sql` (§3.3) — `client.next_order_no` with a backfill.
+- `V4__Client_legal_line.sql` (ux Q1, §12) — `client.legal_name`, `client.cui` (nullable
+  VARCHARs) + the backoffice Clients form fields, so the customer page's footer and logo alt
+  are per tenant instead of the hard-coded Rendezvous line.
+
+No new tables; no column drops — everything backward compatible with the running revision
+during deploy. Both migrations fall under the standing architecture human gate (schema change).
 
 ## 5. Security summary
 
@@ -246,11 +291,15 @@ issues.
 
 | Item | Gate | Decision needed |
 |---|---|---|
-| A1 + I2 | payments | approve the IPN-verification story; decide go-live vs `NETOPIA_ENABLED=false` for the interim |
+| A1 | payments | approve the IPN-verification story (§3.1). The interim stance on ONLINE self-pay (leave enabled against sandbox vs `NETOPIA_ENABLED=false` until the fix ships) is the human's call — the sandbox pin itself is deliberate (decision D6) |
 | I9 | release | confirm prod DB migration state; approve the flyway reconciliation plan (runbook) before any `develop → main` release |
-| F-5 | product | AMOUNT-mode payments ignore the table discount (deliberate in code, `OrderService.java:473`): keep (discount only on FULL/PARTIAL) or change. `test-plan.md` R1.10 parked on this |
-| I6 | architecture (dependency) | approve the Spring Boot upgrade target |
+| I6 | architecture (dependency) | approve the Spring Boot upgrade target (3.5.x latest patch, Tomcat pin dropped) |
+| V3 + V4 | architecture (schema) | standing gate — both migrations in §4 |
 | I7 | legal (note) | iText AGPL licensing check, no urgency |
+
+Closed by the human's decisions, recorded in §2/§8: **D5** (F-5: AMOUNT allocates against net —
+now an accepted fix, §3.9, bug #5), **D6** (sandbox pin deliberate — intent noted on A1),
+**D7** (any-role login intended — F-1 is a doc fix, #6).
 
 ## 8. Decisions that resolve documentation contradictions
 
@@ -278,7 +327,14 @@ stale paragraphs in `api/CLAUDE.md` are corrected by the A16 task.
   `client_id`, so the index can't express per-client uniqueness without a denormalizing column;
   the counter is smaller and contention-free enough at one row per client.
 - **A15 — scope waiter retry-fiscal to assigned tables**: rejected; it is a guarded, dedup-safe
-  recovery action and scoping it only adds failure modes during shift handovers.
+  recovery action and scoping it only adds failure modes during shift handovers. (The ROLE gate
+  on the same endpoint is a separate, real hole — F-8 — and is fixed.)
+- **F-8 graded critical** (qa's position: "a role reaches something it must not"): held at
+  major — the reachable action is a guarded FAILED-only re-arm, dedup-safe and tenant-scoped,
+  so the worst case is an unauthorized actor causing a legitimate re-print, never wrong money.
+- **--danger stays, white text goes large** (ADR-0003 alternative): rejected — a per-button
+  typography exception is a standing trap for every future danger button; darkening the token
+  to #d93a3a keeps the hue and clears AA once, centrally.
 - **A6 — cache the report in memory** instead of SQL paging: rejected, single instance ≠ small
   heap, and SQL does this for free.
 
@@ -289,6 +345,30 @@ W2 keeps `?token=` for one release). The only migration (V3) is additive with a 
 Rollback of any single story = revert its squash commit on `develop`; nothing in this epic
 requires coordinated multi-service deployment. The A1 deploy half and anything in GCP is
 human-executed per CLAUDE.md §9.
+
+## 12. Answers to the ux questions (ux.md §7) and the theme-token decision
+
+Converged by the pair, so stories don't re-litigate them. Q-numbers are ux.md §7's.
+
+| Q | Answer |
+|---|---|
+| Q1 | **Yes.** `clientName` ships immediately (`client.name` exists) in the public order-point payload; the legal line needs `V4` (§4) adding `client.legal_name` + `client.cui` and the Clients form fields. Footer + logo alt become per tenant; the hard-coded Rendezvous line goes. |
+| Q2 | **Yes, cheaply.** `GET /order-points/assigned` gains `unpaidTotal`, `readyOrderCount`, `pendingApprovalCount`, `roundOpenedAt`, computed in three grouped queries over ALL of the caller's points (never per point). Waiter-scale cardinality; not on the bill/board hot paths. |
+| Q3 | **Poll the existing list now; push later.** Today `/ws/orders` routes to service-board users, NOT table waiters, and the payload has no `orderPointId` — a waiter subscription would hear the wrong things. Interim: the shell polls `GET /order-points/orders?status=READY` (exists, assignment-scoped) on a modest interval + `visibilitychange`; the count is the list length. A follow-up story may extend the event payload with `orderPointId` and add assigned-waiter routing for `ORDER_READY` — it touches `OrderNotificationService` routing, so it is its own task, not a rider. |
+| Q4 | **Today the API accepts any kanban transition**, including `DELIVERED→READY`. The A5 fix (§3.5) restricts transitions and **explicitly preserves `DELIVERED→READY`** for the undo; `CANCELED` becomes terminal and refuses paid lines. Build the undo. |
+| Q5 | **Already there + one addition.** The public payload already carries `selfPayOnline`. The pre-redirect "Pay X RON" uses the client cart total (prices from the same payload the cart was built from); the redirect response (`CustomerOrderResponse`) additionally gains the server-resolved `amount` so the confirm sheet shows the authoritative figure before Netopia. |
+| Q6 | **Slot change = new approval.** Sessions and orders hang off the order point; a token is worthless at a sibling slot, so switching creates a fresh PENDING join, and placed orders STAY on the old slot's bill (moving them is a waiter/admin action that does not exist and is out of scope). UX consequence: put the slot chooser BEFORE the join (the payload already lists the sibling slots); after approval, switching costs a re-approval — say so on screen. |
+| Q7 | **Deny is per-token, and re-requesting is allowed.** Today a denied token stays DENIED but a cleared-storage rescan already creates a new PENDING — deny was never device-terminal. We make that honest: a join with a DENIED token creates a fresh PENDING (rate-limited by the A14 throttle so Deny still protects the waiter from spam). |
+| Q8 | **Yes.** `GET /public/payments/{ref}/status` gains `amount` and `orderNo` (both already on the intent/order rows). The ref is the bearer; it only ever reaches the payer's browser. |
+| Q9 | **Partially — honestly.** The pay response will carry `paymentId` + the initial `fiscalStatus` (PENDING for CASH/CARD, NONE for PROTOCOL/PO), so the toast can say "receipt printing…". "Receipt issued" is an async fact (bridge result, up to the 180 s sweeper deadline) — the waiter Payments page remains the authority; a toast that claimed "issued" at pay time would be unbuildable (see PR #7 review note on UX-W8). |
+
+**Theme tokens (ADR-0003, one decision):** `styles.scss` gains `--success: #10b981`,
+`--success-soft: rgba(16,185,129,.12)`, `--warn: #f59e0b`, `--warn-soft: rgba(245,158,11,.14)`,
+`--surface: #fff`, `--overlay: rgba(18,27,46,.45)`, `--focus-ring: var(--primary)`; and
+`--danger` darkens `#ea4d4d → #d93a3a` (4.0:1, clears AA for normal text). The 29 hard-coded
+hex values across 23 files migrate to tokens as the ux stories touch their files — no big-bang
+sweep (§5 point 5: no clean-up sweeps of untouched code). Until the tokens land, ux's interim
+review rule stands: a hard-coded colour with no token to point at is a Note, not Blocking.
 
 ## 11. Task decomposition
 
