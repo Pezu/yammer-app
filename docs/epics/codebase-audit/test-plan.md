@@ -261,6 +261,7 @@ regression — never ambiguity about what the number should be.
 | **R-M8** | `T1.1`: 2 × Prosecco (44.00). Pay **FULL PROTOCOL** | `status = SUCCESS`, `fiscal_status = NONE`, no `RECEIPT` frame; absent from the waiter Payments page; present in the Not-paid report with its two product lines and in the final report's protocol column; **not** in the waiter's own total |
 | **R-M9** | `T2.1` (discount 10%): 3 × Espresso (9.99). Pay **FULL**, CASH | per-unit discount 8.99 (9.99 × 0.90 = 8.991 → HALF_UP) → payment `amount = 26.97`, `discount_amount = 3.00` |
 | **R-M10** | After R-M1, attempt **PARTIAL** on the already-paid 2 × Pizza, and **AMOUNT 200.00** on the fully settled table | both refused (400 "Nothing to pay" / quantity exceeds unpaid); **no settled line is re-split or re-priced** (I3) |
+| **R-M11** | On `T1.1` with 3 × Pizza: in the waiter pay sheet choose PARTIAL, tick 2 × Pizza, enter a 10.00 tip, and make the call fail (payment type not accepted at the point, or the api stopped) | the error is shown **and the sheet keeps mode, ticked items and tip** so the waiter re-submits instead of re-entering. Current behaviour per `ux.md` UX-C3: a declined payment closes the sheet and discards all three. Money-adjacent because the re-entry is where a waiter charges the wrong quantity — and because an operator who believes the first attempt partly landed may double-charge. Owned as a UX finding; this block exists so the fix is verified against the bill, not only against the screen |
 
 ### R-F — fiscal outbox (I4)
 
@@ -410,6 +411,57 @@ looks identical to the Clients page; no native `<select>` has appeared; no hard-
 **R-U3** — phone viewport (390 × 844) for waiter and customer, desktop for the backoffice: no
 horizontal scroll, sticky footers reachable, console and network clean.
 
+**R-U4 — accessible names on the bilingual surfaces, automatable (L5/L1).** `ux` supplied the
+check that catches every English-only accessible name on the waiter and customer surfaces, and it
+is the cheap half of I9 that G-11 cannot see (G-11 compares dictionary *values*; this catches
+attributes that never went through `t()` at all):
+
+```
+grep -rnE '(aria-label|title|alt|placeholder)="[A-Za-z][^"{}]*"' \
+  web/src/app/features/waiter web/src/app/features/customer | grep -v "t('"
+grep -rn "toast.show(\`" web/src/app/features/waiter          # template-literal toast bypassing t()
+```
+
+Eleven hits today plus one template-literal toast. Worth wiring as a test rather than a habit —
+it is a grep, it protects a documented rule, and it fails on the pre-fix tree.
+
+**R-U5 — keyboard and focus (L4, per touched surface).** From `ux.md` §9: `combo-box` — Tab
+reaches the trigger, Enter/Space opens, Arrows move, Enter selects, Escape closes **and returns
+focus to the trigger**; backoffice report rows — an order is selectable without a mouse; waiter
+order page — no `role="button"` span nested inside a `<button>`; and every interactive element
+shows a ring on `:focus-visible` (today `:focus-visible` appears in 2 files, both for the
+checkbox). A story touching any of these re-runs this block on its own surface.
+
+**R-U6 — target size (L4, measured, not eyeballed).** At the phone viewport, in devtools: floor
+**44 px** on waiter and customer surfaces, 24 px absolute minimum anywhere. Known failures to
+re-measure after a fix: customer steppers 24 px, waiter split 30 px / close 32 px / shell 36 px,
+customer legal links 7 px.
+
+**R-U7 — name/role/value and live regions (L4).** Every dialog carries `aria-labelledby`; icon
+buttons on the service board include the order number in their accessible name; the customer logo
+is not `alt="logo"`; `aria-expanded` is present where a control expands; the toast carries
+`role="status" aria-live="polite"` and does not overlap the sticky action bar.
+
+**R-U8 — contrast (L4, measured with a tool).** White on `--danger` **fails** AA for normal text
+(approvals badge, `confirm-dialog` danger button); `--muted` and `--primary` on white pass. The
+*ratio* is asserted from a contrast tool at test time, not from a number quoted in a spec — `ux`
+records 3.3:1 for white on `#ea4d4d` and my own sRGB calculation gives ≈3.7:1; both fail the 4.5
+threshold, so the finding stands either way, but a scenario must not assert a figure the two
+sources disagree on. Flagged back to `ux`.
+
+**Deliberate exception, not a defect:** the login screen's `user-scalable=no` is an accepted POS
+decision recorded in `ux.md` §9 (WCAG 1.4.4). No bug is filed for it, and a Phase 4 run that
+notices it says "accepted exception" rather than reopening it.
+
+**Missing screen states — new scenarios, not regressions.** These states do not exist today, so
+they are the expected result of their stories rather than something to protect: no loading state
+on any of the 20 backoffice pages (UX-B1); no loading state and no empty column on the service
+board, where `loading()` is maintained but never rendered (UX-S3); no "no matches" state on the
+waiter product search (UX-W17); `payments.empty` serving both "no payments" and "none with this
+filter" (UX-W9, needs `payments.emptyFiltered`); and the error-channel split in UX-C3 — a loader
+failure keeps the page-level error, an action failure is a toast **plus** an inline line inside the
+sheet. Each gets an L4 scenario per surface, in RO and EN.
+
 ## 10. Defect management
 
 A bug becomes a GitHub issue: `bug` + `sev:*` + the owning role label, body `Part of #<story>`,
@@ -452,9 +504,31 @@ naming (`OrderPointServiceSplitTest`, 2), and report/PDF rendering
 (`DashboardReportServiceTest`, `NotPaidReportServiceTest`, `WaiterStatementPdfServiceTest`,
 `QrPdfServiceTest`).
 
-The gaps below are offered to `ba` as findings in their own right. In the consolidated register
-(`requirement.md`) they carry the `QA-nn` prefix: **G-1…G-14 → QA-01…QA-14**, **F-1…F-7 →
-QA-15…QA-21**, in the order listed here.
+The gaps below are offered to `ba` as findings in their own right.
+
+**Canonical ids: `G-nn` for coverage gaps, `F-nn` for code and documentation findings, as numbered
+in this document.** Nothing is renumbered once published; a new finding takes the next free number.
+Current totals: **14 gaps (G-1…G-14) and 10 findings (F-1…F-10) = 24 items.**
+
+The `QA-nn` prefix is **deprecated**. It exists only because the first hand-off to `architect-a`
+split the untested-services gap per service, so it was never a renaming of this table — it was a
+finer-grained cut of the same material, which is why 18 `QA-nn` ids do not correspond to 14 gaps.
+The frozen mapping, so the architects' register and `ba`'s disposition register can diff against a
+list instead of a reading:
+
+| `QA-nn` as sent | Canonical | | `QA-nn` as sent | Canonical |
+|---|---|---|---|---|
+| QA-01 | G-7 | | QA-10 | G-12 |
+| QA-02 | G-1 | | QA-09, QA-11, QA-12, QA-13, QA-14, QA-15, QA-16 | **all G-9** (one row listing the untested services) |
+| QA-03 | G-8 | | QA-17 | G-10 |
+| QA-04 | G-4 | | QA-18 | G-11 |
+| QA-05 | G-5 | | — | G-13, G-14 (added after the hand-off) |
+| QA-06 | G-6 | | F-1 … F-10 | unchanged — findings were always `F-nn` |
+| QA-07 | G-2 | | | |
+| QA-08 | G-3 | | | |
+
+If a register needs the per-service granularity back, take it from G-9's own list rather than
+reviving `QA-nn`.
 
 | # | Gap | Evidence | Why it matters |
 |---|---|---|---|
@@ -469,8 +543,8 @@ QA-15…QA-21**, in the order listed here.
 | **G-9** | **`BridgeService` (523 lines), `OnlinePaymentService`, `ApprovalService`, `CustomerAccessService`, `OrderPointAssignmentService` (445 lines), `UserService`, `JwtService`, `LoginAttemptService`, `FiscalResultSweeper` have no tests** — including the single-user-point 409, the Netopia IPN-only order creation, the DRAFT approval flow and the login throttle | `api/src/test/.../service/` holds 8 classes against 36 services | each is an invariant area with no net |
 | **G-10** | **Nothing covers concurrency**: two waiters on one point, two devices paying one bill, a duplicated POST. The guards exist (unique index on the open shift, `allow_multiple_users`, the guarded UPDATEs) but no test drives two actors | — | these are exactly the field failures a POS sees |
 | **G-11** | **The i18n dictionaries are not checked.** The RO dictionary is typed against EN, so a *missing* key fails the build; an **untranslated** value (English text left in the RO map) does not | `web/src/app/core/i18n/translations.ts` | a one-line test (no RO value identical to its EN value, allow-listed exceptions) would hold I9 |
-| **G-13** | **The integration stack cannot be built from `develop`**: `docker-compose.local.yml`, `web/nginx.local.conf`, `CLAUDE.md` and `docs/` are untracked and absent from `origin/develop`; `scripts/` does not exist either (F-4) | `git ls-tree --name-only origin/develop` → `.github .gitignore api bridge db-seeds web`; `git status --short` in the main checkout | **Phase 4 has no environment.** Every "tested on a stack built from `develop`" claim in CLAUDE.md §7 and in this plan is unexecutable until `devops` commits them |
 | **G-12** | **No test asserts a sent bridge frame's content** — `requestId` = payment id, `fiscal:true`, the lines, per-line VAT, the tip as `exempt:true` | `BridgeService.java` | the receipt could be wrong in a way every status check still calls SUCCESS |
+| **G-13** | **The integration stack cannot be built from `develop`**: `docker-compose.local.yml`, `web/nginx.local.conf`, `CLAUDE.md` and `docs/` are untracked and absent from `origin/develop`; `scripts/` does not exist either (F-4) | `git ls-tree --name-only origin/develop` → `.github .gitignore api bridge db-seeds web`; `git status --short` in the main checkout | **Phase 4 has no environment.** Every "tested on a stack built from `develop`" claim in CLAUDE.md §7 and in this plan is unexecutable until `devops` commits them |
 | **G-14** | **`bridge/mobile` has no tests at all** — 19 Kotlin files, no test source set — including the exactly-once intent journal and the 90 s job budget that I4 depends on | `find bridge -name '*Test*'` → nothing | the journal is the only thing standing between a dropped socket and a double-printed receipt; value here is in pure-logic unit tests, since installing the APK is a human gate |
 
 ### Findings found while reading, outside test code
@@ -485,6 +559,8 @@ QA-15…QA-21**, in the order listed here.
 | **F-6** | `OrderService.createPayment` resolves the payment type from the repository twice into `typeName` and `type` | `OrderService.java:636-653` — trivial |
 | **F-7** | `api/CLAUDE.md` says the RECEIPT is built and "sends it ONCE" with "no automatic retry ever", and does not mention that a frame for an offline bridge is **queued** and delivered on the next HELLO inside the 180 s deadline (expired ones dropped). Both statements are true of different things, but the doc as written makes R-F1's expected result ambiguous — found while an architect review corrected this plan's own first draft | `BridgeService.java:92-97` (the `waiting` queue), `:133-145`, `:169-183` (`onDeviceRegistered`) |
 | **F-8** | **Every authenticated role can trigger a fiscal re-issue.** `OrderPointAssignmentController` is `@PreAuthorize("isAuthenticated()")` at class level, and its `retryFiscal` delegates to `PaymentService.retryFiscal`, whose only check is the tenant guard. So SERVICE and WATCHER — not just a waiter on someone else's table — can re-print a receipt for any payment in their tenant. WATCHER is documented as read-only (`web/.../watcher-page.ts`, requirement.md's persona table), so this is a role-boundary breach, broader than the architects' A15 (waiter-vs-waiter scoping). Candidate `sev:critical` under the "a role reaches something it must not" clause if that definition is adopted, else `sev:major` | `controller/OrderPointAssignmentController.java:30`, `:91-95`; `service/OrderPointAssignmentService.java:155-157`; `service/PaymentService.java:134-147` |
+| **F-9** | **Every tenant's customer page shows one tenant's legal identity.** `site-footer.component.ts:39` hard-codes `© RENDEZVOUS EVENTS S.R.L. — CUI 41973877`, and the footer is the NETOPIA/ANPC compliance block on the public customer page. So a customer at any other client's table is shown the wrong trader's name and tax id — a cross-tenant identity defect in the UI (the api is clean; nothing leaks server-side) and a consumer-protection problem, since the ANPC footer is exactly where the trader must be identified correctly. Raised by `ux` as a contradiction; verified here. Candidate `sev:major` — customer-facing, wrong legal entity, no workaround | `web/src/app/shared/site-footer.component.ts:39`; footer used on the customer surface per `web/CLAUDE.md` |
+| **F-10** | **The footer's six legal links dead-end on the staff login form.** `/legal/:doc` is not routed, so it falls through `{ path: '**', redirectTo: 'login' }`; a customer tapping "Terms" or "ANPC" from the ordering page lands on the operator sign-in screen. Any mistyped or stale QR URL does the same. `web/CLAUDE.md` acknowledges the links are not ported, so this is a known hole rather than a surprise — but on a public surface it is customer-visible, and it interacts with F-9: the compliance footer both misidentifies the trader and cannot open its own documents | `web/src/app/app.routes.ts:230`; `shared/site-footer.component.ts` |
 
 ## 12. Risks
 
