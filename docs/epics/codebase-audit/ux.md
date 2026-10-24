@@ -5,7 +5,8 @@ Owner: `ux`. Scope: the four Yammer surfaces as they exist on `origin/develop` (
 Revised after a second pass over `web/src/app`, `index.html`, `public/manifest.webmanifest` and
 `shared/tz.ts`, which added 24 findings (`UX-C13`–`UX-C18`, `UX-B10`–`UX-B16`,
 `UX-W22`–`UX-W25`, `UX-S7`–`UX-S8`, `UX-Q16`–`UX-Q20`) and strengthened `UX-B5`, `UX-C8`, `UX-W14`
-and `UX-Q4` with evidence the first pass missed. No existing ID moved.
+and `UX-Q4` with evidence the first pass missed. No existing ID moved; `UX-C13` was withdrawn into
+`UX-C8` because the two passes found the same thing.
 
 ## 1. Method and limits
 
@@ -27,9 +28,11 @@ accepts. What it is not: an architecture review (see `design.md`) or a defect li
 | **minor** | friction, inconsistency, or copy that is awkward but not misleading |
 | **trivial** | cosmetic |
 
-**Counts:** 87 findings — 0 critical, 42 major, 37 minor, 8 trivial.
-Per surface: cross-cutting 18 (11 major), backoffice 16 (4 major), waiter 25 (12 major), service
-board 8 (6 major), customer 20 (9 major).
+**Counts:** 87 IDs, 86 active — 0 critical, 41 major, 37 minor, 8 trivial. (`UX-C13` is withdrawn:
+it duplicated `UX-C8` once both passes were merged. The ID is kept in place so references do not
+dangle; no other ID moved.)
+Per surface: cross-cutting 18 (10 active major), backoffice 16 (4 major), waiter 25 (12 major),
+service board 8 (6 major), customer 20 (9 major).
 
 Nothing is graded critical: every finding has a workaround, even if an ugly one. The three that
 come closest — a failed payment wiping the bill (`UX-C3`), the picker swallowing "this table still
@@ -251,19 +254,18 @@ line (and drop the duplicated `min-height: 100vh` lines in `waiter-page.ts` and
 `customer-order-point-page.ts`).
 
 
-### UX-C13 — The PWA hard-codes one tenant and sends guests to the staff login · **major** (tenancy)
+### UX-C13 — *withdrawn: merged into UX-C8*
 
-`public/manifest.webmanifest`: `"name": "RENDEZVOUS"`, `"short_name": "RENDEZVOUS"`,
-`"description": "Rendezvous — socialize & dance in the citadel."`, `"start_url": "/waiter"`.
-`index.html:15`: `<meta name="apple-mobile-web-app-title" content="RENDEZVOUS">`. Same root cause
-as UX-C8, different surface: a guest at a *Glo* table who uses "Add to Home Screen" on the QR page
-— which is exactly what a `display: standalone` manifest invites — gets an icon labelled
-RENDEZVOUS that opens **`/waiter`**, the staff login, not the menu they scanned.
+This ID held the PWA half of the tenant-identity finding (`manifest.webmanifest` and the iOS title
+meta). It arrived from the second pass at the same time as `UX-C8` was expanded to cover all three
+places, so the two said the same thing. `UX-C8` is the single finding; the ID stays here, withdrawn,
+so nothing that already references `UX-C13` dangles.
 
-**Spec.** `name`/`short_name` → `Yammer`, `description` → a product line with no venue in it,
-`start_url` → `/`, and drop the Apple title override (the manifest's `short_name` covers it).
-A genuinely per-tenant manifest (served per client, with the venue's name and icon) is a larger
-change and a separate story — recorded, not specced here.
+One point from the withdrawn text that `UX-C8` does not make, kept for the record: the manifest asks
+for `display: standalone`, which is precisely what prompts a guest to "Add to Home Screen" from the
+QR page — so `start_url` matters more than it looks. `UX-C8`'s spec sends it to `/login`; `/` is the
+better target, since the wildcard route already resolves `/` to login for staff while leaving room
+for UX-Q10's public not-found page.
 
 ### UX-C14 — `<html lang>` is always `en` · **minor** (a11y)
 
@@ -1317,20 +1319,34 @@ use `font-weight: 700` at ≥18.66px to qualify as large text, or `--danger` sho
 
 Phase-2 stories, ordered by value per unit of work. Each is independently shippable.
 
-1. **Waiter error handling and state loss** — UX-C3, UX-W1, UX-W6, UX-W14, UX-W18. No API work.
-2. **Customer menu legibility and the cart** — UX-Q1, UX-Q3, UX-Q4, UX-Q5. No API work.
-3. **Money formatting** — UX-C1. One shared helper, touches every surface.
-4. **Theme tokens + focus ring + combo-box keyboard** — UX-C2, UX-C4, UX-C10, UX-C11. Needs the
-   architects' token decision first.
-5. **Service board for its actual viewing distance** — UX-S1, UX-S2, UX-S3, UX-S5, UX-S6.
-6. **Compliance and dead ends** — UX-C6, UX-C7, UX-C8, UX-Q10. Needs Q1 and legal content.
-7. **Waiter board that tells the truth** — UX-W2, UX-W3, UX-W10. Needs Q2 and Q3.
+1. **Waiter error handling and state loss** — UX-C3, UX-W1, UX-W6, UX-W14 (Q14), UX-W18, UX-W22,
+   UX-W25. No API work, and the most value per line in the register.
+2. **Customer menu legibility and the cart** — UX-Q1, UX-Q2 (Q5), UX-Q3, UX-Q4, UX-Q5, UX-Q9
+   (Q1), UX-Q17, UX-Q19, UX-Q20. Only UX-Q2 and UX-Q9 need the API; the rest is pure frontend and
+   can ship without waiting.
+3. **Money formatting** — UX-C1 (Q10), UX-B14. One shared helper, touches every surface.
+4. **Theme tokens + focus ring + combo-box keyboard** — UX-C2, UX-C4, UX-C10, UX-C11, UX-B13.
+   Needs the architects' token decision first.
+5. **Service board for its actual viewing distance** — UX-S1, UX-S2, UX-S3, UX-S5, UX-S6, UX-S8.
+6. **Compliance and dead ends** — UX-C6, UX-C7, UX-C8, UX-C17, UX-Q10, UX-S7. Needs Q1 and legal
+   content.
+7. **Waiter board that tells the truth** — UX-W2, UX-W3, UX-W10, UX-W23 (Q12). Needs Q2 and Q3.
 8. **Fiscal visibility for the waiter** — UX-W7, UX-W8, UX-W9.
-9. **Destructive actions get a confirmation** — UX-W4, UX-W5, UX-W15, UX-S4 (Q4).
-10. **i18n coverage and copy corrections** — UX-C5 plus the §8 corrections table.
-11. **Backoffice polish** — UX-B1, UX-B2, UX-B3, UX-B4, UX-B5, UX-B6, UX-B7, UX-B8, UX-C9, UX-C12.
-12. **Smaller waiter/customer items** — UX-W11, UX-W12, UX-W13, UX-W16, UX-W17, UX-W19, UX-W20,
-    UX-W21, UX-Q6 (Q6), UX-Q7 (Q7), UX-Q8, UX-Q12, UX-Q13, UX-Q14 (Q8).
+9. **Destructive actions get a confirmation** — UX-W4 (Q13), UX-W5, UX-W15, UX-S4 (Q4).
+10. **i18n coverage and copy corrections** — UX-C5, UX-C14 plus the §8 corrections table and the
+    two `ba` copy decisions in it.
+11. **Phone platform fit** — UX-C15 (`viewport-fit=cover` + safe areas) and UX-C12 (`dvh`). Small
+    and self-contained, and it has to land before anything else can be judged on an installed
+    phone.
+12. **Backoffice correctness** — UX-B10 (timestamps 1–3 h out), UX-B11 (stale Open tables),
+    UX-B12 (the colour picker), UX-B15. Separate from polish because these change what a user can
+    believe, not how it looks.
+13. **Backoffice polish** — UX-B1, UX-B2, UX-B3, UX-B4, UX-B5, UX-B6, UX-B7, UX-B8, UX-B16,
+    UX-C9, UX-C18.
+14. **Smaller waiter/customer items** — UX-W11, UX-W12, UX-W13, UX-W16, UX-W17, UX-W19, UX-W20,
+    UX-W21, UX-W24, UX-Q6 (Q6), UX-Q7 (Q7), UX-Q8, UX-Q12, UX-Q13, UX-Q14 (Q8), UX-Q16 (Q11),
+    UX-Q18.
+15. **Login screen** — UX-C16. Gated on the `ba` language decision in §7.
 
 Deferred by default, recorded rather than dropped:
 
