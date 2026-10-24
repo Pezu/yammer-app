@@ -732,6 +732,23 @@ the architects as well (distinct from `#5`, which is about discounts — and not
 hides AMOUNT mode when the table has a discount, `waiter-table-detail-page.html:93`, which bounds
 that issue's reach).
 
+**Verified independently, and one detail makes it more deceptive than it first looks.** The tip is
+computed from the *clamped* base (`computedTip()` reads `grossTotal()`), so every number the waiter
+can see — amount, tip, total to pay — is internally consistent at 50.00. Only the field they typed
+and the payload disagree with it. There is no visual cue anywhere in the sheet that 500 is still
+live, which is why this cannot be fixed by copy alone: the clamp has to move to one place and apply
+to both.
+
+**Spec.** Clamp once, at the source: `fixedAmount` is clamped to the amount due when it is set
+(`setFixedAmount`), so the field, the summary rows and the payload can never diverge. Then the copy
+work from the first pass still applies on top — `[max]` on the input, and the hint
+`t('pay.amountCapped', { max })` when the typed value is reduced, so the waiter is *told* rather
+than silently corrected.
+
+**This needs a disposition as a defect, not only as a UX finding** (raised to `ba` for the register
+and to the architects as Q14 — who clamps, the client or the api). The UX half is the missing
+feedback; the money half is that a POS screen states one amount and submits another.
+
 **Spec.** `[max]` on the input; when the typed value exceeds what is due, a hint line under it
 (`t('pay.amountCapped', { max })` — "Maximum due is {max} RON") in `--danger` and the method
 buttons disabled, so nothing can be submitted in the divergent state. Either the submitted value
@@ -1441,7 +1458,11 @@ Phase-2 stories, ordered by value per unit of work. Each is independently shippa
     UX-Q18.
 15. **Login screen** — UX-C16. Gated on the `ba` language decision in §7.
 
-Deferred by default, recorded rather than dropped:
+Deferred by default, recorded rather than dropped. **Three of these also appear in a story above,
+and that is deliberate, not a double-assignment:** UX-W3, UX-B9 and UX-Q6 each ship a part now and
+defer a part (the poll ships, WebSocket push does not; the two Order Points tweaks ship, the
+redesign does not; the warned recovery path ships, moving orders between slots does not). Each has
+one disposition; the entry below names only the deferred half.
 
 - **UX-B9** — the Order Points *redesign* (13 editable columns). **Settled at the human gate**
   (D10): the two cheap tweaks ship in group 13, the redesign is deferred.
