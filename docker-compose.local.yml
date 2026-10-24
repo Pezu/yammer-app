@@ -1,0 +1,88 @@
+# Local full stack for ONE worktree: Postgres + fake GCS + api + web (nginx proxying /api to api).
+# This is the agent team's "integration stack" (CLAUDE.md §7). Never on the base ports — those
+# belong to the developer's own servers and to api/docker-compose.yml.
+#
+#   COMPOSE_PROJECT_NAME=yammer-123 DB_PORT=5830 GCS_PORT=4830 API_PORT=8430 WEB_PORT=4630 \
+#   docker compose -f docker-compose.local.yml up -d --build
+#   docker compose -p yammer-123 down -v
+#
+# Then open http://localhost:${WEB_PORT}; the api is on http://localhost:${API_PORT}.
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: yammer
+      POSTGRES_USER: yammer
+      POSTGRES_PASSWORD: yammerpass          # local only
+    ports:
+      - "${DB_PORT:-5600}:5432"
+    volumes:
+      - db-data:/var/lib/postgresql/data
+      - ./api/init-schemas.sql:/docker-entrypoint-initdb.d/init-schemas.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U yammer -d yammer"]
+      interval: 5s
+      retries: 20
+
+  fake-gcs:
+    image: fsouza/fake-gcs-server:latest
+    command:
+      - "-scheme"
+      - "http"
+      - "-host"
+      - "0.0.0.0"
+      - "-port"
+      - "4443"
+      - "-external-url"
+      - "http://localhost:${GCS_PORT:-4600}"
+      - "-public-host"
+      - "localhost:${GCS_PORT:-4600}"
+    ports:
+      - "${GCS_PORT:-4600}:4443"
+    volumes:
+      - gcs-data:/data
+
+  api:
+    build:
+      context: ./api
+    environment:
+      DATABASE_URL: jdbc:postgresql://db:5432/yammer?currentSchema=yammer
+      DATABASE_USERNAME: yammer
+      DATABASE_PASSWORD: yammerpass
+      # >= 32 bytes; compose-only, never a real environment
+      JWT_SECRET: local-compose-only-jwt-secret-0123456789abcdef
+      APP_URL: http://localhost:${WEB_PORT:-4400}
+      GCS_BUCKET: yammer-media
+      GCS_PROJECT_ID: yammer-local
+      GCS_ENDPOINT: http://fake-gcs:4443
+      NETOPIA_ENABLED: "false"
+      # a non-blank key is required outside the `local` profile; no bridge connects here
+      BRIDGE_API_KEY: local-compose-bridge-key
+    ports:
+      - "${API_PORT:-8200}:8080"
+    depends_on:
+      db:
+        condition: service_healthy
+      fake-gcs:
+        condition: service_started
+    healthcheck:
+      # the JRE image has bash but no curl/wget
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/8080; printf 'GET /actuator/health HTTP/1.0\\r\\n\\r\\n' >&3; grep -q UP <&3"]
+      interval: 10s
+      retries: 30
+
+  web:
+    build:
+      context: ./web
+    volumes:
+      # same as web/nginx.conf but /api -> the compose api service instead of Cloud Run
+      - ./web/nginx.local.conf:/etc/nginx/conf.d/default.conf:ro
+    ports:
+      - "${WEB_PORT:-4400}:8080"
+    depends_on:
+      api:
+        condition: service_healthy
+
+volumes:
+  db-data:
+  gcs-data:
