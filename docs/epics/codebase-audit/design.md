@@ -79,6 +79,8 @@ IDs: `A-*` api (architect-a), `W-*` web, `B-*` bridge, `I-*` infra (architect-b)
 | F-5 | **AMOUNT payments ignore the table's discount** (deliberate in code; the human decided it is a defect — decision D5): on a 10%-discounted table holding one 42.00 pizza, FULL settles at 37.80 but AMOUNT 37.80 covers no whole gross unit, splits it, and the table still owes 4.20 — the customer pays gross and the bill looks unsettled. | `OrderService.java:565-578, 471-473`; qa's worked example (R-M6) | §3.10 — `payAmount` allocates against NET discounted unit prices like FULL/PARTIAL and records the discount fields; ships with the A2 settle work (same method). Bug #5 tracks it | BE |
 | I6 | **Spring Boot 3.2.1 is EOL.** OSS support for the 3.2 line ended; the public API sits behind framework/Security lines with published fixes (Tomcat already pinned forward to 10.1.42). | `api/pom.xml:11` (`:31` tomcat override) | Upgrade to the current supported Boot line (target named by architect-b in the task); sequenced AFTER I1 so the bump lands with CI. **Human gate (dependency).** | BE + DO |
 | I9 | **Release/Flyway reconciliation risk.** `origin/main` (451248a) still ships the 46 pre-fold migrations; `origin/develop` (628c193) ships the folded `V1`/`V2`. Whatever state prod's database is in, one of two failures is pending: instance restarts failing validation now, or the next `develop → main` release failing Flyway validation at prod startup. | `git log origin/main..origin/develop`; `api/CLAUDE.md` "Database" section | **Human gate (release):** the human confirms prod's DB migration state before any release; a flyway repair/baseline plan goes in `docs/runbook.md` (devops prepares it) | human + DO |
+| UX-W14 | **Pay-sheet display/payload divergence (AMOUNT).** The sheet clamps the DISPLAYED amount to the sum due (`waiter-table-detail-page.ts:238`) but SUBMITS the raw field (`:563`) — type 500 on a 120.00 bill and the screen says 120.00 while 500 goes to the wire. No money is wrong today ONLY because the api clamps (`payAmount` takes `amount.min(unpaidTotal)`, `OrderService.java:571`) — the server cap is the single protection on a money path. | `waiter-table-detail-page.ts:238, 563`; `OrderService.java:571` | FE submits exactly the clamped value it displays (invariant: submitted == displayed); server clamp stays as the safety net; `test-plan.md`'s overpay scenario asserts both | FE |
+| UX-B10 | **Two backoffice reports read times 1–3 h early.** `not-paid-report-page.html:76` and `open-tables-report-page.html:55` pipe the api's naive-UTC strings through Angular `| date:` (parses as local) instead of `shared/tz.ts` — every timestamp on those two reports is 1 h (winter) / 3 h (summer) earlier than the same event on the dashboard/Shifts, which are correct. Report correctness for admin money reports — the FE counterpart of A8. | `not-paid-report-page.html:76`; `open-tables-report-page.html:55`; correct pattern in `shared/tz.ts` | route both pages through `shared/tz.ts`; rides whichever story owns those reports | FE |
 | W2 (=A13-jwt) | **Session JWT in the WebSocket URL.** The board connects to `/ws/orders?token=<jwt>`; tokens live 24 h and the client reconnects every 3 s when down, so valid staff tokens are continuously written into nginx/Cloud Run request logs, readable by anyone with log access. | `service-page.ts:205`; `WsAuthHandshakeInterceptor.java:31-33`; `application.yml:41` | §3.8 — single-use 30 s WS ticket (ADR-0002) | BE + FE |
 
 ### 2.3 Minor
@@ -257,7 +259,11 @@ IDs: `A-*` api (architect-a), `W-*` web, `B-*` bridge, `I-*` infra (architect-b)
   (PROTOCOL/PO stay undiscounted — `NotPaidReportService.isNotPaid` rule unchanged).
 - qa's worked example becomes the acceptance criterion: 10% table, one 42.00 pizza → AMOUNT
   37.80 settles the unit in full, nothing owed. Ships in the same backend task as A2/A3/A17
-  (same method/file — the no-overlap rule in §11).
+  (same method/file — the no-overlap rule in §12).
+- **Reachability rider (qa):** the waiter UI currently HIDES AMOUNT mode on discounted tables
+  (`waiter-table-detail-page.html:94`), so today the bug is reachable only by direct
+  `POST /orders/pay`. The FE half of this story REMOVES that conditional once net allocation
+  lands — otherwise we fix arithmetic nobody reaches and leave a mode silently hidden.
 
 ### 3.10 W2 — WebSocket ticket (ADR-0002)
 
@@ -390,10 +396,14 @@ UX-B10 is agreed as a defect (the FE counterpart of A8): two report pages pipe t
 strings through `| date:` instead of `shared/tz.ts` — file as `bug`, `sev:minor`,
 `agent:frontend`.
 
-**Theme tokens (ADR-0003, one decision):** `styles.scss` gains `--success: #10b981`,
-`--success-soft: rgba(16,185,129,.12)`, `--warn: #f59e0b`, `--warn-soft: rgba(245,158,11,.14)`,
+**Theme tokens (ADR-0003, one decision; values are ux's MEASURED revision — the first
+proposal's `#10b981`/`#f59e0b` fail even the 3:1 non-text threshold):** `styles.scss` gains
+`--success: #1f7a3d` (5.37:1 both directions), `--success-soft: rgba(31,122,61,.12)`,
+`--warn: #92610a` (5.33:1 both directions), `--warn-soft: rgba(146,97,10,.14)`,
 `--surface: #fff`, `--overlay: rgba(18,27,46,.45)`, `--focus-ring: var(--primary)`; and
-`--danger` darkens `#ea4d4d → #d93a3a` (4.0:1, clears AA for normal text). The 29 hard-coded
+`--danger` darkens `#ea4d4d → #d93a3a` (white-on-fill 4.55:1, clears AA for normal text; the
+original fails at 3.71:1). Soft tints only ever sit behind `--text`; the bright greens survive
+as decorative fills behind dark text, never as a label or an outline. The 29 hard-coded
 hex values across 23 files migrate to tokens as the ux stories touch their files — no big-bang
 sweep (§5 point 5: no clean-up sweeps of untouched code). Until the tokens land, ux's interim
 review rule stands: a hard-coded colour with no token to point at is a Note, not Blocking.
