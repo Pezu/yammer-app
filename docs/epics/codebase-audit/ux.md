@@ -80,6 +80,14 @@ align — the existing behaviour, only re-separated. The drop-the-`.00` rule sta
 where a menu price reads as a price and not as an accounting figure. Same separators on both: `.`
 for thousands, `,` for decimals.
 
+**Paper has to move with the screen — answered (architect-a, Q10), and it is a dependency, not a
+note.** Today the api's PDFs and thermal slips print dot-decimal (`toPlainString`) while the DATECS
+register's own fiscal lines print comma, from firmware. Decision: **`ro-RO` everywhere**, with one
+S-size api task aligning the PDF statement, the slip rows and the Excel export, taking the
+register's native comma style as the reference. If the screen moves and the paper does not, staff
+end up holding `12,50` on a receipt against `12.50` on the app and reading them as different
+numbers — so this story must not ship its frontend half alone.
+
 ### UX-C2 — The theme has no `--success` / `--warn`, so 29 off-token colours were invented · **major** (house rule)
 
 `CLAUDE.md` §5: "theme tokens, no hard-coded hex". Counted across `web/src/app`: **29 distinct
@@ -201,8 +209,14 @@ document owner, and UX-Q15 (RO-only labels) resolves when that content arrives r
 guessed now. The placeholder must read as deliberately provisional and never as a legal statement:
 one line per page naming the document and saying the text is being prepared — not Lorem, not an
 empty page, and not a promise ("Termenii și condițiile sunt în pregătire. Pentru orice întrebare,
-contactează-ne." / "The terms and conditions are being prepared. Please contact us with any
-question."). The wildcard still needs UX-Q10's not-found page so a bad QR never lands on
+întreabă personalul." / "The terms and conditions are being prepared. Please ask our staff for
+details.").
+
+`qa` sharpened the reason and it is worth stating plainly: **a page headed "Terms" containing
+provisional prose reads to a guest — and to ANPC — as the trader's actual terms.** So the
+placeholder must not look like a document at all: no headings beyond the page title, no clauses, no
+dates, no draft text. Fixing a dead end by publishing something that can be read as a legal
+undertaking would trade one compliance problem for a worse one. The wildcard still needs UX-Q10's not-found page so a bad QR never lands on
 `/login`.
 
 ### UX-C7 — The footer's legal links are 7px and the company line 6.7px · **major** (a11y)
@@ -234,11 +248,25 @@ Three places, all verified:
 - `web/src/index.html:14`: `<meta name="apple-mobile-web-app-title" content="RENDEZVOUS">` — the
   same leak on iOS.
 
-The footer needs client legal data from the API — **architects, Q1**. The manifest and the meta tag
-do not: they are shipped static files and cannot be per-tenant without server-side templating, so
-the spec is to make them **neutral** (`name`/`short_name` → `Yammer`, description → the product
-one, `start_url` → `/login`, the iOS title → `Yammer`) and let the per-tenant identity live where
-it already can: the client logo and name the customer page loads at runtime.
+The manifest and the meta tag cannot be per-tenant without server-side templating, so the spec is
+to make them **neutral**: `name`/`short_name` → `Yammer`, description → the product one, the iOS
+title → `Yammer`, and **`start_url` → `/`** — resolved in favour of `/` over `/login` after `qa`
+pointed out the two halves of this finding prescribed different targets. A guest who installs from
+a QR page must never be routed to a staff form; `/` leaves room for UX-Q10's public not-found page
+while still resolving to login for staff. Per-tenant identity lives where it already can: the
+client logo and name the customer page loads at runtime.
+
+**API — answered (architect-a, Q1).** `clientName` ships immediately (`client.name` exists). The
+legal line needs `legal_name` + `cui` on `client` via the **V4 migration plus Clients-form fields**,
+so the footer half is a **schema gate**: the story is `Blocked by` that task, while the manifest,
+meta-tag and `clientName` halves can ship without waiting.
+
+**The empty-identity state is part of the fix, not an afterthought** (raised by `qa` for bug #11's
+acceptance criteria): a client with no legal line configured renders **nothing** in that slot — no
+fallback, and above all no fallback to the hard-coded Rendezvous string. A fallback would let the
+defect survive its own fix for every tenant that has not filled the field in, which is most of them
+on day one. Same rule for `clientName` in the logo `alt`: absent → empty `alt`, never a borrowed
+name.
 
 
 ### UX-C9 — Wide tables overflow the page instead of scrolling in the panel · **minor**
@@ -293,9 +321,9 @@ so nothing that already references `UX-C13` dangles.
 
 One point from the withdrawn text that `UX-C8` does not make, kept for the record: the manifest asks
 for `display: standalone`, which is precisely what prompts a guest to "Add to Home Screen" from the
-QR page — so `start_url` matters more than it looks. `UX-C8`'s spec sends it to `/login`; `/` is the
-better target, since the wildcard route already resolves `/` to login for staff while leaving room
-for UX-Q10's public not-found page.
+QR page — so `start_url` matters more than it looks. **Resolved:** `UX-C8` now specifies `/`, for
+the reason given there; `/login` is recorded here as the rejected alternative so the choice is not
+silently re-made.
 
 ### UX-C14 — `<html lang>` is always `en` · **minor** (a11y)
 
@@ -470,8 +498,17 @@ Who it hurts: a manager reconciling the Not-paid report or the open tables again
 reads two different clocks for the same payment and cannot tell which is right.
 
 **Spec.** `{{ row.at | roDate }}` and `{{ row.openedAt | roDate }}` (import `RoDatePipe`), dropping
-`DatePipe` from both components. Also a defect — raised with the architects so it is fixed once,
-not twice.
+`DatePipe` from both components.
+
+**Confirmed as a defect by architect-a directly** (not relayed), and filed as a `bug` on the
+frontend. **It must be fixed together with its server-side twin, A8**, and `qa` is the one who
+spotted why: the api sets no `TZ`, so printed slips and PDFs run **2–3 h behind** while these two
+reports run **1–3 h early**. For a single payment a manager can today read **three different
+times** across screen, report and paper. Fixing either side alone makes the discrepancy look
+resolved on whichever surface someone happens to check first — which is worse than the current
+state, because the remaining error stops being obvious. `qa` split them deliberately as R-S8
+(client) and R-S9 (printed) with the relationship written down; the stories should carry the same
+link.
 
 ### UX-B11 — The Open tables report never refreshes · **major**
 
@@ -614,6 +651,20 @@ of a tile the waiter opens dozens of times a shift; and route it through `confir
 `tables.splitConfirmTitle` / `tables.splitConfirmBody` / confirm `tables.split` (copy in §8). The
 same 44px floor applies to `.close-btn` (32px) and the shell's `.refresh` / `.burger` (36px).
 
+**Naming — answered (architect-a, Q13), and it bounds who ever sees this button.** The `.1` suffix
+is how tables are *born*: batch create makes `T{n}.1`, and `splitEntity` hard-requires the pattern,
+answering 400 otherwise (`OrderPointService.java:223-227`). A plain `T12` exists only through a
+manual rename in the backoffice — which is exactly the case where `canSplit()` already returns
+false, so the button is simply absent and the waiter never meets the 400. That is acceptable, not a
+defect, and this spec leaves it alone.
+
+The architects' recommendation — split a plain name by renaming the source to `T12.1` and creating
+`T12.2`, safe because every reference is by id — is **pending `ba`'s product call** and would only
+*add* capability. If adopted, the confirm dialog above needs one more line telling the waiter the
+table is being renamed: a table changing name under a guest's printed QR code is surprising enough
+to warrant saying out loud. Until then the rule is recorded here so nobody files the absent button
+as a bug.
+
 ### UX-W5 — "Close table" ends the round in one tap · **major**
 
 `waiter-table-detail-page.html:112` — `Close table` sits in the sticky footer beside `Pay` and
@@ -657,7 +708,10 @@ but `waiter-payments-page.ts` loads once. The waiter watches a pending dot that 
 then walks away not knowing whether the receipt printed.
 
 **Spec.** While `rows()` contains any `PENDING`, poll `myPayments()` every 10 s; stop when none
-remain or on destroy. After a `retry()` the page already reloads after 2.5 s — on that reload,
+remain or on destroy. **The honest ceiling is 180 s** (architect-a's note — the api's sweeper
+deadline): a receipt may legitimately read "printing…" for three minutes before it becomes FAILED
+with a Retry. The spec inherits that number rather than implying anything faster, and the copy must
+not promise a quick answer. After a `retry()` the page already reloads after 2.5 s — on that reload,
 toast the outcome: `payments.retryIssued` when the row is now SUCCESS, `payments.retryStillFailed`
 when it is still FAILED (copy in §8), instead of silently repainting.
 
@@ -681,7 +735,13 @@ missing for the thing that gets food to the table.
 second top-bar badge — `--success` filled, the READY count, tapping goes to
 `/waiter/orders?tab=READY` — next to the red approvals badge. On the Orders page itself, refresh
 the open tab on the same interval and on `visibilitychange`. Needs a cheap count endpoint or the
-existing list — **architects, Q3.**
+existing list.
+
+**API — answered (architect-a, Q3).** Poll **`GET /order-points/orders?status=READY`**, which
+already exists and is assignment-scoped; the badge count is the list length. No new endpoint. Push
+is explicitly *not* available for this: `/ws/orders` routes to board users and its payload lacks
+`orderPointId`, so a shell subscription would hear the wrong events — extending the event payload
+and routing is a follow-up story, not a rider on this one.
 
 ### UX-W11 — Nothing says which page you are on · **minor**
 
@@ -745,9 +805,18 @@ work from the first pass still applies on top — `[max]` on the input, and the 
 `t('pay.amountCapped', { max })` when the typed value is reduced, so the waiter is *told* rather
 than silently corrected.
 
-**This needs a disposition as a defect, not only as a UX finding** (raised to `ba` for the register
-and to the architects as Q14 — who clamps, the client or the api). The UX half is the missing
-feedback; the money half is that a POS screen states one amount and submits another.
+**API — answered (architect-a, Q14): the api clamps.** `OrderService.payAmount` takes
+`request.amount().min(unpaidTotal)` (`OrderService.java:571`) before creating the payment, so the
+typed 500 never reaches the payment row, the receipt or the register. **So this is a display/trust
+defect, not a money-loss one** — I had asked `ba` to hold it as `sev:major` re-gradable to critical
+if the api took the amount at face value; it does not, so **major is final**.
+
+What that changes about the spec: nothing, and that is the point. `qa` put it best — the server cap
+is currently the *single* protection on a money path, so the client must not depend on it. The
+invariant to build and test against is **submitted == displayed**, with the server clamp as the
+safety net rather than the mechanism. `qa` also preferred clamping at the source over my first
+instinct of refusing submission while the two diverge: removing the divergent state beats guarding
+it, because there is then no window in which screen and payload disagree.
 
 **Spec.** `[max]` on the input; when the typed value exceeds what is due, a hint line under it
 (`t('pay.amountCapped', { max })` — "Maximum due is {max} RON") in `--danger` and the method
@@ -791,6 +860,13 @@ Payments page where a FAILED receipt would need their retry.
 **Spec.** Copy only: `pay.recorded` becomes "Payment recorded — receipt printing" /
 "Plată înregistrată — se tipărește bonul". Nothing is added to the flow; the Payments page plus
 UX-W8 does the follow-up.
+
+**API — answered (architect-a, Q9), and it confirms the copy rather than changing it.** The pay
+response gains `paymentId` and the **initial** `fiscalStatus` (PENDING for CASH/CARD, NONE for
+PROTOCOL/PO). "Receipt issued" is an asynchronous fact with a 180 s ceiling, so a toast claiming it
+at pay time would be unbuildable — the printing/issued split above is exactly right, and the
+Payments page stays the authority. For PROTOCOL/PO the toast must *not* mention a receipt at all:
+`NONE` means none is coming.
 
 ### UX-W19 — Statistics shows money without a unit · **minor**
 
@@ -843,7 +919,12 @@ silently changes meaning.
 **Spec.** A subheader on both pages, left of the existing filter combo, `0.8rem` `--muted`:
 `t('tables.serviceDay', { name })` → "Service day · Fri 24.10, 17:00" /
 "Ziua de serviciu · Vi 24.10, 17:00", from the open shift's nickname when it has one and its start
-time otherwise. Needs the open shift readable by a waiter — **architects, Q12.**
+time otherwise.
+
+**API — answered (architect-a, Q12): yes.** `GET /shifts/current` is already tenant-checked and its
+**read** relaxes to any authenticated user (writes stay ADMIN/SUPER). Label away — and note this
+changes nothing about the house rule: the waiter screens still scope to the open shift and still
+grow no date picker. This is a label, not a selector.
 
 ### UX-W24 — One in-flight decision disables every button on the Approvals page · **minor**
 
@@ -1024,8 +1105,11 @@ re-picked.
    `qa` found this hole in the first version of the spec, which cleared only on the return page —
    the failure mode is a guest re-ordering and paying twice for the same round, which is the exact
    money the rule exists to protect.
-Whether the point self-pays ONLINE must be readable on the public order-point payload —
-**architects, Q5.**
+**API — answered (architect-a, Q5).** `selfPayOnline` is **already on the public payload**, so the
+button can read "Pay X RON" today. The pre-redirect total is the client's own cart total, and the
+redirect response additionally returns the **server-resolved amount** — so the confirm sheet shows
+the authoritative figure, not the client's arithmetic, before the guest leaves for Netopia. Where
+the two disagree, the server's number is what the sheet displays.
 
 ### UX-Q3 — The menu's own type scale is too small, and the price is the quietest thing on the row · **major**
 
@@ -1110,8 +1194,15 @@ guidance. A waiter who tapped Deny by accident (UX-W15) leaves the guest with a 
 and a menu they cannot order from.
 
 **Spec.** Under the message, a `cust.askAgain` button ("Ask again" / "Cere din nou") that re-runs
-`join()`, returning the guest to the PENDING banner. Rate-limited to one request per 60 s on the
-client so Deny stays meaningful. Whether a re-join after DENIED is allowed — **architects, Q7.**
+`join()`, returning the guest to the PENDING banner.
+
+**API — answered (architect-a, Q7), and it reframes the finding.** Deny was never device-terminal:
+it is per-token, and a guest who clears storage and rescans already creates a fresh PENDING. So the
+dead end is a *UI* dead end only — the capability was always there, just unreachable. The api makes
+it honest (a DENIED token may re-join as a fresh PENDING) and protects the waiter with a **public-join
+throttle server-side**, which is the real rate limit. I am therefore dropping the client-side 60 s
+limiter I first specced: duplicating a server throttle in the client only risks the two disagreeing,
+and the honest failure is the server's 429 surfaced as copy.
 
 ### UX-Q8 — The bill view never updates · **minor**
 
@@ -1127,8 +1218,13 @@ destroy. `pendingApproval`/`billNeedsApproval` states are unaffected.
 screen reader learns nothing about whose venue they are in, and the placeholder logo is decorative
 but still announced.
 
-**Spec.** `[alt]="op()?.clientName ?? ''"`. Needs the client name on the public payload —
-**architects, Q1** (same ask as UX-C8).
+**Spec.** `[alt]="op()?.clientName ?? ''"` — and the `?? ''` is load-bearing: an absent name gives
+an empty `alt`, which is correct for a decorative placeholder and must never fall back to another
+tenant's name (see UX-C8's empty-identity rule).
+
+**API — answered (architect-a, Q1): `clientName` ships immediately**, since `client.name` already
+exists. Unlike UX-C8's footer half, this finding is *not* behind the V4 schema gate and can land
+with the rest of the customer-page story.
 
 ### UX-Q10 — A bad QR code shows the staff login form · **major**
 
@@ -1203,9 +1299,18 @@ about whether the order exists, immediately after the guest acted.
 **Spec.** A notice at the top of the Order view, in the `approval-note` style already on the page,
 while this device has an order awaiting approval: `t('cust.pendingApprovalLine')` ("You have an
 order waiting for the waiter to approve it." / "Ai o comandă în așteptarea aprobării
-ospătarului."). Needs the bill payload to report a pending-approval count for this token —
-**architects, Q11.** Pairs with UX-Q8 (the bill does not refresh either), so the notice clears
-itself once the order is approved and appears as a normal line.
+ospătarului.").
+
+**API — answered (architect-a, Q11): yes.** The customer bill response gains
+`pendingApprovalCount` for the calling token's session — the count of its DRAFT orders. Pairs with
+UX-Q8 (the bill does not refresh either), so the notice clears itself once the order is approved
+and the order appears as a normal line.
+
+**This resolves a contradiction rather than papering over it**, and `qa` flagged why that matters:
+their R-A6 asserts DRAFT invisibility to the bill as *correct* per `api/CLAUDE.md`. Both things are
+true — the DRAFT must stay out of the bill, and the guest must not be told their order does not
+exist. A count alongside the bill satisfies both. **Nobody should later "fix" this by putting DRAFTs
+in the bill**; that would break the invariant to solve a copy problem.
 
 ### UX-Q17 — The cart bar vanishes when ordering becomes impossible · **major**
 
@@ -1249,27 +1354,38 @@ the bar and the first thing they see is the second item of that category.
 
 ---
 
-## 7. Questions for the architects
+## 7. Questions for the architects — all closed
 
-Each of these gates a state specced above; `ux` needs the answer before the matching story goes
-`stage:ready`. **Q2, Q4, Q6 and Q8 are answered** (architect-b, 2026-10-24) and the specs above
-have been rewritten accordingly — the answers are recorded in the finding, not here, so the spec
-and the contract can't drift apart. Q1, Q3, Q5, Q7 and Q9 are open with architect-a.
+Each of these gated a state specced above. **All fourteen are answered** (architect-b Q2/Q4/Q6/Q8,
+architect-a Q1/Q3/Q5/Q7/Q9/Q10–Q14, 2026-10-24). Every answer is recorded **in the finding it
+affects**, not only here, so a spec and the contract cannot drift apart; the table below is an
+index, and `design.md` §11 carries the architects' full text. Nothing in this register now waits on
+the architects.
 
-| # | For | Question |
+| # | For | Answer |
 |---|---|---|
-| Q1 | UX-C8, UX-Q9 | Can the public order-point payload carry the client's **display name and legal line** (company, CUI), so the footer and the logo `alt` are per tenant instead of hard-coded Rendezvous? |
-| ~~Q2~~ | UX-W2 | **Answered: yes, additive.** All four fields derive from the current schema; one response, 3–4 batched queries, no per-point lookup. |
-| Q3 | UX-W10 | Is there (or can there be) a cheap count for "READY orders at my tables", or should the shell poll the existing list? Alternatively, should the waiter shell subscribe to `/api/ws/orders`? |
-| ~~Q4~~ | UX-S4 | **Answered: yes, and the coming transition matrix keeps it** as the undo path (kanban status never touches payment state). Undo toast, no confirm dialog. |
-| Q5 | UX-Q2 | Does the public order-point payload say whether the point self-pays `ONLINE` (and with what total), so the button can read "Pay X RON" before the redirect? |
-| ~~Q6~~ | UX-Q6 | **Answered: a second join is allowed and is the mechanism**, but approval does not carry over and placed orders do not move. Spec now warns about both; moving orders is deferred. |
-| Q7 | UX-Q7 | May a DENIED device re-request access (new PENDING), or is Deny terminal for that device/token? |
-| ~~Q8~~ | UX-Q14 | **Answered: yes, trivial** — a two-field DTO addition; the intent row already stores the amount. |
-| Q9 | UX-W18 | Does the pay response expose the fiscal status, so the toast can distinguish "receipt printing" from "receipt issued"? |
+| Q1 | UX-C8, UX-Q9 | `clientName` ships now (`client.name` exists). The legal line needs `legal_name` + `cui` via the **V4 migration** + Clients-form fields → the footer half is a schema gate, the rest is not. |
+| Q2 | UX-W2 | Yes, additive. All four tile fields derive from the current schema. Condition: **one response, 3–4 batched queries, never a per-point lookup.** |
+| Q3 | UX-W10 | Poll **`GET /order-points/orders?status=READY`** (exists, assignment-scoped); count = list length. Push is unavailable — `/ws/orders` routes to board users and its payload lacks `orderPointId`. |
+| Q4 | UX-S4 | Yes — and the coming transition matrix **keeps** `DELIVERED → READY` as the undo path. Undo toast, no confirm dialog. |
+| Q5 | UX-Q2 | `selfPayOnline` is **already** on the public payload. Pre-redirect total = the client cart; the redirect response adds the **server-resolved amount**, which is what the confirm sheet shows. |
+| Q6 | UX-Q6 | A second join at the sibling slot is allowed and *is* the mechanism — but approval does not carry over and placed orders do not move. Hence a warned recovery path; order-move deferred. |
+| Q7 | UX-Q7 | Deny was never device-terminal (it is per-token; a storage clear already re-joins). Made honest: a DENIED token may re-join as fresh PENDING, protected by a **server-side public-join throttle**. |
+| Q8 | UX-Q14 | Yes, trivial — a two-field DTO addition; the intent row already stores the amount. |
+| Q9 | UX-W18 | The pay response gains `paymentId` + the **initial** `fiscalStatus` (PENDING for CASH/CARD, **NONE** for PROTOCOL/PO). "Issued" is async with a **180 s** ceiling; the Payments page stays the authority. |
+| Q10 | UX-C1 | **`ro-RO` everywhere** — plus one S-size api task aligning the PDF statement, thermal slips and the Excel export, taking the register's native comma style as the reference. Screen and paper must move together. |
+| Q11 | UX-Q16 | Yes — the customer bill response gains `pendingApprovalCount` for the calling token. Resolves the contradiction **without** putting DRAFTs in the bill. |
+| Q12 | UX-W23 | Yes — `GET /shifts/current` is already tenant-checked; its **read** relaxes to any authenticated user (writes stay ADMIN/SUPER). A label, not a selector. |
+| Q13 | UX-W4 | The `.1` suffix is birth-naming and `splitEntity` hard-requires it (400, `OrderPointService.java:223-227`); a plain `T12` only exists via manual rename, where `canSplit()` already hides the button. Rename-on-split is **pending `ba`**. |
+| Q14 | UX-W14 | **The api clamps** — `payAmount` takes `request.amount().min(unpaidTotal)` (`OrderService.java:571`). So UX-W14 is a display/trust defect, **major and final**, not money-loss. The client must still not depend on the cap. |
 
-Token change for UX-C2 and the `--focus-ring` in UX-C4 also needs an architect decision — as **one**
-decision in `design.md`, not re-argued per story.
+**I missed these for a round.** Architect-a posted Q1/Q3/Q5/Q7/Q9 and Q10–Q14 as **PR review
+bodies**, and I was reading only the issue-comment thread, so I chased answers that had already
+been given twice. Recorded because it is a process lesson, not a one-off: on a PR, the answers may
+be in `gh api .../pulls/<n>/reviews`, not `.../issues/<n>/comments`.
+
+The token decision (UX-C2, UX-C4's `--focus-ring`) is settled as **one** decision in **ADR-0003**,
+carrying the corrected measured values from §9 and the both-directions rule. Nothing per-story.
 
 ---
 
@@ -1441,7 +1557,8 @@ Phase-2 stories, ordered by value per unit of work. Each is independently shippa
    content.
 7. **Waiter board that tells the truth** — UX-W2, UX-W3, UX-W10, UX-W23 (Q12). Needs Q2 and Q3.
 8. **Fiscal visibility for the waiter** — UX-W7, UX-W8, UX-W9.
-9. **Destructive actions get a confirmation** — UX-W4 (Q13), UX-W5, UX-W15, UX-S4 (Q4).
+9. **Destructive actions get a confirmation** — UX-W4, UX-W5, UX-W15, UX-S4. All four answers are
+    in (Q4, Q13); UX-W4 inherits the naming rule recorded below.
 10. **i18n coverage and copy corrections** — UX-C5, UX-C14 plus the §8 corrections table and the
     two `ba` copy decisions in it.
 11. **Phone platform fit** — UX-C15 (`viewport-fit=cover` + safe areas) and UX-C12 (`dvh`). Small
