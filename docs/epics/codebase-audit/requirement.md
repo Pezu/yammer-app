@@ -174,13 +174,13 @@ Every finding ID appears here exactly once. Disposition: **fix** (story/bug link
 
 | Finding | Disposition | Issue / decision |
 |---|---|---|
-| QA F-1 (stale login-roles doc) | fix | #6 |
+| QA F-1 (stale login-roles doc) | fix | #6 (per D7: doc fix only) |
 | QA F-2 (contradictory service-day doc) | fix | #6 |
 | QA F-3 (X-Forwarded-For trusted, QR throttle bypass) | pending triage | — |
 | QA F-4 (documented `scripts/` missing) | pending triage | — |
-| QA F-5 (AMOUNT payment loses discount) | fix | #5 (pending Q3) |
+| QA F-5 (AMOUNT payment loses discount) | fix | #5 (per D5: option (a)) |
 | QA §11 no-CI / DB-bound test | fix | #4 |
-| QA §11 remaining coverage gaps (fiscal SM, pay, tenancy, web) | pending triage | — |
+| QA §11 remaining coverage gaps (fiscal SM, pay, tenancy, web) | pending triage | routed to `architect-a` as QA-01…QA-18, consolidated from `design.md` |
 
 ## Story map
 
@@ -189,7 +189,7 @@ Filled as findings are consolidated into issues (Phase 2). Format:
 | Story/Bug | Track | Findings covered | Owner | Estimate | Stage |
 |---|---|---|---|---|---|
 | [#4 CI pipeline on PRs](https://github.com/Pezu/yammer-app/issues/4) | infra | QA §11 (no CI, DB-bound test); epic precondition | devops | S (proposed) | backlog |
-| [#5 AMOUNT payment loses the table discount](https://github.com/Pezu/yammer-app/issues/5) | defect | QA F-5 | backend | pending Q3 | backlog |
+| [#5 AMOUNT payment loses the table discount](https://github.com/Pezu/yammer-app/issues/5) | defect | QA F-5 | backend | S (proposed) | backlog |
 | [#6 api/CLAUDE.md stale login + service-day sections](https://github.com/Pezu/yammer-app/issues/6) | docs | QA F-1, F-2 | backend | S (proposed) | backlog |
 | _further rows as architect/ux findings land_ | | | | | |
 
@@ -201,6 +201,9 @@ Filled as findings are consolidated into issues (Phase 2). Format:
 | D2 | 2026-10-24 | Won't-fix and deferred findings are recorded here, not deleted from the register | Epic requires nothing silently dropped | epic body (lead) |
 | D3 | 2026-10-24 | Phase 2 has no priority ceiling: every accepted finding is implemented (answers Q1) | Human's call at the requirements gate | human (Radu) |
 | D4 | 2026-10-24 | Bridge findings that require installing a new APK are deferred — recorded in the register and as backlog issues, not scheduled in this epic (answers Q2) | APK installs are a human gate; human chose to skip them for now | human (Radu) |
+| D5 | 2026-10-24 | AMOUNT allocates against net (discounted) prices like FULL/PARTIAL — the table's discount applies in AMOUNT mode too, paying the displayed total settles the table (answers Q3, bug #5 option (a)) | Consistency across payment modes; the bill screen shows net totals | human (Radu) |
+| D6 | 2026-10-24 | The Netopia sandbox base URL in the production `deploy.yml` is deliberate for now — no switch-to-live task in this epic | Human's call; note the intent wherever a finding touches it | human (Radu) |
+| D7 | 2026-10-24 | Password login stays open to any role — QA F-1 resolves as a doc fix only (`api/CLAUDE.md` corrected, no code change) | The web app routes every role to its surface; restricting login was never the rebuilt behaviour | human (Radu) |
 
 ## Open questions
 
@@ -208,4 +211,4 @@ Filled as findings are consolidated into issues (Phase 2). Format:
 |---|---|---|---|
 | Q1 | Is there a budget/priority ceiling for Phase 2 — do we implement everything accepted, or stop after critical/major + High-impact? | lead → human | Answered → D3 |
 | Q2 | Should `bridge/mobile/` findings that require installing a new APK be scheduled in this epic, given installs are a human gate? | lead → human | Answered → D4 |
-| Q3 | AMOUNT payment on a discounted table (bug #5): should it allocate against net (discounted) prices like FULL/PARTIAL (recommended), or stay "taken as is" and be blocked on discounted tables? | lead → human | Open |
+| Q3 | AMOUNT payment on a discounted table (bug #5): should it allocate against net (discounted) prices like FULL/PARTIAL (recommended), or stay "taken as is" and be blocked on discounted tables? | lead → human | Answered → D5 |
