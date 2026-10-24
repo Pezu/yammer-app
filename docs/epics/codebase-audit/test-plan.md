@@ -300,6 +300,7 @@ regression — never ambiguity about what the number should be.
 | **R-S5** | Order at 00:30 with the evening's day still open | it lands in the open day; the dashboard for that day includes it |
 | **R-S6** | Order at 00:30 with no day open at all | it lands in the business day that started at 06:00 the previous morning |
 | **R-S7** | Dashboard and final report by `shiftId` vs by `from`+`to` over the same trade | the same totals, from both parameter shapes |
+| **R-S8** | One PROTOCOL payment taken at a known wall-clock time, then read on the **dashboard**, the **Shifts** page, the **Not-paid report** and the **Open-tables report** | the same timestamp on all four. **Current** behaviour (`ux` UX-B10, verified): `shared/tz.ts` is the single source of truth — the api returns zone-less strings recorded in UTC, so they must be parsed as UTC and rendered in `Europe/Bucharest`, which `roDate` does. But `not-paid-report-page.html:76` and `open-tables-report-page.html:55` use Angular's `\| date: 'dd.MM.yyyy HH:mm'`, which reads a zone-less string as **local** — so those two render every event **one hour early in winter, three in summer**. A manager reconciling the Not-paid report against the service day reads two clocks for one payment. A report-correctness defect, not a styling one, so it belongs in the I5 block |
 
 ### R-R — roles and permissions (I6)
 
