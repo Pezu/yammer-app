@@ -2,15 +2,10 @@
 
 Owner: `ux`. Scope: the four Yammer surfaces as they exist on `origin/develop` (`628c193`).
 
-> **Second-pass addendum pending.** A second pass over `index.html`,
-> `public/manifest.webmanifest` and `shared/tz.ts` produced a further ~24 findings
-> (`UX-C13`–`UX-C18`, `UX-B10`–`UX-B16`, `UX-W22`–`UX-W25`, `UX-S7`–`UX-S8`, `UX-Q16`–`UX-Q20`).
-> **Those finding bodies are not in this file yet** — only their summary line arrived, so the
-> register below is the first pass plus the one second-pass item I verified myself (folded into
-> `UX-C8`). Counts below describe what is actually written here. The addendum lands as a follow-up
-> commit on this branch; the full second-pass text is preserved at
-> `.worktrees/ux-parallel-session-audit.md` (gitignored) so nothing is lost. Existing IDs will not
-> move when it lands.
+Revised after a second pass over `web/src/app`, `index.html`, `public/manifest.webmanifest` and
+`shared/tz.ts`, which added 24 findings (`UX-C13`–`UX-C18`, `UX-B10`–`UX-B16`,
+`UX-W22`–`UX-W25`, `UX-S7`–`UX-S8`, `UX-Q16`–`UX-Q20`) and strengthened `UX-B5`, `UX-C8`, `UX-W14`
+and `UX-Q4` with evidence the first pass missed. No existing ID moved.
 
 ## 1. Method and limits
 
@@ -32,9 +27,9 @@ accepts. What it is not: an architecture review (see `design.md`) or a defect li
 | **minor** | friction, inconsistency, or copy that is awkward but not misleading |
 | **trivial** | cosmetic |
 
-**Counts (what is written below):** 63 findings — 0 critical, 29 major, 29 minor, 5 trivial.
-Per surface: cross-cutting 12 (9 major), backoffice 9 (0 major), waiter 21 (9 major), service
-board 6 (4 major), customer 15 (7 major). With the pending addendum the register reaches ~87.
+**Counts:** 87 findings — 0 critical, 42 major, 37 minor, 8 trivial.
+Per surface: cross-cutting 18 (11 major), backoffice 16 (4 major), waiter 25 (12 major), service
+board 8 (6 major), customer 20 (9 major).
 
 Nothing is graded critical: every finding has a workaround, even if an ugly one. The three that
 come closest — a failed payment wiping the bill (`UX-C3`), the picker swallowing "this table still
@@ -212,8 +207,6 @@ the spec is to make them **neutral** (`name`/`short_name` → `Yammer`, descript
 one, `start_url` → `/login`, the iOS title → `Yammer`) and let the per-tenant identity live where
 it already can: the client logo and name the customer page loads at runtime.
 
-*(The manifest/`index.html` half of this finding came from the second-pass register; I verified it
-against the files before folding it in.)*
 
 ### UX-C9 — Wide tables overflow the page instead of scrolling in the panel · **minor**
 
@@ -1306,7 +1299,12 @@ The failures worth tracking separately, all specced above:
 | WCAG 2.4.7 (focus visible) | UX-C4 |
 | WCAG 2.5.8 (target size) | UX-Q4 24px steppers, UX-W4 30px split / 32px close / 36px shell buttons, UX-C7 7px legal links |
 | WCAG 4.1.2 (name, role, value) | UX-C4 combo + dialogs, UX-C5 English-only names, UX-Q9 logo alt, UX-S6 icon buttons, UX-B5 `aria-expanded` |
-| Live regions | UX-W21 toast, UX-S4 board toast |
+| Live regions | UX-W21 toast, UX-S4 board toast, UX-S8 live pill |
+| WCAG 2.4.3 (focus order) | UX-B5 collapsed sidebar links stay focusable |
+| WCAG 3.1.1 (language of page) | UX-C14 `<html lang>` is always `en` |
+| WCAG 3.3.2 (labels) | UX-C16 login fields labelled only by placeholder |
+| Content-authored contrast | UX-B12 the Menu page's free colour picker, which no token can constrain |
+| Platform insets | UX-C15 content under the status bar and home indicator in the installed PWA |
 
 Contrast against the tokens is fine where it was checked: `--muted` #64748b on white is 4.76:1
 (passes AA for body text), `--primary` #3454d1 on white 6.3:1, white on `--primary` 6.3:1, white
