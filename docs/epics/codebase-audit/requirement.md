@@ -190,9 +190,9 @@ Disposition: **fix** (story/bug link), **won't fix** / **deferred** (decision or
 | A5 (CANCELED hides settled money) | — | fix | #17 |
 | A6 (orders report in-memory paging) | — | fix | #21 |
 | A7 (approvals 403 instead of 404) | — | fix | #18 |
-| A8 (server-rendered times UTC) | overlaps UX-B10 (split stated in #40) | fix | #24 |
+| A8 (server-rendered times UTC — printed slips behind) | pairs with UX-B10/#44 (three-clocks defect; must land together, R-S8/R-S9) | fix | #24 |
 | A9 (money/permission/tenancy untested) | QA G-1…G-14 umbrella | fix | #26, #27, #28 (+ test ACs in #14) |
-| F-5 / QA-19 (AMOUNT ignores discount) | — | fix (D5) | #5 (rides #14's task) |
+| F-5 / QA-19 (AMOUNT ignores discount; API-only reach — UI hides the mode on discounted tables) | ux reach note | fix (D5) + FE rider: unhide AMOUNT | #5 (arithmetic rides #14) |
 | F-8 / QA-22 (fiscal re-issue by read-only roles; held at major per design §9) | — | fix | #9 |
 | F-9 / QA-23 (footer shows Rendezvous identity to all tenants) | UX-C8 | fix | #11 |
 | B-T1 (bridge layer tenant-blind) | — | fix | #19 |
@@ -234,7 +234,7 @@ Disposition: **fix** (story/bug link), **won't fix** / **deferred** (decision or
 | G-13 / QA-13 (stack unbuildable) · F-4 / QA-18 (scripts missing) | fix | #8 |
 | G-14 / QA-14 (bridge untested) | fix (pure-logic half, #25 AC4); on-device half deferred (D4) | #25 |
 
-### UX groups (ux.md §10; all 63+ UX ids dispositioned through their group)
+### UX groups (ux.md §10; 87 ids, 86 active — 41 major / 37 minor / 8 trivial; UX-C13 withdrawn into UX-C8 — each active id dispositioned through its group)
 
 | Group | Findings | Disposition | Issue |
 |---|---|---|---|
@@ -249,7 +249,9 @@ Disposition: **fix** (story/bug link), **won't fix** / **deferred** (decision or
 | 9 Confirmations/undo | UX-W4, W5, W15, S4 | fix | #37 |
 | 10 i18n + copy | UX-C5, C14 + §8 corrections | fix | #38 |
 | 11 Phone platform fit | UX-C15, C12 | fix | #39 |
-| 12 Backoffice correctness | UX-B10, B11, B12, B15 | fix | #40 |
+| 12 Backoffice correctness | UX-B11, B12, B15 (B10 → #44) | fix | #40 |
+| UX-B10 (reports show raw UTC — early by the offset) | qa R-S8 | fix — lands WITH #24 (A8 pair) | #44 |
+| UX-W14 (pay sheet shows clamped, submits raw) | qa R-M12 | fix — clamp at source + told via pay.amountCapped; major (server caps, no money moves) | #29 (AC5) |
 | 13 Backoffice polish | UX-B1…B8, B16, C9, C18 + B9 tweaks | fix (D10) | #41 |
 | 14 Smaller waiter/customer | 17 ids (see #42) | fix | #42 |
 | 15 Login a11y | UX-C16 | fix (login stays English — ba) | #43 |
@@ -258,6 +260,7 @@ Disposition: **fix** (story/bug link), **won't fix** / **deferred** (decision or
 | UX-Q15 (legal label language) | — | deferred — resolves with the legal content (D8) | — |
 | Waiter WS push (from UX-W3/Q2) | — | deferred — poll ships; push is a new api story (recorded in ux.md §10) | — |
 | Moving orders between slots (from UX-Q6) | — | deferred — warned recovery path ships (recorded in ux.md §10) | — |
+| Split for plain-named tables (from UX-W4/Q13) | — | deferred (ba): current behaviour acceptable — batch-created tables are born `T{n}.1`, `canSplit()` hides the button on a renamed plain `T12`, and the rename-on-split capability is not implied by a finding; the naming rule is documented in ux.md | — |
 
 ## Story map
 
@@ -286,7 +289,8 @@ Blocked by #4 applies to every implementation story (D1). #8 gates Phase 3/4 ver
 | #26 | Fiscal DB-backed tests | story | backend+qa | M | #4 |
 | #27 | Tenancy/role test suite | story | backend+qa | L | #4 |
 | #28 | Web test foundation | story | frontend+qa | M | #4, #8 |
-| #29–#43 | UX groups 1–15 (see register) | story | frontend (BE riders: #35, #36) | S–M each | #4; #37 also #17; #42 also #23 |
+| #29–#43 | UX groups 1–15 (see register) | story | frontend (BE riders: #35, #36) | S–M each | #4; #37 also #17; #42 also #23; #40 now S (B10 → #44) |
+| #44 | Not-paid/Open-tables reports show raw UTC | bug major | frontend | S | #4; lands WITH #24 |
 | #45 | Flyway reconciliation runbook | task | devops | S | human gate: release |
 | #6 | api/CLAUDE.md + web/CLAUDE.md doc fixes | task | backend | S | — |
 | #10 | Customer menu search (deferred, D9) | story | frontend | — | not scheduled |
