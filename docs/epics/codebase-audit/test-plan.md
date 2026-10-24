@@ -510,25 +510,15 @@ The gaps below are offered to `ba` as findings in their own right.
 in this document.** Nothing is renumbered once published; a new finding takes the next free number.
 Current totals: **14 gaps (G-1…G-14) and 10 findings (F-1…F-10) = 24 items.**
 
-The `QA-nn` prefix is **deprecated**. It exists only because the first hand-off to `architect-a`
-split the untested-services gap per service, so it was never a renaming of this table — it was a
-finer-grained cut of the same material, which is why 18 `QA-nn` ids do not correspond to 14 gaps.
-The frozen mapping, so the architects' register and `ba`'s disposition register can diff against a
-list instead of a reading:
+**The `QA-nn` alias has exactly one definition, and it is not here:** the disposition register in
+`requirement.md`, which maps positionally — `QA-01…QA-14 = G-1…G-14`, `QA-15…QA-22 = F-1…F-8`.
+That table is the authority; this document does not restate it, so the two cannot drift. F-9 and
+F-10 were added after it and have no alias yet.
 
-| `QA-nn` as sent | Canonical | | `QA-nn` as sent | Canonical |
-|---|---|---|---|---|
-| QA-01 | G-7 | | QA-10 | G-12 |
-| QA-02 | G-1 | | QA-09, QA-11, QA-12, QA-13, QA-14, QA-15, QA-16 | **all G-9** (one row listing the untested services) |
-| QA-03 | G-8 | | QA-17 | G-10 |
-| QA-04 | G-4 | | QA-18 | G-11 |
-| QA-05 | G-5 | | — | G-13, G-14 (added after the hand-off) |
-| QA-06 | G-6 | | F-1 … F-10 | unchanged — findings were always `F-nn` |
-| QA-07 | G-2 | | | |
-| QA-08 | G-3 | | | |
-
-If a register needs the per-service granularity back, take it from G-9's own list rather than
-reviving `QA-nn`.
+An earlier hand-off message to `architect-a` used `QA-01…QA-18` for a per-service split of G-9 and
+a different ordering. **Those ids are superseded — ignore them.** The architects confirmed they
+folded the findings in by content, not by number, so nothing indexes them any more. If a register
+needs the per-service granularity back, take it from G-9's own list rather than reviving `QA-nn`.
 
 | # | Gap | Evidence | Why it matters |
 |---|---|---|---|
