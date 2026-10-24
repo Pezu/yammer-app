@@ -89,7 +89,11 @@ web/src/app/
 │   │                                 #   protocol/PO), compact table + fiscal dot; a FAILED
 │   │                                 #   receipt has a Retry button, an UNKNOWN one says to see a
 │   │                                 #   manager; the status filter is kept in the URL (?status=)
-│   ├── waiter/waiter-page.ts         # /waiter shell — topbar + hamburger menu (Logout last) + outlet
+│   ├── waiter/waiter-page.ts         # /waiter shell — topbar + hamburger menu (Logout last) + outlet.
+│   │                                 #   The topbar refresh button asks the active page to re-fetch
+│   │                                 #   its data (waiter-refresh.service) — never a document reload,
+│   │                                 #   which would drop a half-built order
+│   ├── waiter/waiter-refresh.service.ts  # the topbar refresh signal; every waiter page subscribes
 │   ├── waiter/tables/                # /waiter/tables — the waiter's ASSIGNED tiles + a "+" tile
 │   │                                 #   opening the assign picker (full TABLE/BAR board with
 │   │                                 #   status: multi-user points show "N assigned" and always
@@ -100,7 +104,10 @@ web/src/app/
 │   │                                 #   unsettled. Tapping a tile → /waiter/tables/:id = the
 │   │                                 #   round's combined bill; header = back + name; sticky footer = Pay (only while
 │   │                                 #   something is due) + Close table (tabs only, once all is paid) + Order; Unpaid/Paid view combo
-│   │                                 #   (default Unpaid), the pay sheet, and — once everything
+│   │                                 #   (default Unpaid), the pay sheet (closes on X or Escape only —
+│   │                                 #   it holds unsaved money entry; a typed AMOUNT is clamped to
+│   │                                 #   what is due as it is typed, so the field, the summary and the
+│   │                                 #   request are always one number), and — once everything
 │   │                                 #   is paid — the "Close table" button, which frees the table
 │   │                                 #   (drops every assignment, ending the round).
 │   │                                 #   → /waiter/tables/:id/order (menu drill-down +
@@ -184,6 +191,11 @@ web/src/app/
 - - **All tables must look identical** — reuse `shared/styles/_crud-table.scss`
   (the `.table` panel pattern); copy the clients page as the template for new
   CRUD pages.
+- **Two error channels on the waiter surfaces.** A page's `error()` state belongs to its
+  *loader* only (the content genuinely does not exist). An *action* that fails shows a
+  toast — and, inside a sheet or dialog, an inline `role="alert"` line in that sheet, which
+  stays open and keeps its selection. Never swap the screen a waiter is working on for an
+  error.
 
 ## Deployment (GCP, Cloud Run)
 

@@ -1,7 +1,10 @@
 import { Component, computed, inject, signal } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Router } from '@angular/router';
 import { I18nService } from '../../../core/i18n.service';
 import { AuthService } from '../../../core/auth.service';
+import { ToastService } from '../../../core/toast.service';
+import { WaiterRefreshService } from '../waiter-refresh.service';
 import {
   AssignableOrderPoint,
   OrderPoint,
@@ -28,6 +31,8 @@ export class WaiterTablesPage {
   private readonly router = inject(Router);
   private readonly orderPointService = inject(OrderPointService);
   private readonly typeService = inject(OrderPointTypeService);
+  private readonly toast = inject(ToastService);
+  private readonly refresh = inject(WaiterRefreshService);
   readonly t = inject(I18nService).t;
 
   readonly loading = signal(false);
@@ -45,6 +50,7 @@ export class WaiterTablesPage {
       next: (types) => this.types.set(types),
     });
     this.loadAssigned();
+    this.refresh.requested.pipe(takeUntilDestroyed()).subscribe(() => this.loadAssigned());
   }
 
   /** Enter one of my tables — its orders + the place-order flow. */
@@ -83,7 +89,6 @@ export class WaiterTablesPage {
     if (this.splitting()) {
       return;
     }
-    this.error.set(null);
     this.splitting.set(point.id);
     this.orderPointService.split(point.id).subscribe({
       next: () => {
@@ -92,7 +97,7 @@ export class WaiterTablesPage {
       },
       error: () => {
         this.splitting.set(null);
-        this.error.set(this.t('tables.splitFailed'));
+        this.toast.show(this.t('tables.splitFailed'));
       },
     });
   }
@@ -101,6 +106,7 @@ export class WaiterTablesPage {
 
   readonly pickerOpen = signal(false);
   readonly pickerLoading = signal(false);
+  readonly pickerError = signal<string | null>(null);
   readonly board = signal<AssignableOrderPoint[]>([]);
   /** id of the point whose assign/unassign call is in flight. */
   readonly busy = signal<string | null>(null);
@@ -118,6 +124,7 @@ export class WaiterTablesPage {
       return;
     }
     this.board.set([]); // fresh board each time the picker opens
+    this.pickerError.set(null);
     this.pickerOpen.set(true);
     this.loadBoard();
   }
@@ -145,7 +152,7 @@ export class WaiterTablesPage {
         this.pickerLoading.set(false);
       },
       error: () => {
-        this.error.set(this.t('tables.listFailed'));
+        this.pickerError.set(this.t('tables.listFailed'));
         this.pickerLoading.set(false);
       },
     });
@@ -181,12 +188,13 @@ export class WaiterTablesPage {
     call.subscribe({
       next: () => {
         this.busy.set(null);
+        this.pickerError.set(null);
         this.loadBoard();
       },
       error: (err) => {
         this.busy.set(null);
         // a 409 on unassign = the table's session is open; only Close table frees it
-        this.error.set(
+        this.pickerError.set(
           point.assignedToMe && err?.status === 409
             ? this.t('tables.openRefused')
             : this.t('tables.assignFailed'),

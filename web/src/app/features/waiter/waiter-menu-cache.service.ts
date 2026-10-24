@@ -66,8 +66,8 @@ export class WaiterMenuCacheService {
     this.version.update((v) => v + 1);
   }
 
-  /** Wipe the cache without notifying open pages (used on logout). */
-  clear(): void {
+  /** Wipe the cache without notifying open pages. */
+  private clear(): void {
     this.store = { menus: {}, trees: {} };
     try {
       localStorage.removeItem(STORAGE_KEY);

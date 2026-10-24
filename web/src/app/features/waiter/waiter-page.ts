@@ -3,6 +3,7 @@ import { Router, RouterOutlet } from '@angular/router';
 import { AuthService } from '../../core/auth.service';
 import { ToastService } from '../../core/toast.service';
 import { WaiterMenuCacheService } from './waiter-menu-cache.service';
+import { WaiterRefreshService } from './waiter-refresh.service';
 import { AppLogo } from '../../shared/logo.component';
 import { I18nService, LANG_OPTIONS, isLang } from '../../core/i18n.service';
 import { ComboBox } from '../../shared/combo-box';
@@ -223,6 +224,7 @@ export class WaiterPage implements OnDestroy {
   private readonly auth = inject(AuthService);
   private readonly router = inject(Router);
   private readonly menuCache = inject(WaiterMenuCacheService);
+  private readonly refresh = inject(WaiterRefreshService);
   readonly toast = inject(ToastService);
   readonly i18n = inject(I18nService);
   readonly t = this.i18n.t;
@@ -299,10 +301,10 @@ export class WaiterPage implements OnDestroy {
     this.router.navigateByUrl('/waiter/stats');
   }
 
-  /** Header refresh: drop the cached menus and reload the page so everything is fresh. */
+  /** Header refresh: the page re-fetches its own data. Never a document reload — that
+   *  destroys a half-built order and can fail to come back on venue wifi. */
   refreshPage(): void {
-    this.menuCache.clear();
-    window.location.reload();
+    this.refresh.request();
   }
 
   /** Drop the cached menus so the next (or an open) order page loads them fresh. */

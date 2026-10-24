@@ -1,5 +1,6 @@
 import { Component, HostListener, computed, inject, signal } from '@angular/core';
 import { DecimalPipe } from '@angular/common';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router } from '@angular/router';
 import {
   OrderPointBill,
@@ -14,6 +15,7 @@ import {
 import { ToastService } from '../../../core/toast.service';
 import { I18nService } from '../../../core/i18n.service';
 import { ComboBox } from '../../../shared/combo-box';
+import { WaiterRefreshService } from '../waiter-refresh.service';
 
 type TipMode = 'none' | 'p10' | 'p12' | 'p15' | 'customPct' | 'customAmt';
 
@@ -49,6 +51,7 @@ export class WaiterTableDetailPage {
   private readonly service = inject(WaiterOrderPointService);
   private readonly paymentTypeService = inject(PaymentTypeService);
   private readonly toast = inject(ToastService);
+  private readonly refresh = inject(WaiterRefreshService);
 
   readonly id = this.route.snapshot.paramMap.get('id') ?? '';
   /** Table name from navigation state; replaced by the API's name once the bill loads. */
@@ -72,9 +75,7 @@ export class WaiterTableDetailPage {
       .map((id) => ({ id, name: this.paymentTypeById().get(id) ?? '?' })),
   );
 
-  readonly canPay = computed(
-    () => (this.bill()?.unpaidTotal ?? 0) > 0 && this.payOptions().length > 0,
-  );
+  readonly canPay = computed(() => (this.bill()?.unpaidTotal ?? 0) > 0);
 
   /** Everything settled on a tab → it can be closed (the ONLY way a session ends). A bar
    *  (keep open off) is paid order by order and never shows the button. */
@@ -130,10 +131,17 @@ export class WaiterTableDetailPage {
     this.paymentTypeService.list().subscribe({
       next: (types) => this.paymentTypes.set(types),
     });
+    this.load();
+    this.refresh.requested.pipe(takeUntilDestroyed()).subscribe(() => this.load());
+  }
+
+  private load(): void {
+    this.loading.set(true);
     this.service.bill(this.id).subscribe({
       next: (bill) => {
         this.bill.set(bill);
         this.name.set(bill.orderPointName);
+        this.error.set(null);
         this.loading.set(false);
       },
       error: () => {
@@ -158,8 +166,11 @@ export class WaiterTableDetailPage {
   readonly payOpen = signal(false);
   readonly submitting = signal(false);
   readonly payMode = signal<PaymentMode>('FULL');
-  /** AMOUNT mode: the fixed sum typed by the waiter. */
+  /** A refused payment is shown inside the sheet; the bill behind it stays on screen. */
+  readonly payError = signal<string | null>(null);
+  /** AMOUNT mode: the fixed sum typed by the waiter, never more than what is due. */
   readonly fixedAmount = signal<number | null>(null);
+  readonly amountCapped = signal(false);
 
   readonly unpaidLines = computed(() => this.bill()?.lines.filter((l) => !l.paid) ?? []);
   readonly paidLines = computed(() => this.bill()?.lines.filter((l) => l.paid) ?? []);
@@ -295,12 +306,22 @@ export class WaiterTableDetailPage {
     this.tipMode.set('none');
     this.tipCustomPercent.set(null);
     this.tipCustomAmount.set(null);
-    this.error.set(null);
+    this.amountCapped.set(false);
+    this.payError.set(null);
     this.payOpen.set(true);
   }
 
   closePay(): void {
     this.payOpen.set(false);
+  }
+
+  @HostListener('document:keydown.escape')
+  onEscape(): void {
+    if (this.editingId()) {
+      this.cancelQtyEdit();
+    } else if (this.payOpen()) {
+      this.closePay();
+    }
   }
 
   setMode(mode: PaymentMode): void {
@@ -311,8 +332,19 @@ export class WaiterTableDetailPage {
     this.tipMode.set(mode);
   }
 
-  setFixedAmount(value: string): void {
-    this.fixedAmount.set(value === '' ? null : +value);
+  /**
+   * Clamped to what is due as it is typed: the field, the summary rows and the request are
+   * then always the same number (the api's own cap is the safety net, not the mechanism).
+   */
+  setFixedAmount(input: HTMLInputElement): void {
+    const due = this.bill()?.unpaidTotal ?? 0;
+    const typed = input.value === '' ? null : +input.value;
+    const capped = typed != null && typed > due;
+    this.amountCapped.set(capped);
+    this.fixedAmount.set(capped ? due : typed);
+    if (capped) {
+      input.value = String(due);
+    }
   }
 
   // --- drag/tap move between Bill and Paying ---
@@ -570,6 +602,7 @@ export class WaiterTableDetailPage {
       }));
     }
     this.submitting.set(true);
+    this.payError.set(null);
     this.service.pay(this.id, payload).subscribe({
       next: (bill) => {
         this.bill.set(bill);
@@ -579,8 +612,7 @@ export class WaiterTableDetailPage {
       },
       error: () => {
         this.submitting.set(false);
-        this.error.set(this.t('pay.failed'));
-        this.payOpen.set(false);
+        this.payError.set(this.t('pay.failedInline'));
       },
     });
   }

@@ -1,8 +1,11 @@
 import { Component, computed, inject, signal } from '@angular/core';
 import { DecimalPipe } from '@angular/common';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router } from '@angular/router';
 import { WaiterActiveOrder, WaiterOrderPointService } from '../tables/waiter-order-point.service';
 import { I18nService } from '../../../core/i18n.service';
+import { ToastService } from '../../../core/toast.service';
+import { WaiterRefreshService } from '../waiter-refresh.service';
 import { ComboBox } from '../../../shared/combo-box';
 import { roTime } from '../../../shared/tz';
 
@@ -175,6 +178,8 @@ export class WaiterOrdersPage {
   private readonly i18n = inject(I18nService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
+  private readonly toast = inject(ToastService);
+  private readonly refresh = inject(WaiterRefreshService);
   readonly t = this.i18n.t;
 
   readonly orders = signal<WaiterActiveOrder[]>([]);
@@ -192,6 +197,7 @@ export class WaiterOrdersPage {
 
   constructor() {
     this.load();
+    this.refresh.requested.pipe(takeUntilDestroyed()).subscribe(() => this.load());
   }
 
   /** Switch tab → fetch that status from the backend. */
@@ -221,7 +227,7 @@ export class WaiterOrdersPage {
       error: () => {
         this.orders.set(prev);
         this.clearBusy(o.id);
-        this.error.set(this.t('orders.updateFailed'));
+        this.toast.show(this.t('orders.updateFailed'));
       },
     });
   }

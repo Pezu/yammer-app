@@ -1,7 +1,7 @@
-import { Component, computed, effect, inject, signal, untracked } from '@angular/core';
+import { Component, HostListener, computed, effect, inject, signal, untracked } from '@angular/core';
 import { DecimalPipe, Location } from '@angular/common';
 import { ActivatedRoute, Router } from '@angular/router';
-import { toSignal } from '@angular/core/rxjs-interop';
+import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
 import {
   MenuNode,
   MenuOption,
@@ -15,6 +15,7 @@ import {
   PaymentTypeService,
 } from '../../backoffice/pages/payment-types/payment-type.service';
 import { OrderPointService } from '../../backoffice/pages/order-points/order-point.service';
+import { WaiterRefreshService } from '../waiter-refresh.service';
 
 type TipMode = 'none' | 'p10' | 'p12' | 'p15' | 'customPct' | 'customAmt';
 
@@ -46,6 +47,7 @@ export class WaiterOrderPage {
   private readonly toast = inject(ToastService);
   private readonly paymentTypeService = inject(PaymentTypeService);
   private readonly orderPointService = inject(OrderPointService);
+  private readonly refresh = inject(WaiterRefreshService);
   readonly t = inject(I18nService).t;
 
   // --- pay as you order (keepOpen = false, e.g. bars): the payment is chosen before placing ---
@@ -201,6 +203,8 @@ export class WaiterOrderPage {
       this.menuCache.version();
       untracked(() => this.load());
     });
+    // the top bar's refresh reloads the menu; the half-built cart is untouched
+    this.refresh.requested.pipe(takeUntilDestroyed()).subscribe(() => this.load());
   }
 
   /**
@@ -372,6 +376,13 @@ export class WaiterOrderPage {
 
   closePay(): void {
     this.payOpen.set(false);
+  }
+
+  @HostListener('document:keydown.escape')
+  onEscape(): void {
+    if (this.payOpen()) {
+      this.closePay();
+    }
   }
 
   /** Pay-now sheet: the chosen payment type places AND settles the order in one request. */

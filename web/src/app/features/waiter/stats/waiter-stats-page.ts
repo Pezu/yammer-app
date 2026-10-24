@@ -1,7 +1,9 @@
 import { Component, computed, inject, signal } from '@angular/core';
 import { DecimalPipe, NgTemplateOutlet } from '@angular/common';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { TableStats, WaiterOrderPointService } from '../tables/waiter-order-point.service';
 import { I18nService } from '../../../core/i18n.service';
+import { WaiterRefreshService } from '../waiter-refresh.service';
 import { ComboBox } from '../../../shared/combo-box';
 
 /**
@@ -171,6 +173,7 @@ import { ComboBox } from '../../../shared/combo-box';
 })
 export class WaiterStatsPage {
   private readonly service = inject(WaiterOrderPointService);
+  private readonly refresh = inject(WaiterRefreshService);
   readonly t = inject(I18nService).t;
 
   readonly rows = signal<TableStats[]>([]);
@@ -205,6 +208,7 @@ export class WaiterStatsPage {
 
   constructor() {
     this.load();
+    this.refresh.requested.pipe(takeUntilDestroyed()).subscribe(() => this.load());
   }
 
   private load(): void {

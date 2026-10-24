@@ -50,6 +50,9 @@
         </button>
       </div>
       <div class="picker-body">
+        @if (pickerError()) {
+          <p class="picker-err" role="alert">{{ pickerError() }}</p>
+        }
         @if (pickerLoading()) {
           <p class="state">{{ t('common.loading') }}</p>
         } @else if (pickerTiles().length === 0) {

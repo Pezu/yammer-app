@@ -1,8 +1,11 @@
 import { Component, OnDestroy, inject, signal } from '@angular/core';
 import { DecimalPipe } from '@angular/common';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Approvals, ApprovalService } from './approval.service';
 import { timeAgo } from '../../../shared/relative-time';
 import { I18nService } from '../../../core/i18n.service';
+import { ToastService } from '../../../core/toast.service';
+import { WaiterRefreshService } from '../waiter-refresh.service';
 
 const POLL_MS = 10000;
 
@@ -20,10 +23,10 @@ const POLL_MS = 10000;
       <h2>{{ t('approvals.title') }}</h2>
     </div>
 
-    @if (error()) {
-      <p class="state err">{{ error() }}</p>
-    } @else if (loading()) {
+    @if (loading()) {
       <p class="state">{{ t('common.loading') }}</p>
+    } @else if (error()) {
+      <p class="state err">{{ error() }}</p>
     } @else {
       <h3 class="sec">{{ t('approvals.customers') }}</h3>
       @if (data().customers.length === 0) {
@@ -215,6 +218,8 @@ const POLL_MS = 10000;
 })
 export class WaiterApprovalsPage implements OnDestroy {
   private readonly service = inject(ApprovalService);
+  private readonly toast = inject(ToastService);
+  private readonly refresh = inject(WaiterRefreshService);
   readonly t = inject(I18nService).t;
 
   readonly data = signal<Approvals>({ customers: [], orders: [] });
@@ -227,6 +232,7 @@ export class WaiterApprovalsPage implements OnDestroy {
   constructor() {
     this.load(true);
     this.poll = setInterval(() => this.load(false), POLL_MS);
+    this.refresh.requested.pipe(takeUntilDestroyed()).subscribe(() => this.load(false));
   }
 
   ngOnDestroy(): void {
@@ -246,7 +252,7 @@ export class WaiterApprovalsPage implements OnDestroy {
       },
       error: () => {
         this.busy.set(false);
-        this.error.set(this.t('approvals.saveFailed'));
+        this.toast.show(this.t('approvals.saveFailed'));
       },
     });
   }
@@ -260,7 +266,7 @@ export class WaiterApprovalsPage implements OnDestroy {
       },
       error: () => {
         this.busy.set(false);
-        this.error.set(this.t('approvals.saveFailed'));
+        this.toast.show(this.t('approvals.saveFailed'));
       },
     });
   }

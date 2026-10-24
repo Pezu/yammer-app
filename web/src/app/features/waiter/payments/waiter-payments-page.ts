@@ -1,8 +1,11 @@
 import { Component, computed, inject, signal } from '@angular/core';
 import { DecimalPipe } from '@angular/common';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router } from '@angular/router';
 import { WaiterOrderPointService, WaiterPayment } from '../tables/waiter-order-point.service';
 import { I18nService } from '../../../core/i18n.service';
+import { ToastService } from '../../../core/toast.service';
+import { WaiterRefreshService } from '../waiter-refresh.service';
 import { ComboBox } from '../../../shared/combo-box';
 
 type StatusFilter = 'ALL' | 'SUCCESS' | 'PENDING' | 'FAILED' | 'UNKNOWN';
@@ -236,6 +239,8 @@ export class WaiterPaymentsPage {
   private readonly i18n = inject(I18nService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
+  private readonly toast = inject(ToastService);
+  private readonly refresh = inject(WaiterRefreshService);
   readonly t = this.i18n.t;
 
   readonly rows = signal<WaiterPayment[]>([]);
@@ -258,6 +263,7 @@ export class WaiterPaymentsPage {
 
   constructor() {
     this.load();
+    this.refresh.requested.pipe(takeUntilDestroyed()).subscribe(() => this.load());
   }
 
   /** CASH / CARD drive the row icon; any other payment type shows its name instead. */
@@ -297,7 +303,7 @@ export class WaiterPaymentsPage {
         }, 2500),
       error: () => {
         this.retrying.update((s) => this.without(s, p.id));
-        this.error.set(this.t('payments.retryFailed'));
+        this.toast.show(this.t('payments.retryFailed'));
       },
     });
   }
