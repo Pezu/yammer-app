@@ -584,11 +584,12 @@ agrees exactly with the disposition register in `requirement.md`:
 | `QA-nn` | Canonical | `QA-nn` | Canonical |
 |---|---|---|---|
 | QA-01 … QA-14 | **G-1 … G-14**, in numeric order | QA-15 … QA-21 | **F-1 … F-7**, in numeric order |
-| QA-22 | **F-8** | — | **F-9, F-10** have no alias (added later) |
+| QA-22 | **F-8** | QA-23, QA-24 | **F-9, F-10** |
 
-**The alias is closed: nothing new gets a `QA-nn`.** New findings are referenced by their canonical
-`G-nn`/`F-nn` only, here and in every register. If this table and `requirement.md`'s ever disagree,
-`requirement.md` wins — `ba` owns the consolidated register and the exit diff runs from it.
+**`requirement.md`'s disposition register is the single authority for the alias**, and it has since
+extended the series to `QA-23 = F-9` and `QA-24 = F-10`. This document therefore records the
+mapping for reference only and uses **canonical `G-nn`/`F-nn` everywhere**; when the two disagree,
+`requirement.md` wins, because `ba` owns the consolidated register and the exit diff runs from it.
 
 An earlier hand-off message to `architect-a` used `QA-01…QA-18` for a per-service split of G-9 and
 a different ordering. **Those ids are superseded — ignore them.** The architects confirmed they
