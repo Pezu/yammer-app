@@ -207,6 +207,7 @@ Disposition: **fix** (story/bug link), **won't fix** / **deferred** (decision or
 |---|---|---|---|
 | A10, A11, A12, A14 (races + join throttle) | — | fix | #23 |
 | A13-key (bridge key in query) | — | fix (rides W2) | #20 |
+| I11 (unconfigured RestClient inside the start() transaction) | — | fix (rides A1, design §3.1) | #13 |
 | A15 (waiter retry not assignment-scoped) | — | won't fix — intended, documented (design §2.3) | doc line in #6 |
 | A16 (+I4, W9: doc drift) | QA F-1/F-2/F-7 = QA-15/16/21 | fix (D7 for F-1) | #6 |
 | A17 / QA-20 (payment type resolved twice) | QA F-6 | fix (rides #14's task) | #14 |
@@ -250,8 +251,8 @@ Disposition: **fix** (story/bug link), **won't fix** / **deferred** (decision or
 | 10 i18n + copy | UX-C5, C14 + §8 corrections | fix | #38 |
 | 11 Phone platform fit | UX-C15, C12 | fix | #39 |
 | 12 Backoffice correctness | UX-B11, B12, B15 (B10 → #44) | fix | #40 |
-| UX-B10 (reports show raw UTC — early by the offset) | qa R-S8 | fix — lands WITH #24 (A8 pair) | #44 |
-| UX-W14 (pay sheet shows clamped, submits raw) | qa R-M12 | fix — clamp at source + told via pay.amountCapped; major (server caps, no money moves) | #29 (AC5) |
+| UX-B10 (major defect, design §2.2: reports show raw UTC — early by the full UTC offset, 2 h EET / 3 h EEST) | qa R-S8 | fix — lands WITH #24 (A8 pair; fixing one side shrinks the error without removing it) | #44 (bug sev:major) |
+| UX-W14 (major defect, design §2.2: pay sheet shows clamped, submits raw) | qa R-M12 | fix — clamp at source + told via pay.amountCapped; held at major (server caps at the unpaid total, no money moves) | #29 (AC5) |
 | 13 Backoffice polish | UX-B1…B8, B16, C9, C18 + B9 tweaks | fix (D10) | #41 |
 | 14 Smaller waiter/customer | 17 ids (see #42) | fix | #42 |
 | 15 Login a11y | UX-C16 | fix (login stays English — ba) | #43 |
