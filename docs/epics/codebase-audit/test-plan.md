@@ -512,10 +512,17 @@ The gaps below are offered to `ba` as findings in their own right.
 in this document.** Nothing is renumbered once published; a new finding takes the next free number.
 Current totals: **14 gaps (G-1…G-14) and 10 findings (F-1…F-10) = 24 items.**
 
-**The `QA-nn` alias has exactly one definition, and it is not here:** the disposition register in
-`requirement.md`, which maps positionally — `QA-01…QA-14 = G-1…G-14`, `QA-15…QA-22 = F-1…F-8`.
-That table is the authority; this document does not restate it, so the two cannot drift. F-9 and
-F-10 were added after it and have no alias yet.
+**The `QA-nn` alias, stated in full and frozen.** It maps positionally onto the ids below, and
+agrees exactly with the disposition register in `requirement.md`:
+
+| `QA-nn` | Canonical | `QA-nn` | Canonical |
+|---|---|---|---|
+| QA-01 … QA-14 | **G-1 … G-14**, in numeric order | QA-15 … QA-21 | **F-1 … F-7**, in numeric order |
+| QA-22 | **F-8** | — | **F-9, F-10** have no alias (added later) |
+
+**The alias is closed: nothing new gets a `QA-nn`.** New findings are referenced by their canonical
+`G-nn`/`F-nn` only, here and in every register. If this table and `requirement.md`'s ever disagree,
+`requirement.md` wins — `ba` owns the consolidated register and the exit diff runs from it.
 
 An earlier hand-off message to `architect-a` used `QA-01…QA-18` for a per-service split of G-9 and
 a different ordering. **Those ids are superseded — ignore them.** The architects confirmed they
