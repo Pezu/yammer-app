@@ -82,8 +82,8 @@ Per the epic body:
 
 Every finding enters the register (in `design.md` / `ux.md`) with:
 
-- **ID** (`ARCH-nn`, `UX-nn`, `DEF-nn`), one-line title, module and file(s), evidence
-  (what was observed, where)
+- **ID** (`ARCH-nn`, `UX-nn`, `DEF-nn`, `QA-nn` for test-coverage gaps), one-line title,
+  module and file(s), evidence (what was observed, where)
 - **Classification** — defect (observable wrong behaviour), architecture risk (correct
   today, fragile or costly tomorrow), or UX/UI improvement
 - **Severity / impact:**
@@ -98,6 +98,9 @@ Every finding enters the register (in `design.md` / `ux.md`) with:
 - **Disposition** (decided in triage with the lead; human sign-off per the §9
   requirements gate): *fix now* (story/bug this epic), *won't fix* (recorded below with
   reason), or *deferred* (recorded below; a backlog issue is created but not scheduled).
+
+Auditors own their registers (`design.md`, `ux.md`); the consolidated view — every finding
+ID with its disposition and story/bug link — is this page's story map, owned by `ba`.
 
 Triage order: critical/major defects first, then High-impact improvements, then the rest.
 Anything touching payments, fiscal, tenancy, live push, or schema also needs the
