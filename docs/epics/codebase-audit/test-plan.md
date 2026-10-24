@@ -278,7 +278,7 @@ Two levels of detail, deliberately:
 | Story | Blocks to re-run | New scenarios beyond `ux.md`'s specs |
 |---|---|---|
 | **#29** waiter failed actions | R-M (pay flows), R-U1, R-U3 | AC5 is **R-M12**'s post-fix expectation; AC1 is **R-M11** |
-| **#30** customer cart + legibility | R-U1, R-U3, R-O1 | the cart-clear path after a paid-and-closed tab (UX-Q2's revised rule) |
+| **#30** customer cart + legibility | R-U1, R-U3, R-O1, R-O9, R-O9b, R-O10 | **R-O9** (AC4b: never redirected on an unseen figure) + **R-O9b** (the warning must not fire on float noise) + **R-O10** (abandonment points, incl. the new hold); UX-Q4's stepper re-measures at **44 px**, not 40 |
 | **#31** RO money formatting | R-M (display half), R-U1, R-U2 | the RO/EN pairs per AC1/AC3; **every R-M UI assertion re-reads in RO afterwards** |
 | **#32** tokens, focus, combo | R-U2, R-U5, R-U7, R-U8 | R-U8 re-measures `--danger` and the new `--success`/`--warn` |
 | **#33** service board distance | R-U3, R-P1 | UX-S2's new/late states on the 8 s tick; UX-S3's empty/loading columns |
@@ -318,13 +318,26 @@ regression — never ambiguity about what the number should be.
 | **R-M12** | `T1.1` with 3 × Pizza (126.00): in the pay sheet choose AMOUNT, type `500`, pick the 10% tip preset, submit | **Assert the request payload, never the DOM** — see the trap below. **Current** behaviour (`ux` UX-W14, verified): display clamps to `126.00` (`waiter-table-detail-page.ts:238`), the tip is computed from that *clamped* base (`:256-257`, `grossTotal()`), `canSubmit` for AMOUNT only checks `> 0` with no upper bound (`:550`), and the request sends the raw field (`:563`). So the sheet shows Amount 126.00 / Tip 12.60 / Total 138.60 — **every number on screen internally consistent** — while the wire carries `amount: 500, tip: 12.60`. The server then caps the allocation at the unpaid total, so the *recorded* payment is 126.00: the server cap is the only thing between this and an overpayment. Post-fix (clamp at source) the field itself cannot exceed what is due, so no divergent state is reachable at all. Pairs with R-M4, which pins the server cap |
 | **R-M13** | **Split and re-join on the DISCOUNTED table** (post-D5). `T2.1` (10%) with 2 × Prosecco: gross 44.00, net unit **19.80**, net total **39.60**. Pay **AMOUNT 25.00** → one full net unit settled at 19.80, the remaining 5.20 splits one unit into a paid **5.20** and an unpaid **14.60**. Then pay **FULL 14.60** | after the first payment the table owes 14.60 and both fragments render as partial; after the second, nothing is owed and the Paid view re-joins them into **2 × Prosecco at 19.80**, one line, no partial marker. **The assertion that matters is `originalPrice`'s basis:** `mergeSettledSplits` groups paid fragments by `productKey + "|" + originalPrice` and divides their summed `price × quantity` by `originalPrice` to recover whole units, so the two must share a basis. If the fragments are priced **net** while `originalPrice` keeps the **gross** 22.00, the sum 19.80 divided by 22.00 yields **zero** full units and the unit **never re-joins** — a settled table shows a permanently "partially paid" line, with every total still correct, so no arithmetic test catches it. Raised by `backend-2` while designing #14/#5; R-M2 and R-M3 run on the undiscounted `T1.1` and would not exercise this at all. The display consequence (UX-W13's tag reads "5.20 of 19.80", not "of 22.00") is a `ux` decision, not a backend one |
 
-**A trap this suite has to respect, from R-M12.** Where a screen derives *every* displayed number
-from the same clamped or cached value, the display is internally consistent while being wrong about
-what was sent — so a UI assertion confirms the defect instead of catching it. Any money scenario on
-a surface that computes totals client-side (the pay sheet, the cart bar, the waiter order page)
-asserts **the request payload and the stored row**; the DOM is evidence of what the operator
-believed, not of what was charged. `ux` found this one; it generalises, so it is recorded here
-rather than only on R-M12.
+**A trap this suite has to respect, from R-M12 — now a house rule.** `CLAUDE.md` §5 point 6 carries
+the short form, agreed by the architect pair:
+
+> Where the client computes a value it submits — money above all — the protecting assertion is the
+> request payload and the stored row, never only the rendered value: the screen shows what the
+> operator believed, not what was charged.
+
+The operational form for this suite: where a screen derives *every* displayed number from the same
+clamped or cached value, the display is internally consistent while being wrong about what was sent,
+so a UI assertion **confirms** the defect instead of catching it. Any money scenario on a surface
+that computes totals client-side (the pay sheet, the cart bar, the waiter order page, the customer
+cart) asserts the request payload and the stored row. `ux` found the instance (R-M12); it
+generalises past money to anything a client derives and then submits, which is why it is a house
+rule rather than a line here.
+
+**Note what the rule does *not* say: it does not say the screen is untested.** "Never *only* the
+rendered value" means the payload **decides**, and some scenarios need both halves paired — R-O9 is
+the clearest case, where what the guest was shown is itself the thing under test and must be checked
+*together* with the amount that was then confirmed. Asserting one without the other passes a build
+that displays one figure and charges another.
 
 ### R-F — fiscal outbox (I4)
 
@@ -449,6 +462,9 @@ rather than leaving it inside R-O5.
 | **R-O6** | IPN for an unknown / already-expired reference | rejected; nothing created |
 | **R-O7** | Intent left untouched for > 30 min | expired by the scheduler; a late IPN for it creates nothing |
 | **R-O8** | Post-fix (authenticity story) | an IPN that fails signature/authenticity verification is rejected, and R-O3 still passes with a genuine one |
+| **R-O9** | **The guest is never redirected on a figure they have not seen** (UX-Q2's corrected sequence, #30 AC4b). (a) Totals agree: build a cart, order at an ONLINE point. (b) Totals differ: build a cart at 42.00 (1 × Pizza), change Pizza to **45.00** in the backoffice, then order | (a) one tap, straight to the gateway, nothing visibly changes. (b) **the redirect is held** — `cust.amountChanged` shows the new total, the pay button re-labels to the **server** figure 45.00, and a second tap is required before the guest leaves. **Assert both halves, paired** (see the note under R-M12): what was displayed at the moment of the second tap, *and* that the confirmed amount equals exactly that. Asserting only the notice passes a build that shows 45.00 and confirms 42.00. A lower server total pauses too — it is still a figure the guest has not seen. Shares its reproduction with #16's stale-cache AC1 |
+| **R-O9b** | **The warning must not fire when nothing changed.** Same flow with a price whose client-side float arithmetic is inexact: **3 × 4.70**. The client total is a plain JS accumulation (`customer-order-point-page.ts:887`); the server computes in `BigDecimal` | one tap, immediate redirect, **no** `cust.amountChanged`. A naive `clientTotal !== serverAmount` yields `14.100000000000001` against 14.10 and pauses an order where nothing changed, so the comparison must be at 2-decimal precision. The harm is not the extra tap: a warning that fires falsely becomes noise, guests learn to tap through it, and the one that matters goes unread. **TD-4's prices do not catch this** — 11.00, 22.00, 42.00 and 9.99 all multiply cleanly at the quantities this suite uses (3 × 9.99 is exactly 29.97 in JS), so this scenario adds 4.70 for the purpose |
+| **R-O10** | Abandonment points, enumerated — the guest leaves at each: before the intent exists; **at the new UX-Q2 hold, after the intent exists but before the second tap**; at the gateway page; after paying but closing the tab before the return page | the cart survives every abandonment that did not result in payment, and is cleared on `PAID` observed from anywhere (return page, or the next load of the order-point page while a stored `ref` exists), plus the belt-and-braces check that the bill already contains the order. The hold is the abandonment point UX-Q2's correction introduced |
 
 ### R-A — rounds, assignment, approvals (I7)
 
