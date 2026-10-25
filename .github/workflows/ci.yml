@@ -1,0 +1,114 @@
+name: ci
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  # Detect which top-level folder changed so a docs-only PR skips both builds.
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      api: ${{ steps.filter.outputs.api }}
+      web: ${{ steps.filter.outputs.web }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            api:
+              - 'api/**'
+            web:
+              - 'web/**'
+
+  api:
+    needs: changes
+    if: ${{ needs.changes.outputs.api == 'true' }}
+    runs-on: ubuntu-latest
+    services:
+      # No fake-gcs: StorageConfig builds the GCS client lazily, nothing pings it at startup.
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: yammer
+          POSTGRES_USER: yammer
+          POSTGRES_PASSWORD: yammerpass
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U yammer -d yammer"
+          --health-interval 5s
+          --health-retries 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+      - name: Create yammer schema
+        run: PGPASSWORD=yammerpass psql -h localhost -U yammer -d yammer -c "CREATE SCHEMA IF NOT EXISTS yammer;"
+      - name: Build
+        working-directory: api
+        run: mvn -B -DskipTests package
+      - name: Test
+        working-directory: api
+        env:
+          DATABASE_URL: jdbc:postgresql://localhost:5432/yammer?currentSchema=yammer
+          DATABASE_USERNAME: yammer
+          DATABASE_PASSWORD: yammerpass
+          # >= 32 bytes; CI-only, JwtService refuses to start on the committed placeholder
+          JWT_SECRET: local-compose-only-jwt-secret-0123456789abcdef
+        run: mvn -B test
+      - name: Upload test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: api-test-reports
+          path: api/target/surefire-reports
+          retention-days: 14
+
+  web:
+    needs: changes
+    if: ${{ needs.changes.outputs.web == 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: Install
+        working-directory: web
+        run: npm ci
+      - name: Test
+        working-directory: web
+        # vitest watch mode defaults to off outside a TTY, so this runs once and exits
+        run: npm test
+      - name: Build
+        working-directory: web
+        run: npm run build
+
+  # Single required status check for branch protection, whatever paths a PR touches.
+  release-gate:
+    needs: [changes, api, web]
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require api/web to have passed (or been skipped)
+        run: |
+          for result in "${{ needs.api.result }}" "${{ needs.web.result }}"; do
+            if [[ "$result" == "failure" || "$result" == "cancelled" ]]; then
+              echo "a required job did not pass: $result"
+              exit 1
+            fi
+          done
+      - name: Only develop may open a PR into main
+        if: ${{ github.base_ref == 'main' && github.head_ref != 'develop' }}
+        run: |
+          echo "PRs into main are opened only from develop (CLAUDE.md §4) — head was '${{ github.head_ref }}'"
+          exit 1
